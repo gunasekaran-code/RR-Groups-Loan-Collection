@@ -1,0 +1,122 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+
+/// Thrown for any non-2xx response. `message` is the human-readable
+/// error your PHP `json_error()` sends back.
+class ApiException implements Exception {
+  final String message;
+  final int statusCode;
+  ApiException(this.message, this.statusCode);
+  @override
+  String toString() => message;
+}
+
+class AuthApiService {
+  AuthApiService._();
+  static final AuthApiService instance = AuthApiService._();
+
+  // ---------------------------------------------------------------------
+  // Point this at your PHP dev server. `php -S localhost:8889` only
+  // listens on your Mac, so:
+  //   - iOS simulator / Flutter web / desktop -> http://localhost:8889
+  //   - Android emulator                       -> http://10.0.2.2:8889
+  //   - real phone on same wifi                -> http://<your-mac-lan-ip>:8889
+  // Change this one constant when you switch targets.
+  // ---------------------------------------------------------------------
+  static const String baseUrl = 'http://localhost:8889';
+  static const String authEndpoint = '$baseUrl/auth.php';
+
+  static const _tokenKey = 'auth_token';
+  static const _profileKey = 'auth_profile';
+
+  Future<Map<String, dynamic>> _post(String action, Map<String, dynamic> body) async {
+    late http.Response res;
+    try {
+      res = await http
+          .post(
+            Uri.parse('$authEndpoint?action=$action'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 15));
+    } catch (_) {
+      throw ApiException('Could not reach the server. Check your connection and try again.', 0);
+    }
+
+    Map<String, dynamic> data;
+    try {
+      data = jsonDecode(res.body) as Map<String, dynamic>;
+    } catch (_) {
+      throw ApiException('Unexpected server response.', res.statusCode);
+    }
+
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw ApiException((data['error'] ?? data['message'] ?? 'Something went wrong').toString(), res.statusCode);
+    }
+    return data;
+  }
+
+  // ---- login -----------------------------------------------------------
+
+  /// Returns the decoded response: { token, user, profile }
+  Future<Map<String, dynamic>> login({required String email, required String password}) async {
+    final data = await _post('login', {'email': email, 'password': password});
+    final token = data['token'] as String?;
+    if (token != null) {
+      await _saveSession(token, data['profile'] as Map<String, dynamic>?);
+    }
+    return data;
+  }
+
+  // ---- forgot password (2-step OTP flow) --------------------------------
+
+  /// Step 1: verify email + mobile, triggers OTP send.
+  /// Returns e.g. { ok, channels, sent_to, email_masked, demo_otp? }
+  Future<Map<String, dynamic>> requestOtp({required String email, required String mobile}) {
+    return _post('request_otp', {'email': email, 'mobile': mobile});
+  }
+
+  /// Step 2: verify OTP + set new password.
+  Future<Map<String, dynamic>> resetPassword({
+    required String email,
+    required String mobile,
+    required String otp,
+    required String newPassword,
+  }) {
+    return _post('reset_password', {
+      'email': email,
+      'mobile': mobile,
+      'otp': otp,
+      'new_password': newPassword,
+    });
+  }
+
+  // ---- session helpers ---------------------------------------------------
+
+  Future<void> _saveSession(String token, Map<String, dynamic>? profile) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_tokenKey, token);
+    if (profile != null) await prefs.setString(_profileKey, jsonEncode(profile));
+  }
+
+  Future<String?> getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_tokenKey);
+  }
+
+  Future<Map<String, dynamic>?> getStoredProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_profileKey);
+    if (raw == null) return null;
+    return jsonDecode(raw) as Map<String, dynamic>;
+  }
+
+  Future<void> logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_tokenKey);
+    await prefs.remove(_profileKey);
+  }
+
+  Future<bool> isLoggedIn() async => (await getToken()) != null;
+}
