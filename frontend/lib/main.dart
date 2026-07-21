@@ -21,7 +21,9 @@ import 'screens/settings/settings_screen.dart';
 import 'screens/settings/profile_page.dart';
 import 'screens/agent_page.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await SessionService.instance.restoreFromStorage();
   runApp(const FinCollectApp());
 }
 

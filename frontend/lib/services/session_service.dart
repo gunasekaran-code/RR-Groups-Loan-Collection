@@ -1,29 +1,66 @@
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/app_user.dart';
 import '../models/user_role.dart';
 
-/// Static/demo session handling.
-/// TODO(backend): replace static login with real Sanctum token auth
-/// (SharedPreferences 'auth_token' + Bearer header) once the API is wired up.
 class SessionService {
   SessionService._internal();
   static final SessionService instance = SessionService._internal();
 
+  static const String _tokenKey = 'auth_token';
+  static const String _profileKey = 'auth_profile';
+
   AppUser? currentUser;
+  String? token;
 
-  static const List<AppUser> staticUsers = [
-    AppUser(userId: 'OWN-001', name: 'Rajesh Kumar', role: UserRole.owner),
-    AppUser(userId: 'ADM-001', name: 'Priya Sharma', role: UserRole.admin),
-    AppUser(userId: 'AGT-001', name: 'Arjun Mehta', role: UserRole.agent),
-  ];
+  Future<void> restoreFromStorage() async {
+    final prefs = await SharedPreferences.getInstance();
+    token = prefs.getString(_tokenKey);
 
-  AppUser login(AppUser user) {
+    final rawProfile = prefs.getString(_profileKey);
+    if (rawProfile == null || rawProfile.isEmpty) {
+      currentUser = null;
+      return;
+    }
+
+    try {
+      final profile = jsonDecode(rawProfile) as Map<String, dynamic>;
+      currentUser = AppUser(
+        userId: (profile['id'] ?? '').toString(),
+        name: (profile['full_name'] as String?)?.trim().isNotEmpty == true
+            ? profile['full_name'] as String
+            : (profile['email'] ?? 'User').toString(),
+        role: _roleFromProfile(profile['role']),
+      );
+    } catch (_) {
+      currentUser = null;
+      token = null;
+    }
+  }
+
+  AppUser login(AppUser user, {String? token}) {
     currentUser = user;
+    this.token = token;
     return user;
   }
 
   void logout() {
     currentUser = null;
+    token = null;
   }
 
   bool get isLoggedIn => currentUser != null;
+}
+
+UserRole _roleFromProfile(dynamic rawRole) {
+  switch ((rawRole ?? '').toString().trim().toLowerCase()) {
+    case 'owner':
+      return UserRole.owner;
+    case 'admin':
+      return UserRole.admin;
+    case 'agent':
+      return UserRole.agent;
+    default:
+      return UserRole.agent;
+  }
 }

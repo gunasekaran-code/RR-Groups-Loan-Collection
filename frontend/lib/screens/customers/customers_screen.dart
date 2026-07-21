@@ -1,23 +1,355 @@
-import 'package:flutter/material.dart';
-import '../../routes/app_routes.dart';
+import 'dart:convert';
+import 'dart:typed_data';
 import '../../theme/app_theme.dart';
-import '../../widgets/app_shell.dart';
+import '../../models/customer.dart';
+import '../../routes/app_routes.dart';
 import '../../theme/glass_toast.dart';
-import '../../theme/confirm_dialog.dart';
+import '../../widgets/app_shell.dart';
+import 'package:flutter/material.dart';
 import '../../widgets/page_header.dart';
+import '../../theme/confirm_dialog.dart';
+import '../../services/photo_service.dart';
+import '../../services/location_service.dart';
+import '../../services/customer_api_service.dart';
+
 
 class CustomersScreen extends StatefulWidget {
   const CustomersScreen({super.key});
 
   @override
   State<CustomersScreen> createState() => _CustomersScreenState();
-
-
 }
 
-class _CustomerViewSheet extends StatelessWidget {
-  final Map<String, String> customer;
+class _CustomersScreenState extends State<CustomersScreen> {
+  final _api = CustomerApiService();
 
+  String _query = '';
+  String _statusFilter = 'All Status';
+
+  bool _loading = true;
+  String? _error;
+  List<Customer> _customers = [];
+  List<AgentOption> _agents = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCustomers();
+    _loadAgents();
+  }
+
+  Future<void> _loadCustomers() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final customers = await _api.fetchAll();
+      if (!mounted) return;
+      setState(() {
+        _customers = customers;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+      ToastService.show(
+        title: 'Failed to load customers',
+        message: _error!,
+        type: ToastType.error,
+      );
+    }
+  }
+
+  Future<void> _loadAgents() async {
+    try {
+      final agents = await _api.fetchAgents();
+      if (!mounted) return;
+      setState(() => _agents = agents);
+    } catch (e) {
+      // Non-fatal: form still works, just without an agent list.
+      debugPrint('Failed to load agents: $e');
+    }
+  }
+
+  // Maps the SQL enum ('none'|'active'|'overdue'|'closed') to your filter labels.
+  String _statusLabel(String loanStatus) {
+    switch (loanStatus) {
+      case 'active':
+        return 'Active';
+      case 'overdue':
+        return 'Overdue';
+      case 'closed':
+        return 'Inactive';
+      default:
+        return 'Active';
+    }
+  }
+
+  void _viewCustomer(Customer c) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withOpacity(0.4),
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: AppColors.kSurface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 20, offset: Offset(0, -4))],
+          ),
+          child: SafeArea(
+            top: false,
+            child: SingleChildScrollView(child: _CustomerViewSheet(customer: c)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteCustomer(Customer c) async {
+    final confirmed = await AppConfirmDialog.show(
+      context: context,
+      title: 'Delete Customer',
+      message: 'Are you sure you want to delete ${c.fullName}? This action cannot be undone.',
+      confirmLabel: 'Delete',
+      confirmButtonColor: AppColors.kDanger,
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await _api.delete(c.id);
+      if (!mounted) return;
+      // Re-fetch from the database instead of trusting a local removeWhere.
+      await _loadCustomers();
+      if (!mounted) return;
+      ToastService.show(
+        title: 'Customer deleted',
+        message: '${c.fullName} was removed successfully',
+        type: ToastType.success,
+      );
+    } catch (e) {
+      ToastService.show(
+        title: 'Delete failed',
+        message: e.toString(),
+        type: ToastType.error,
+      );
+    }
+  }
+
+  void _showCustomerFormModal({Customer? existingCustomer}) {
+    final isEditing = existingCustomer != null;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withOpacity(0.4),
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: AppColors.kSurface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 20, offset: Offset(0, -4))],
+          ),
+          child: SafeArea(
+            top: false,
+            child: SingleChildScrollView(
+              child: _CustomerForm(
+                initialData: existingCustomer,
+                agents: _agents,
+                onSave: (updated, email, password) async {
+                  try {
+                    if (isEditing) {
+                      await _api.update(
+                        existingCustomer.id,
+                        updated,
+                        email: email,
+                        password: password,
+                      );
+                    } else {
+                      await _api.create(updated, email: email, password: password);
+                    }
+                    if (!mounted) return;
+                    // Re-fetch the full list from the database instead of
+                    // splicing the returned object into local state.
+                    await _loadCustomers();
+                    if (!mounted) return;
+                    Navigator.pop(context);
+                    ToastService.show(
+                      title: isEditing ? 'Customer updated' : 'Customer added',
+                      message: isEditing
+                          ? '${updated.fullName} was updated successfully'
+                          : '${updated.fullName} was added successfully',
+                      type: ToastType.success,
+                    );
+                  } catch (e) {
+                    ToastService.show(
+                      title: 'Something went wrong',
+                      message: e.toString(),
+                      type: ToastType.error,
+                    );
+                  }
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _customers.where((c) {
+      final matchesName = c.fullName.toLowerCase().contains(_query.toLowerCase());
+      final matchesStatus =
+          _statusFilter == 'All Status' || _statusLabel(c.loanStatus) == _statusFilter;
+      return matchesName && matchesStatus;
+    }).toList();
+
+    return AppShell(
+      currentRoute: AppRoutes.customers,
+      title: 'Customers',
+      body: Container(
+        color: AppColors.kBackground,
+        child: RefreshIndicator(
+          onRefresh: _loadCustomers,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              PageHeader(
+                title: 'Customers',
+                subtitle: 'Manage customer information and details',
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      ToastService.show(
+                        title: 'Export started',
+                        message: 'Preparing your customer list',
+                        type: ToastType.info,
+                      );
+                    },
+                    icon: const Icon(Icons.file_download_outlined, size: 18),
+                    label: const Text('Export'),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton.icon(
+                    onPressed: () => _showCustomerFormModal(),
+                    icon: const Icon(Icons.person_add_alt_1_outlined, size: 18),
+                    label: const Text('Add Customer'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.kSurface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.kBorder),
+                ),
+                child: Column(
+                  children: [
+                    TextField(
+                      onChanged: (v) => setState(() => _query = v),
+                      decoration: const InputDecoration(
+                        hintText: 'Search by name...',
+                        prefixIcon: Icon(Icons.search, color: AppColors.kTextMuted),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.kBorder),
+                        color: AppColors.kSurface,
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          isExpanded: true,
+                          value: _statusFilter,
+                          icon: const Icon(Icons.unfold_more, size: 20, color: AppColors.kTextMuted),
+                          items: ['All Status', 'Active', 'Overdue', 'Inactive']
+                              .map((s) => DropdownMenuItem(
+                                    value: s,
+                                    child: Text(s, style: const TextStyle(color: AppColors.kTextDark)),
+                                  ))
+                              .toList(),
+                          onChanged: (val) {
+                            if (val != null) setState(() => _statusFilter = val);
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              if (_loading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 48),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 48),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Text(_error!, style: const TextStyle(color: AppColors.kDanger)),
+                        const SizedBox(height: 12),
+                        OutlinedButton(onPressed: _loadCustomers, child: const Text('Retry')),
+                      ],
+                    ),
+                  ),
+                )
+              else if (filtered.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 48),
+                  child: Center(child: Text('No customers found')),
+                )
+              else
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: filtered.length,
+                  separatorBuilder: (context, index) => const SizedBox(height: 16),
+                  itemBuilder: (context, index) {
+                    final c = filtered[index];
+                    return _CustomerCard(
+                      customer: c,
+                      statusLabel: _statusLabel(c.loanStatus),
+                      onView: () => _viewCustomer(c),
+                      onEdit: () => _showCustomerFormModal(existingCustomer: c),
+                      onDelete: () => _deleteCustomer(c),
+                    );
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------
+// CUSTOMER VIEW SHEET
+// ---------------------------------------------------------
+
+class _CustomerViewSheet extends StatelessWidget {
+  final Customer customer;
   const _CustomerViewSheet({required this.customer});
 
   @override
@@ -32,11 +364,9 @@ class _CustomerViewSheet extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                customer['name'] ?? 'Customer Details',
+                customer.fullName,
                 style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.kTextDark),
+                    fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.kTextDark),
               ),
               IconButton(
                 padding: EdgeInsets.zero,
@@ -46,28 +376,25 @@ class _CustomerViewSheet extends StatelessWidget {
               ),
             ],
           ),
-
           const SizedBox(height: 24),
-          _buildViewField('CUSTOMER ID', customer['id']),
-          _buildViewField('MOBILE', customer['phone']),
-          _buildViewField('ADDRESS', customer['address']),
-          _buildViewField('AADHAR', customer['aadhar']),
-          _buildViewField('ASSIGNED AGENT', customer['agent']),
-          _buildViewField('STATUS', customer['status']),
-          
+          _buildViewField('CUSTOMER ID', customer.customerId),
+          _buildViewField('MOBILE', customer.mobile),
+          _buildViewField('ADDRESS', customer.address),
+          _buildViewField('AADHAAR', customer.aadhaar),
+          _buildViewField('PAN', customer.pan),
+          _buildViewField('OCCUPATION', customer.occupation),
+          _buildViewField('ASSIGNED AGENT', customer.assignedAgentName ?? customer.assignedAgent),
+          _buildViewField('LOAN STATUS', customer.loanStatus),
           const SizedBox(height: 8),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton(
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
               onPressed: () => Navigator.pop(context),
-              child: const Text('Close',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
+              child: const Text('Close', style: TextStyle(fontWeight: FontWeight.w600)),
             ),
           ),
         ],
@@ -81,13 +408,9 @@ class _CustomerViewSheet extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: AppColors.kTextMuted),
-          ),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.kTextMuted)),
           const SizedBox(height: 8),
           Container(
             width: double.infinity,
@@ -97,11 +420,7 @@ class _CustomerViewSheet extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppColors.kBorder),
             ),
-            child: Text(
-              value ?? '-', 
-              style: const TextStyle(
-                  color: AppColors.kTextDark, fontSize: 14),
-            ),
+            child: Text(value ?? '-', style: const TextStyle(color: AppColors.kTextDark, fontSize: 14)),
           ),
         ],
       ),
@@ -109,358 +428,37 @@ class _CustomerViewSheet extends StatelessWidget {
   }
 }
 
-class _CustomersScreenState extends State<CustomersScreen> {
-  String _query = '';
-  String _statusFilter = 'All Status';
-
-  List<Map<String, String>> _customers = [
-    {
-      'name': 'Vikram Naidu',
-      'id': 'CUST-FE6C19',
-      'phone': '9988776655',
-      'address': '12 MG Road, Bangal...',
-      'aadhar': '[Aadhaar Redacted]',
-      'agent': 'Arjun Mehta',
-      'status': 'Active'
-    },
-    {
-      'name': 'Lakshmi Iyer',
-      'id': 'CUST-316E98',
-      'phone': '9988776654',
-      'address': '45 Anna Salai, Che...',
-      'aadhar': '[Aadhaar Redacted]',
-      'agent': 'Arjun Mehta',
-      'status': 'Overdue'
-    },
-    {
-      'name': 'Ramesh Gowda',
-      'id': 'CUST-DE590D',
-      'phone': '9988776653',
-      'address': '88 Indiranagar, Ban...',
-      'aadhar': '[Aadhaar Redacted]',
-      'agent': 'Priya Singh',
-      'status': 'Active'
-    },
-  ];
-
-  void _viewCustomer(Map<String, String> customer) {
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    barrierColor: Colors.black.withOpacity(0.4),
-    builder: (context) => Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: Container(
-        decoration: const BoxDecoration(
-          color: AppColors.kSurface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 20,
-              offset: Offset(0, -4),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            child: _CustomerViewSheet(customer: customer),
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
-  // --- ACTIONS ---
-
-  void _deleteCustomer(String id) async {
-    final customer = _customers.firstWhere((c) => c['id'] == id);
-
-    // Call the global helper seamlessly from any page
-    final confirmed = await AppConfirmDialog.show(
-      context: context,
-      title: 'Delete Customer',
-      message:
-          'Are you sure you want to delete ${customer['name']}? This action cannot be undone.',
-      confirmLabel: 'Delete',
-      confirmButtonColor: AppColors.kDanger,
-    );
-
-    // Act exclusively upon return execution confirm verification
-    if (confirmed == true && mounted) {
-      setState(() {
-        _customers.removeWhere((c) => c['id'] == id);
-      });
-
-      ToastService.show(
-        title: 'Customer deleted',
-        message: '${customer['name']} was removed successfully',
-        type: ToastType.success,
-      );
-    }
-}
-
-
-
-  void _showCustomerFormModal(
-      {Map<String, String>? existingCustomer, int? index}) {
-    final isEditing = existingCustomer != null;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor:
-          Colors.transparent, // Ensures shadow & curves show cleanly
-      barrierColor: Colors.black.withOpacity(0.4), // Matches smooth dark tint
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context)
-              .viewInsets
-              .bottom, // Pushes smoothly above keyboard
-        ),
-        child: Container(
-          decoration: const BoxDecoration(
-            color: AppColors.kSurface,
-            borderRadius: BorderRadius.vertical(
-              top: Radius.circular(
-                  24), // Vertical top curves matching confirm style
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black12,
-                blurRadius: 20,
-                offset: Offset(0, -4),
-              ),
-            ],
-          ),
-          child: SafeArea(
-            top:
-                false, // Ensures bottom padding fits the iOS home indicator area when keyboard is down
-            child: SingleChildScrollView(
-              child: _CustomerForm(
-                initialData: existingCustomer,
-                onSave: (savedData) {
-                  setState(() {
-                    if (index != null) {
-                      _customers[index] = savedData;
-                    } else {
-                      savedData['id'] =
-                          'CUST-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
-                      _customers.add(savedData);
-                    }
-                  });
-
-                  ToastService.show(
-                    title: isEditing ? 'Customer updated' : 'Customer added',
-                    message: isEditing
-                        ? '${savedData['name']} was updated successfully'
-                        : '${savedData['name']} was added successfully',
-                    type: ToastType.success,
-                  );
-                },
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSearchAndFilters(bool isNarrow) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: TextField(
-        decoration: const InputDecoration(
-          prefixIcon: Icon(Icons.search),
-          hintText: 'Search customers...',
-        ),
-        onChanged: (value) {
-          // Search logic
-        },
-      ),
-    );
-  }
-
-  void _showCreateCustomerDialog() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Create Customer'),
-          content: const Text('Customer form goes here'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Close'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isNarrow = MediaQuery.of(context).size.width < 900;
-    final filtered = _customers.where((c) {
-      final matchesName =
-          c['name']!.toLowerCase().contains(_query.toLowerCase());
-      final matchesStatus =
-          _statusFilter == 'All Status' || c['status'] == _statusFilter;
-      return matchesName && matchesStatus;
-    }).toList();
-
-    return AppShell(
-      currentRoute: AppRoutes.customers,
-      title: 'Customers',
-      body: Container(
-        color: AppColors.kBackground,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            PageHeader(
-              title: 'Customers',
-              subtitle: 'Manage customer information and details',
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () {
-                    // Example: hook export feedback into the toast too
-                    ToastService.show(
-                      title: 'Export started',
-                      message: 'Preparing your customer list',
-                      type: ToastType.info,
-                    );
-                  },
-                  icon: const Icon(Icons.file_download_outlined, size: 18),
-                  label: const Text('Export'),
-                ),
-                const SizedBox(width: 12),
-                ElevatedButton.icon(
-                  onPressed: () => _showCustomerFormModal(),
-                  icon: const Icon(Icons.person_add_alt_1_outlined, size: 18),
-                  label: const Text('Add Customer'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // Search & Filter Box
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.kSurface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.kBorder),
-              ),
-              child: Column(
-                children: [
-                  TextField(
-                    onChanged: (v) => setState(() => _query = v),
-                    decoration: const InputDecoration(
-                      hintText: 'Search by name...',
-                      prefixIcon:
-                          Icon(Icons.search, color: AppColors.kTextMuted),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.kBorder),
-                      color: AppColors.kSurface,
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        isExpanded: true,
-                        value: _statusFilter,
-                        icon: const Icon(Icons.unfold_more,
-                            size: 20, color: AppColors.kTextMuted),
-                        items: ['All Status', 'Active', 'Overdue', 'Inactive']
-                            .map((s) => DropdownMenuItem(
-                                  value: s,
-                                  child: Text(s,
-                                      style: const TextStyle(
-                                          color: AppColors.kTextDark)),
-                                ))
-                            .toList(),
-                        onChanged: (val) {
-                          if (val != null) setState(() => _statusFilter = val);
-                        },
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Customer List
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: filtered.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 16),
-              itemBuilder: (context, index) {
-                final c = filtered[index];
-                final originalIndex = _customers
-                    .indexWhere((element) => element['id'] == c['id']);
-
-                return _CustomerCard(
-                  customer: c,
-                  onView: () => _viewCustomer(c),
-                  onEdit: () => _showCustomerFormModal(
-                      existingCustomer: c, index: originalIndex),
-                  onDelete: () => _deleteCustomer(c['id']!),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // ---------------------------------------------------------
-// CUSTOMER CARD WIDGET
+// CUSTOMER CARD
 // ---------------------------------------------------------
 
 class _CustomerCard extends StatelessWidget {
-  final Map<String, String> customer;
+  final Customer customer;
+  final String statusLabel;
   final VoidCallback onView;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const _CustomerCard({
     required this.customer,
+    required this.statusLabel,
     required this.onView,
     required this.onEdit,
     required this.onDelete,
   });
 
   String _getInitials(String name) {
-    List<String> parts = name.split(' ');
-    if (parts.length > 1) {
+    final parts = name.trim().split(' ');
+    if (parts.length > 1 && parts[0].isNotEmpty && parts[1].isNotEmpty) {
       return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
     }
-    return name.substring(0, 2).toUpperCase();
+    return name.length >= 2 ? name.substring(0, 2).toUpperCase() : name.toUpperCase();
   }
 
   @override
   Widget build(BuildContext context) {
-    final isActive = customer['status'] == 'Active';
-    final badgeColor = isActive
-        ? AppColors.kSuccess.withOpacity(0.1)
-        : AppColors.kDanger.withOpacity(0.1);
+    final isActive = statusLabel == 'Active';
+    final badgeColor = isActive ? AppColors.kSuccess.withOpacity(0.1) : AppColors.kDanger.withOpacity(0.1);
     final badgeTextColor = isActive ? AppColors.kSuccess : AppColors.kDanger;
 
     return Container(
@@ -479,11 +477,8 @@ class _CustomerCard extends StatelessWidget {
                 radius: 24,
                 backgroundColor: AppColors.kGold,
                 child: Text(
-                  _getInitials(customer['name']!),
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18),
+                  _getInitials(customer.fullName),
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
                 ),
               ),
               const SizedBox(width: 12),
@@ -491,62 +486,38 @@ class _CustomerCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      customer['name']!,
-                      style: const TextStyle(
-                          color: AppColors.kTextDark,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold),
-                    ),
+                    Text(customer.fullName,
+                        style: const TextStyle(
+                            color: AppColors.kTextDark, fontSize: 16, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 4),
-                    Text(
-                      customer['id']!,
-                      style: const TextStyle(
-                          color: AppColors.kTextMuted, fontSize: 13),
-                    ),
+                    Text(customer.customerId,
+                        style: const TextStyle(color: AppColors.kTextMuted, fontSize: 13)),
                   ],
                 ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: badgeColor,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  customer['status']!,
-                  style: TextStyle(
-                      color: badgeTextColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600),
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(color: badgeColor, borderRadius: BorderRadius.circular(12)),
+                child: Text(statusLabel,
+                    style: TextStyle(color: badgeTextColor, fontSize: 12, fontWeight: FontWeight.w600)),
               ),
             ],
           ),
           const SizedBox(height: 20),
           Row(
             children: [
-              Expanded(
-                  child: _DetailItem(
-                      icon: Icons.phone_outlined, text: customer['phone']!)),
-              Expanded(
-                  child: _DetailItem(
-                      icon: Icons.location_on_outlined,
-                      text: customer['address']!)),
+              Expanded(child: _DetailItem(icon: Icons.phone_outlined, text: customer.mobile ?? '-')),
+              Expanded(child: _DetailItem(icon: Icons.location_on_outlined, text: customer.address ?? '-')),
             ],
           ),
           const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(
-                  child: _DetailItem(
-                      icon: Icons.credit_card_outlined,
-                      text: customer['aadhar']!)),
+              Expanded(child: _DetailItem(icon: Icons.credit_card_outlined, text: customer.aadhaar ?? '-')),
               Expanded(
                   child: _DetailItem(
                       icon: Icons.business_center_outlined,
-                      text: customer['agent']!)),
+                      text: customer.assignedAgentName ?? customer.assignedAgent ?? 'Unassigned')),
             ],
           ),
           const SizedBox(height: 20),
@@ -555,21 +526,9 @@ class _CustomerCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _ActionButton(
-                  icon: Icons.visibility_outlined,
-                  label: 'View',
-                  color: AppColors.kInfo,
-                  onTap: onView),
-              _ActionButton(
-                  icon: Icons.edit_outlined,
-                  label: 'Edit',
-                  color: AppColors.kGoldDark,
-                  onTap: onEdit),
-              _ActionButton(
-                  icon: Icons.delete_outline,
-                  label: 'Delete',
-                  color: AppColors.kDanger,
-                  onTap: onDelete),
+              _ActionButton(icon: Icons.visibility_outlined, label: 'View', color: AppColors.kInfo, onTap: onView),
+              _ActionButton(icon: Icons.edit_outlined, label: 'Edit', color: AppColors.kGoldDark, onTap: onEdit),
+              _ActionButton(icon: Icons.delete_outline, label: 'Delete', color: AppColors.kDanger, onTap: onDelete),
             ],
           ),
         ],
@@ -581,7 +540,6 @@ class _CustomerCard extends StatelessWidget {
 class _DetailItem extends StatelessWidget {
   final IconData icon;
   final String text;
-
   const _DetailItem({required this.icon, required this.text});
 
   @override
@@ -592,11 +550,9 @@ class _DetailItem extends StatelessWidget {
         Icon(icon, size: 16, color: AppColors.kTextMuted),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(color: AppColors.kTextDark, fontSize: 13),
-            overflow: TextOverflow.ellipsis,
-          ),
+          child: Text(text,
+              style: const TextStyle(color: AppColors.kTextDark, fontSize: 13),
+              overflow: TextOverflow.ellipsis),
         ),
       ],
     );
@@ -608,12 +564,7 @@ class _ActionButton extends StatelessWidget {
   final String label;
   final Color? color;
   final VoidCallback onTap;
-
-  const _ActionButton(
-      {required this.icon,
-      required this.label,
-      this.color,
-      required this.onTap});
+  const _ActionButton({required this.icon, required this.label, this.color, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -629,13 +580,7 @@ class _ActionButton extends StatelessWidget {
             children: [
               Icon(icon, size: 18, color: activeColor),
               const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                    color: activeColor,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13),
-              ),
+              Text(label, style: TextStyle(color: activeColor, fontWeight: FontWeight.w600, fontSize: 13)),
             ],
           ),
         ),
@@ -645,37 +590,59 @@ class _ActionButton extends StatelessWidget {
 }
 
 // ---------------------------------------------------------
-// CUSTOMER FORM (ADD & EDIT)
+// CUSTOMER FORM (ADD & EDIT) — single definition
 // ---------------------------------------------------------
 
 class _CustomerForm extends StatefulWidget {
-  final Map<String, String>? initialData;
-  final Function(Map<String, String>) onSave;
+  final Customer? initialData;
+  final List<AgentOption> agents;
+  final void Function(Customer updated, String? email, String? password) onSave;
 
-  const _CustomerForm({this.initialData, required this.onSave});
+  const _CustomerForm({
+    this.initialData,
+    required this.agents,
+    required this.onSave,
+  });
 
   @override
   State<_CustomerForm> createState() => _CustomerFormState();
 }
 
 class _CustomerFormState extends State<_CustomerForm> {
+  final _locationService = LocationService();
+  final _photoService = PhotoService();
+
   late TextEditingController _nameCtrl;
   late TextEditingController _mobileCtrl;
   late TextEditingController _addressCtrl;
-  late TextEditingController _agentCtrl;
-  String _status = 'Active';
+  late TextEditingController _aadhaarCtrl;
+  late TextEditingController _panCtrl;
+  late TextEditingController _occupationCtrl;
+  late TextEditingController _emailCtrl;
+  late TextEditingController _passwordCtrl;
+  late TextEditingController _latCtrl;
+  late TextEditingController _lngCtrl;
+
+  String? _assignedAgentId;
+  String? _photoDataUri;
+  bool _locationBusy = false;
 
   @override
   void initState() {
     super.initState();
-    _nameCtrl = TextEditingController(text: widget.initialData?['name'] ?? '');
-    _mobileCtrl =
-        TextEditingController(text: widget.initialData?['phone'] ?? '');
-    _addressCtrl =
-        TextEditingController(text: widget.initialData?['address'] ?? '');
-    _agentCtrl = TextEditingController(
-        text: widget.initialData?['agent'] ?? 'Unassigned');
-    _status = widget.initialData?['status'] ?? 'Active';
+    final d = widget.initialData;
+    _nameCtrl = TextEditingController(text: d?.fullName ?? '');
+    _mobileCtrl = TextEditingController(text: d?.mobile ?? '');
+    _addressCtrl = TextEditingController(text: d?.address ?? '');
+    _aadhaarCtrl = TextEditingController(text: d?.aadhaar ?? '');
+    _panCtrl = TextEditingController(text: d?.pan ?? '');
+    _occupationCtrl = TextEditingController(text: d?.occupation ?? '');
+    _emailCtrl = TextEditingController();
+    _passwordCtrl = TextEditingController();
+    _latCtrl = TextEditingController(text: d?.latitude?.toString() ?? '');
+    _lngCtrl = TextEditingController(text: d?.longitude?.toString() ?? '');
+    _assignedAgentId = d?.assignedAgent;
+    _photoDataUri = d?.photoUrl;
   }
 
   @override
@@ -683,55 +650,117 @@ class _CustomerFormState extends State<_CustomerForm> {
     _nameCtrl.dispose();
     _mobileCtrl.dispose();
     _addressCtrl.dispose();
-    _agentCtrl.dispose();
+    _aadhaarCtrl.dispose();
+    _panCtrl.dispose();
+    _occupationCtrl.dispose();
+    _emailCtrl.dispose();
+    _passwordCtrl.dispose();
+    _latCtrl.dispose();
+    _lngCtrl.dispose();
     super.dispose();
   }
 
+  Future<void> _pinFromAddress() async {
+    setState(() => _locationBusy = true);
+    try {
+      final result = await _locationService.geocodeAddress(_addressCtrl.text);
+      setState(() {
+        _latCtrl.text = result.latitude.toStringAsFixed(7);
+        _lngCtrl.text = result.longitude.toStringAsFixed(7);
+      });
+    } catch (e) {
+      ToastService.show(title: "Couldn't find that address", message: e.toString(), type: ToastType.error);
+    } finally {
+      if (mounted) setState(() => _locationBusy = false);
+    }
+  }
+
+  Future<void> _useMyGps() async {
+    setState(() => _locationBusy = true);
+    try {
+      final result = await _locationService.getCurrentPosition();
+      setState(() {
+        _latCtrl.text = result.latitude.toStringAsFixed(7);
+        _lngCtrl.text = result.longitude.toStringAsFixed(7);
+      });
+    } catch (e) {
+      ToastService.show(title: "Couldn't get your location", message: e.toString(), type: ToastType.error);
+    } finally {
+      if (mounted) setState(() => _locationBusy = false);
+    }
+  }
+
+  Future<void> _pickPhoto() async {
+    try {
+      final dataUri = await _photoService.pickPhotoAsDataUri();
+      if (dataUri != null) setState(() => _photoDataUri = dataUri);
+    } catch (e) {
+      ToastService.show(title: 'Photo upload failed', message: e.toString(), type: ToastType.error);
+    }
+  }
+
   void _handleSave() {
-    // Basic validation with error toast instead of failing silently
-    if (_nameCtrl.text.trim().isEmpty || _mobileCtrl.text.trim().isEmpty) {
+    if (_nameCtrl.text.trim().isEmpty) {
+      ToastService.show(title: 'Something went wrong', message: 'Full name is required', type: ToastType.error);
+      return;
+    }
+    if (_mobileCtrl.text.trim().isEmpty) {
+      ToastService.show(title: 'Something went wrong', message: 'Mobile number is required', type: ToastType.error);
+      return;
+    }
+    final email = _emailCtrl.text.trim();
+    final password = _passwordCtrl.text;
+    if ((email.isNotEmpty) != (password.isNotEmpty)) {
       ToastService.show(
         title: 'Something went wrong',
-        message: 'Name and mobile number are required',
+        message: 'Portal login needs both an email and a password',
         type: ToastType.error,
       );
       return;
     }
+    if (password.isNotEmpty && password.length < 6) {
+      ToastService.show(
+          title: 'Something went wrong',
+          message: 'Password must be at least 6 characters',
+          type: ToastType.error);
+      return;
+    }
 
-    final updatedData = {
-      'id': widget.initialData?['id'] ?? '',
-      'name': _nameCtrl.text,
-      'phone': _mobileCtrl.text,
-      'address': _addressCtrl.text,
-      'aadhar': widget.initialData?['aadhar'] ?? '[Aadhaar Redacted]',
-      'agent': _agentCtrl.text,
-      'status': _status,
-    };
+    final updated = Customer(
+      id: widget.initialData?.id ?? '',
+      customerId: widget.initialData?.customerId ?? '',
+      fullName: _nameCtrl.text.trim(),
+      mobile: _mobileCtrl.text.trim(),
+      address: _addressCtrl.text.trim(),
+      aadhaar: _aadhaarCtrl.text.trim(),
+      pan: _panCtrl.text.trim(),
+      occupation: _occupationCtrl.text.trim(),
+      photoUrl: _photoDataUri,
+      assignedAgent: _assignedAgentId,
+      latitude: double.tryParse(_latCtrl.text.trim()),
+      longitude: double.tryParse(_lngCtrl.text.trim()),
+      loanStatus: widget.initialData?.loanStatus ?? 'none',
+    );
 
-    widget.onSave(updatedData);
-    Navigator.pop(context);
+    widget.onSave(updated, email.isEmpty ? null : email, password.isEmpty ? null : password);
   }
 
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.initialData != null;
+    final initials = _nameCtrl.text.trim().isNotEmpty ? _nameCtrl.text.trim()[0].toUpperCase() : 'C';
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
       child: Column(
-        mainAxisSize: MainAxisSize.min, // Hugs content perfectly
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                isEditing ? 'Edit Customer' : 'Add Customer',
-                style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.kTextDark),
-              ),
+              Text(isEditing ? 'Edit Customer' : 'Add Customer',
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.kTextDark)),
               IconButton(
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
@@ -742,23 +771,21 @@ class _CustomerFormState extends State<_CustomerForm> {
           ),
           const SizedBox(height: 24),
 
-          // Form Fields List
-          _buildInputField('Customer Name', 'NAME', _nameCtrl),
+          _buildInputField('Customer Name', 'FULL NAME *', _nameCtrl),
           _buildInputField('Mobile Number', 'MOBILE', _mobileCtrl),
           _buildInputField('Address', 'ADDRESS', _addressCtrl, maxLines: 3),
-          _buildInputField('Assigned Agent', 'AGENT', _agentCtrl),
+          _buildInputField('Aadhaar Number', 'AADHAAR', _aadhaarCtrl),
+          _buildInputField('PAN Number', 'PAN', _panCtrl),
+          _buildInputField('Occupation', 'OCCUPATION', _occupationCtrl),
 
-          // Status Dropdown
+          // ASSIGNED AGENT
           Padding(
-            padding: const EdgeInsets.only(bottom: 24),
+            padding: const EdgeInsets.only(bottom: 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('STATUS',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.kTextMuted)),
+                const Text('ASSIGNED AGENT',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.kTextMuted)),
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -767,21 +794,19 @@ class _CustomerFormState extends State<_CustomerForm> {
                     border: Border.all(color: AppColors.kBorder),
                   ),
                   child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
+                    child: DropdownButton<String?>(
                       isExpanded: true,
-                      value: _status,
-                      icon: const Icon(Icons.unfold_more,
-                          size: 20, color: AppColors.kTextMuted),
-                      items: ['Active', 'Overdue', 'Inactive']
-                          .map((s) => DropdownMenuItem(
-                              value: s,
-                              child: Text(s,
-                                  style: const TextStyle(
-                                      color: AppColors.kTextDark))))
-                          .toList(),
-                      onChanged: (val) {
-                        if (val != null) setState(() => _status = val);
-                      },
+                      value: _assignedAgentId,
+                      hint: const Text('Unassigned', style: TextStyle(color: AppColors.kTextMuted)),
+                      icon: const Icon(Icons.unfold_more, size: 20, color: AppColors.kTextMuted),
+                      items: [
+                        const DropdownMenuItem<String?>(value: null, child: Text('Unassigned')),
+                        ...widget.agents.map((a) => DropdownMenuItem<String?>(
+                              value: a.id,
+                              child: Text(a.fullName, style: const TextStyle(color: AppColors.kTextDark)),
+                            )),
+                      ],
+                      onChanged: (val) => setState(() => _assignedAgentId = val),
                     ),
                   ),
                 ),
@@ -789,20 +814,136 @@ class _CustomerFormState extends State<_CustomerForm> {
             ),
           ),
 
-          // Action Buttons
+          // MAP LOCATION
+          Container(
+            margin: const EdgeInsets.only(bottom: 24),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.kBackground,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.kBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.map_outlined, size: 18, color: AppColors.kGoldDark),
+                    SizedBox(width: 8),
+                    Text('Map Location',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.kTextDark)),
+                    SizedBox(width: 6),
+                    Text('(for agent route)', style: TextStyle(fontSize: 12, color: AppColors.kTextMuted)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _locationBusy ? null : _pinFromAddress,
+                        icon: const Icon(Icons.location_searching, size: 16),
+                        label: const Text('Pin from address'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _locationBusy ? null : _useMyGps,
+                        icon: const Icon(Icons.gps_fixed, size: 16),
+                        label: const Text('Use my GPS'),
+                      ),
+                    ),
+                  ],
+                ),
+                if (_locationBusy)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 12),
+                    child: LinearProgressIndicator(),
+                  ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(child: _buildInputField('0.0000000', 'LATITUDE', _latCtrl)),
+                    const SizedBox(width: 12),
+                    Expanded(child: _buildInputField('0.0000000', 'LONGITUDE', _lngCtrl)),
+                  ],
+                ),
+                const Text(
+                  "Shows this customer on the agent's live Route Map. \"Pin from address\" looks up "
+                  "the address above; \"Use my GPS\" captures where you're standing.",
+                  style: TextStyle(fontSize: 12, color: AppColors.kTextMuted, height: 1.4),
+                ),
+              ],
+            ),
+          ),
+
+          // PORTAL LOGIN
+          Container(
+            margin: const EdgeInsets.only(bottom: 24),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.kBackground,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.kBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.lock_outline, size: 18, color: AppColors.kGoldDark),
+                    SizedBox(width: 8),
+                    Text('Portal Login (optional)',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.kTextDark)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Set an email & password to let this customer sign in and view their own loans & payments.',
+                  style: TextStyle(fontSize: 12, color: AppColors.kTextMuted, height: 1.4),
+                ),
+                const SizedBox(height: 12),
+                _buildInputField('customer@example.com', 'LOGIN EMAIL', _emailCtrl),
+                _buildInputField('At least 6 characters', 'PASSWORD', _passwordCtrl, obscure: true),
+              ],
+            ),
+          ),
+
+          // CUSTOMER PHOTO
+          Padding(
+            padding: const EdgeInsets.only(bottom: 24),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: AppColors.kGold,
+                  backgroundImage: _photoDataUri != null ? MemoryImage(_decodeDataUri(_photoDataUri!)) : null,
+                  child: _photoDataUri == null
+                      ? Text(initials,
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20))
+                      : null,
+                ),
+                const SizedBox(width: 16),
+                OutlinedButton.icon(
+                  onPressed: _pickPhoto,
+                  icon: const Icon(Icons.upload_outlined, size: 16),
+                  label: const Text('Upload Photo'),
+                ),
+              ],
+            ),
+          ),
+
           Row(
             children: [
               Expanded(
                 child: OutlinedButton(
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel',
-                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w600)),
                 ),
               ),
               const SizedBox(width: 16),
@@ -813,16 +954,12 @@ class _CustomerFormState extends State<_CustomerForm> {
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
                   onPressed: _handleSave,
                   icon: const Icon(Icons.save_outlined, size: 18),
-                  label: Text(
-                    isEditing ? 'Save Changes' : 'Add Customer',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
+                  label: Text(isEditing ? 'Save Changes' : 'Add Customer',
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
                 ),
               ),
             ],
@@ -832,25 +969,25 @@ class _CustomerFormState extends State<_CustomerForm> {
     );
   }
 
-  Widget _buildInputField(
-      String hint, String label, TextEditingController controller,
-      {int maxLines = 1}) {
+  Uint8List _decodeDataUri(String dataUri) {
+    final base64Part = dataUri.split(',').last;
+    return base64Decode(base64Part);
+  }
+
+  Widget _buildInputField(String hint, String label, TextEditingController controller,
+      {int maxLines = 1, bool obscure = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: AppColors.kTextMuted),
-          ),
+          Text(label,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.kTextMuted)),
           const SizedBox(height: 8),
           TextField(
             controller: controller,
             maxLines: maxLines,
+            obscureText: obscure,
             decoration: InputDecoration(hintText: hint),
           ),
         ],

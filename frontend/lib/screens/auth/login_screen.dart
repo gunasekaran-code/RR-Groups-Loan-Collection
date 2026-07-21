@@ -10,6 +10,7 @@ import 'forgot_password_screen.dart';
 /// Maps the backend's `role` string (Profile.role column) onto the app's
 /// UserRole enum. Adjust the string values on the left if your DB stores
 /// the role differently (e.g. 'super_admin' instead of 'owner').
+
 UserRole _roleFromString(String? raw) {
   switch ((raw ?? '').trim().toLowerCase()) {
     case 'owner':
@@ -61,13 +62,16 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       final profile = data['profile'] as Map<String, dynamic>? ?? {};
       final role = _roleFromString(profile['role'] as String?);
-      SessionService.instance.login(AppUser(
-        userId: (profile['id'] ?? '').toString(),
-        name: (profile['full_name'] as String?)?.trim().isNotEmpty == true
-            ? profile['full_name'] as String
-            : (profile['email'] ?? 'User').toString(),
-        role: role,
-      ));
+      SessionService.instance.login(
+        AppUser(
+          userId: (profile['id'] ?? '').toString(),
+          name: (profile['full_name'] as String?)?.trim().isNotEmpty == true
+              ? profile['full_name'] as String
+              : (profile['email'] ?? 'User').toString(),
+          role: role,
+        ),
+        token: data['token']?.toString(),
+      );
       if (!mounted) return;
       // main.dart's onGenerateRoute -> _guarded() decides what's actually
       // shown based on this role, so we always push AppRoutes.dashboard here.
