@@ -98,7 +98,7 @@ const List<_DrawerSection> _sections = [
         label: 'User Management',
         icon: Icons.manage_accounts_outlined,
         route: AppRoutes.userManagement,
-        allowedRoles: [UserRole.owner]),
+        allowedRoles: [UserRole.owner, UserRole.admin]),
     _DrawerItem(
         label: 'Settings',
         icon: Icons.settings_outlined,

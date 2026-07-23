@@ -90,7 +90,7 @@ class FinCollectApp extends StatelessWidget {
         page = _guarded(const NotificationsScreen(), UserRole.values);
         break;
       case AppRoutes.userManagement:
-        page = _guarded(const UserManagementScreen(), const [UserRole.owner]);
+        page = _guarded(const UserManagementScreen(), const [UserRole.owner, UserRole.admin]);
         break;
       case AppRoutes.settings:
         page = _guarded(
