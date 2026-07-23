@@ -15,15 +15,7 @@ class ApiException implements Exception {
 class AuthApiService {
   AuthApiService._();
   static final AuthApiService instance = AuthApiService._();
-
-  // ---------------------------------------------------------------------
-  // Point this at your PHP dev server. `php -S localhost:8889` only
-  // listens on your Mac, so:
-  //   - iOS simulator / Flutter web / desktop -> http://localhost:8889
-  //   - Android emulator                       -> http://10.0.2.2:8889
-  //   - real phone on same wifi                -> http://<your-mac-lan-ip>:8889
-  // Change this one constant when you switch targets.
-  // ---------------------------------------------------------------------
+  
   static const String baseUrl = 'http://localhost:8889';
   static const String authEndpoint = '$baseUrl/auth.php';
 

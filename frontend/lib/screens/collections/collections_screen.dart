@@ -5,6 +5,7 @@ import '../../widgets/app_shell.dart';
 import '../../theme/confirm_dialog.dart';
 import '../../widgets/page_header.dart';
 import '../../theme/glass_toast.dart';
+import '../../services/collection_api_service.dart'; // NEW
 
 class CollectionsScreen extends StatefulWidget {
   const CollectionsScreen({super.key});
@@ -16,6 +17,8 @@ class CollectionsScreen extends StatefulWidget {
 class _CollectionsScreenState extends State<CollectionsScreen> {
   String _query = '';
   String _period = 'All';
+  bool _isLoading = true;   // NEW
+  String? _loadError;       // NEW
 
   final List<String> _periods = const [
     'Today',
@@ -24,65 +27,149 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
     'All'
   ];
 
-  static final DateTime _today = DateTime(2026, 7, 10);
+  static final DateTime _today = DateTime.now(); // was hardcoded 2026-07-10
 
-  final List<Map<String, String>> _collections = [
-    {
-      'customer': 'Lakshmi Iyer',
-      'initials': 'LI',
-      'receipt': 'RCT-95198699',
-      'loan': 'LN-627299',
-      'amount': '₹4,349',
-      'date': '09 Jul 2026',
-      'method': 'Cash',
-      'agent': 'Arjun Mehta',
+  // Was: a hardcoded literal list. Now populated from the API.
+  List<Map<String, String>> _collections = [];
+
+  // Keep a raw-id map alongside the display map, since the DataTable/UI
+  // works with String fields only (per your existing code), but we still
+  // need the real UUIDs for PATCH/DELETE calls.
+  final Map<String, String> _receiptToId = {}; // receipt_number -> id
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCollections();
+  }
+
+  // ---------- API <-> UI mapping ----------
+
+  static const Map<int, String> _monthNames = {
+    1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun',
+    7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec',
+  };
+
+  String _formatApiDate(dynamic raw) {
+    if (raw == null) return '-';
+    final s = raw.toString();
+    // Expecting 'YYYY-MM-DD' or a full datetime string from MySQL
+    try {
+      final dt = DateTime.parse(s);
+      final month = _monthNames[dt.month] ?? '';
+      final day = dt.day.toString().padLeft(2, '0');
+      return '$day $month ${dt.year}';
+    } catch (_) {
+      return s;
+    }
+  }
+
+  String _formatAmount(dynamic raw) {
+    final value = double.tryParse(raw?.toString() ?? '0') ?? 0;
+    final intValue = value.round();
+    final s = intValue.toString();
+    final buf = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      final posFromEnd = s.length - i;
+      buf.write(s[i]);
+      if (posFromEnd > 3 && (posFromEnd - 3) % 2 == 0) buf.write(',');
+    }
+    return '₹$buf';
+  }
+
+  String _formatMethod(dynamic raw) {
+    switch ((raw ?? '').toString()) {
+      case 'cash':
+        return 'Cash';
+      case 'upi':
+        return 'UPI';
+      case 'bank':
+        return 'Bank Transfer';
+      case 'cheque':
+        return 'Cheque';
+      case 'card':
+        return 'Card';
+      default:
+        return (raw ?? '-').toString();
+    }
+  }
+
+  String _apiMethodValue(String uiMethod) {
+    switch (uiMethod) {
+      case 'Cash':
+        return 'cash';
+      case 'UPI':
+        return 'upi';
+      case 'Bank Transfer':
+        return 'bank';
+      case 'Cheque':
+        return 'cheque';
+      case 'Card':
+        return 'card';
+      default:
+        return 'cash';
+    }
+  }
+
+  String _initials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts.first.isEmpty) return '?';
+    if (parts.length == 1) return parts[0].substring(0, 1).toUpperCase();
+    return (parts[0].substring(0, 1) + parts[1].substring(0, 1)).toUpperCase();
+  }
+
+  /// Maps one raw `collections` table row -> the same String-keyed map
+  /// shape your existing UI code (_buildCollectionsTable etc.) expects.
+  Map<String, String> _mapRow(Map<String, dynamic> row) {
+    final id = (row['id'] ?? '').toString();
+    final receipt = (row['receipt_number'] ?? '').toString();
+    final customerName = (row['customer_name'] ?? '').toString();
+
+    if (id.isNotEmpty && receipt.isNotEmpty) {
+      _receiptToId[receipt] = id;
+    }
+
+    return {
+      'id': id, // kept for internal use; UI ignores unknown keys
+      'customer': customerName.isEmpty ? '-' : customerName,
+      'initials': _initials(customerName.isEmpty ? '-' : customerName),
+      'receipt': receipt.isEmpty ? '-' : receipt,
+      'loan': (row['loan_number'] ?? '-').toString(),
+      'amount': _formatAmount(row['collection_amount']),
+      'date': _formatApiDate(row['collection_date']),
+      'method': _formatMethod(row['payment_method']),
+      'agent': (row['agent_name'] ?? 'Unassigned').toString(),
       'status': 'Collected',
-    },
-    {
-      'customer': 'Vikram Naidu',
-      'initials': 'VN',
-      'receipt': 'RCP-86187095',
-      'loan': 'LN-AB12C3',
-      'amount': '₹5,000',
-      'date': '08 Jul 2026',
-      'method': 'Cash',
-      'agent': 'Arjun Mehta',
-      'status': 'Collected',
-    },
-    {
-      'customer': 'Lakshmi Iyer',
-      'initials': 'LI',
-      'receipt': 'RCT-86187094',
-      'loan': 'LN-627299',
-      'amount': '₹4,349',
-      'date': '22 Jun 2026',
-      'method': 'Cash',
-      'agent': 'Arjun Mehta',
-      'status': 'Collected',
-    },
-    {
-      'customer': 'Anjali Singh',
-      'initials': 'AS',
-      'receipt': 'RCT-77123456',
-      'loan': 'LN-GH6718',
-      'amount': '₹17,156',
-      'date': '01 Jul 2026',
-      'method': 'Bank Transfer',
-      'agent': 'Arjun Mehta',
-      'status': 'Collected',
-    },
-    {
-      'customer': 'Ramesh Gowda',
-      'initials': 'RG',
-      'receipt': 'RCT-55098234',
-      'loan': 'LN-MN2304',
-      'amount': '₹18,239',
-      'date': '05 Jul 2026',
-      'method': 'Cash',
-      'agent': 'Sneha Reddy',
-      'status': 'Scheduled',
-    },
-  ];
+    };
+  }
+
+  Future<void> _loadCollections() async {
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
+
+    try {
+      final rows = await CollectionApiService.fetchCollections();
+      final mapped = rows.map(_mapRow).toList();
+      if (!mounted) return;
+      setState(() {
+        _collections = mapped;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = e.toString();
+        _isLoading = false;
+      });
+      ToastService.show(
+        title: 'Failed to load collections',
+        message: e.toString(),
+        type: ToastType.error,
+      );
+    }
+  }
 
   int _parseAmount(String amount) =>
       int.tryParse(amount.replaceAll(RegExp(r'[₹,]'), '')) ?? 0;
@@ -152,7 +239,6 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
     return '₹$buf';
   }
 
-  /// Helper to enforce a consistent 75% max height wrapper frame
   Widget _buildGlobalSheetFrame({required Widget child}) {
     final double keyboardPadding = MediaQuery.of(context).viewInsets.bottom;
     final double maxSheetHeight = MediaQuery.of(context).size.height * 0.75;
@@ -192,7 +278,7 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
         child: AddCollectionDialog(
           customers: _collections.map((c) => c['customer']!).toSet().toList()
             ..sort(),
-          onSaved: (record) => setState(() => _collections.insert(0, record)),
+          onSaved: (record) => _createCollectionOnBackend(record), // CHANGED
         ),
       ),
     );
@@ -209,34 +295,119 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
           customers: _collections.map((c) => c['customer']!).toSet().toList()
             ..sort(),
           existing: record,
-          onSaved: (updated) => setState(() {
-            final idx = _collections.indexWhere((c) => c['receipt'] == record['receipt']);
-            if (idx != -1) _collections[idx] = updated;
-          }),
+          onSaved: (updated) => _updateCollectionOnBackend(record, updated), // CHANGED
         ),
       ),
     );
+  }
+
+  // NEW: build the JSON payload the CollectionController expects and POST it
+  Future<void> _createCollectionOnBackend(Map<String, String> record) async {
+    try {
+      final payload = {
+        'customer_name': record['customer'],
+        'loan_number': record['loan'] == '-' ? null : record['loan'],
+        'collection_amount': _parseAmount(record['amount'] ?? '0'),
+        'payment_method': _apiMethodValue(record['method'] ?? 'Cash'),
+        'collection_date': _toIsoDate(record['date']),
+        'agent_name': record['agent'],
+      };
+      await CollectionApiService.createCollection(payload);
+      await _loadCollections(); // refresh from source of truth
+      ToastService.show(
+        title: 'Collection recorded',
+        message: record['customer'] ?? '',
+        type: ToastType.success,
+      );
+    } catch (e) {
+      ToastService.show(
+        title: 'Failed to save collection',
+        message: e.toString(),
+        type: ToastType.error,
+      );
+    }
+  }
+
+  // NEW: PATCH by real id (looked up via receipt number)
+  Future<void> _updateCollectionOnBackend(
+      Map<String, String> original, Map<String, String> updated) async {
+    final id = _receiptToId[original['receipt']];
+    if (id == null) {
+      ToastService.show(
+        title: 'Update failed',
+        message: 'Could not find record id',
+        type: ToastType.error,
+      );
+      return;
+    }
+    try {
+      final payload = {
+        'customer_name': updated['customer'],
+        'loan_number': updated['loan'] == '-' ? null : updated['loan'],
+        'collection_amount': _parseAmount(updated['amount'] ?? '0'),
+        'payment_method': _apiMethodValue(updated['method'] ?? 'Cash'),
+        'collection_date': _toIsoDate(updated['date']),
+        'agent_name': updated['agent'],
+      };
+      await CollectionApiService.updateCollection(id, payload);
+      await _loadCollections();
+      ToastService.show(
+        title: 'Collection updated',
+        message: updated['customer'] ?? '',
+        type: ToastType.success,
+      );
+    } catch (e) {
+      ToastService.show(
+        title: 'Failed to update collection',
+        message: e.toString(),
+        type: ToastType.error,
+      );
+    }
+  }
+
+  String? _toIsoDate(String? uiDate) {
+    final dt = _parseDate(uiDate ?? '');
+    if (dt == null) return null;
+    return '${dt.year.toString().padLeft(4, '0')}-'
+        '${dt.month.toString().padLeft(2, '0')}-'
+        '${dt.day.toString().padLeft(2, '0')}';
   }
 
   void _showDeleteConfirmDialog(Map<String, String> record) async {
     final confirmed = await AppConfirmDialog.show(
       context: context,
       title: 'Delete Collection',
-      message: 'Delete the collection record for ${record['customer']} (${record['receipt']})? This cannot be undone.',
+      message:
+          'Delete the collection record for ${record['customer']} (${record['receipt']})? This cannot be undone.',
       confirmLabel: 'Delete',
       confirmButtonColor: AppColors.kDanger,
     );
 
     if (confirmed == true && mounted) {
-      setState(() {
-        _collections.removeWhere((c) => c['receipt'] == record['receipt']);
-      });
-
-      ToastService.show(
-        title: 'Collection deleted',
-        message: record['receipt'],
-        type: ToastType.success,
-      );
+      final id = _receiptToId[record['receipt']];
+      if (id == null) {
+        ToastService.show(
+          title: 'Delete failed',
+          message: 'Could not find record id',
+          type: ToastType.error,
+        );
+        return;
+      }
+      try {
+        await CollectionApiService.deleteCollection(id);
+        await _loadCollections();
+        ToastService.show(
+          title: 'Collection deleted',
+          message: record['receipt'],
+          type: ToastType.success,
+        );
+      } catch (e) {
+        ToastService.show(
+          title: 'Failed to delete collection',
+          message: e.toString(),
+          type: ToastType.error,
+        );
+      }
     }
   }
 
@@ -253,47 +424,73 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
     return AppShell(
       currentRoute: AppRoutes.collections,
       title: 'Collections',
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final isNarrow = constraints.maxWidth < 700;
-          return SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                PageHeader(
-                  title: 'Collections',
-                  subtitle: 'Record and track daily collections across all loans',
-                  actions: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: SizedBox(
-                        width: 160,
-                        child: ElevatedButton.icon(
-                          onPressed: _showAddCollectionDialog,
-                          icon: const Icon(Icons.add),
-                          label: const Text('Add Collection'),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                          ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _loadError != null
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('Failed to load collections',
+                          style: TextStyle(color: AppColors.kDanger)),
+                      const SizedBox(height: 8),
+                      Text(_loadError!,
+                          style: const TextStyle(color: AppColors.kTextMuted)),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _loadCollections,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                )
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isNarrow = constraints.maxWidth < 700;
+                    return RefreshIndicator(
+                      onRefresh: _loadCollections,
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            PageHeader(
+                              title: 'Collections',
+                              subtitle:
+                                  'Record and track daily collections across all loans',
+                              actions: [
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: SizedBox(
+                                    width: 160,
+                                    child: ElevatedButton.icon(
+                                      onPressed: _showAddCollectionDialog,
+                                      icon: const Icon(Icons.add),
+                                      label: const Text('Add Collection'),
+                                      style: ElevatedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            _buildStatCards(isNarrow),
+                            const SizedBox(height: 16),
+                            _buildSearchAndFilters(),
+                            const SizedBox(height: 8),
+                            _buildCollectionsTable(isNarrow),
+                            const SizedBox(height: 16),
+                          ],
                         ),
                       ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
-                _buildStatCards(isNarrow),
-                const SizedBox(height: 16),
-                _buildSearchAndFilters(),
-                const SizedBox(height: 8),
-                _buildCollectionsTable(isNarrow),
-                const SizedBox(height: 16),
-              ],
-            ),
-          );
-        },
-      ),
     );
   }
-
+  
   Widget _buildStatCards(bool isNarrow) {
     final cards = [
       _StatCardData(
