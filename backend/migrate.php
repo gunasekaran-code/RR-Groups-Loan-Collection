@@ -137,4 +137,48 @@ if (!$hasFundPayments) {
     echo "fund_payments table already present.\n";
 }
 
+// 8. Create the handovers table (agent cash/UPI settlement) if missing.
+$hasHandovers = $pdo->query(
+    "SELECT COUNT(*) FROM information_schema.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'handovers'"
+)->fetchColumn();
+if (!$hasHandovers) {
+    $pdo->exec("CREATE TABLE handovers (
+        id            CHAR(36)     NOT NULL PRIMARY KEY,
+        agent_id      CHAR(36)     NULL,
+        agent_name    VARCHAR(191) NULL,
+        cash_amount   DECIMAL(14,2) NOT NULL DEFAULT 0,
+        upi_amount    DECIMAL(14,2) NOT NULL DEFAULT 0,
+        total_amount  DECIMAL(14,2) NOT NULL DEFAULT 0,
+        handover_date DATE         NULL,
+        notes         TEXT         NULL,
+        status        ENUM('pending','verified') NOT NULL DEFAULT 'pending',
+        received_by   CHAR(36)     NULL,
+        created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_handovers_agent (agent_id),
+        INDEX idx_handovers_date (handover_date)
+    ) ENGINE=InnoDB");
+    echo "handovers table created.\n";
+} else {
+    echo "handovers table already present.\n";
+}
+
+// 9. Add latitude/longitude columns to customers (map coordinates) if missing.
+$geoCols = [
+    'latitude'  => 'DECIMAL(10,7) NULL',
+    'longitude' => 'DECIMAL(10,7) NULL',
+];
+foreach ($geoCols as $col => $def) {
+    $has = $pdo->query(
+        "SELECT COUNT(*) FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'customers' AND COLUMN_NAME = '$col'"
+    )->fetchColumn();
+    if (!$has) {
+        $pdo->exec("ALTER TABLE customers ADD COLUMN `$col` $def AFTER photo_url");
+        echo "customers.$col column added.\n";
+    } else {
+        echo "customers.$col column already present.\n";
+    }
+}
+
 echo "Migration complete.\n";

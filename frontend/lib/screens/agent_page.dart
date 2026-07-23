@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_shell.dart';
 import '../../widgets/page_header.dart';
 import '../../widgets/status_badge.dart';
 import '../../theme/confirm_dialog.dart';
 import '../../theme/glass_toast.dart';
+import '../../services/photo_service.dart';
+import '../../services/agent_api_service.dart'; 
+import '../../services/auth_api_service.dart' show ApiException; 
 
 class AgentManagementScreen extends StatefulWidget {
   const AgentManagementScreen({super.key});
@@ -21,24 +25,83 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
 
   final List<String> _roleFilters = ['Agent', 'Admin', 'Manager', 'All'];
 
-  final List<Map<String, dynamic>> _agents = [
-    {
-      'id': 'USR-0001',
-      'name': 'Arjun Mehta',
-      'email': 'agent@fincollect.in',
-      'mobile': '9876543212',
-      'role': 'Agent',
-      'status': 'Active',
-      'created': '14 Jul 2026',
-      'address': '',
-      'aadhaar': '',
-      'pan': '',
-      'occupation': 'Field Executive',
-      'password': '',
-    },
-  ];
+  List<Map<String, dynamic>> _agents = [];
+  bool _isLoading = true;
+  String? _loadError;
 
-  /// Helper to wrap form or view content inside the identical 75% max height layout frame
+  @override
+  void initState() {
+    super.initState();
+    _loadAgents();
+  }
+
+  // ---- backend mapping ---------------------------------------------------
+
+  Map<String, dynamic> _fromApi(Map<String, dynamic> row) {
+    String cap(String? s) {
+      if (s == null || s.isEmpty) return '';
+      return s[0].toUpperCase() + s.substring(1);
+    }
+
+    return {
+      'id': row['id']?.toString() ?? '',
+      'name': row['full_name'] ?? '',
+      'email': row['email'] ?? '',
+      'mobile': row['mobile'] ?? '',
+      'role': cap(row['role']?.toString()),
+      'status': cap(row['status']?.toString()),
+      'created': row['created_at'] ?? row['created'] ?? '',
+      'address': row['address'] ?? '',
+      'aadhaar': row['aadhaar'] ?? '',
+      'pan': row['pan'] ?? '',
+      'occupation': row['occupation'] ?? '',
+      'avatar_url': row['avatar_url'] ?? '',
+      'customer_id': row['customer_id'],
+      'password': '', 
+    };
+  }
+
+  Map<String, dynamic> _toApi(Map<String, dynamic> agent) {
+    return {
+      'full_name': agent['name'],
+      'email': agent['email'],
+      'mobile': agent['mobile'],
+      'password': agent['password'],
+      'role': (agent['role'] as String).toLowerCase(),
+      'status': (agent['status'] as String).toLowerCase(),
+      'address': agent['address'],
+      'aadhaar': agent['aadhaar'],
+      'pan': agent['pan'],
+      'occupation': agent['occupation'],
+      'avatar_url': agent['avatar_url'],
+      'customer_id': agent['customer_id'],
+    };
+  }
+
+  Future<void> _loadAgents() async {
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
+    try {
+      final rows = await AgentApiService.instance.getAgents();
+      setState(() {
+        _agents = rows.map(_fromApi).toList();
+        _isLoading = false;
+      });
+    } on ApiException catch (e) {
+      setState(() {
+        _loadError = e.message;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _loadError = 'Failed to load agents.';
+        _isLoading = false;
+      });
+    }
+  }
+
   Widget _buildGlobalSheetFrame({required Widget child}) {
     final double keyboardPadding = MediaQuery.of(context).viewInsets.bottom;
     final double maxSheetHeight = MediaQuery.of(context).size.height * 0.75;
@@ -76,15 +139,25 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
       barrierColor: Colors.black.withOpacity(0.4),
       builder: (context) => _buildGlobalSheetFrame(
         child: AgentFormDialog(
-          onSaved: (newAgent) {
-            setState(() {
-              _agents.add(newAgent);
-            });
-            ToastService.show(
-              title: 'Agent created',
-              message: '${newAgent['name']} has been added',
-              type: ToastType.success,
-            );
+          onSaved: (newAgent) async {
+            try {
+              final created =
+                  await AgentApiService.instance.createAgent(_toApi(newAgent));
+              setState(() => _agents.add(_fromApi(created)));
+              if (!mounted) return;
+              ToastService.show(
+                title: 'Agent created',
+                message: '${newAgent['name']} has been added',
+                type: ToastType.success,
+              );
+            } on ApiException catch (e) {
+              if (!mounted) return;
+              ToastService.show(
+                title: 'Could not create agent',
+                message: e.message,
+                type: ToastType.error,
+              );
+            }
           },
         ),
       ),
@@ -100,16 +173,28 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
       builder: (context) => _buildGlobalSheetFrame(
         child: AgentFormDialog(
           agent: agent,
-          onSaved: (updated) {
-            setState(() {
-              final index = _agents.indexWhere((a) => a['id'] == agent['id']);
-              if (index != -1) _agents[index] = updated;
-            });
-            ToastService.show(
-              title: 'Agent updated',
-              message: '${updated['name']} has been updated',
-              type: ToastType.success,
-            );
+          onSaved: (updated) async {
+            try {
+              final saved = await AgentApiService.instance
+                  .updateAgent(agent['id'] as String, _toApi(updated));
+              setState(() {
+                final index = _agents.indexWhere((a) => a['id'] == agent['id']);
+                if (index != -1) _agents[index] = _fromApi(saved);
+              });
+              if (!mounted) return;
+              ToastService.show(
+                title: 'Agent updated',
+                message: '${updated['name']} has been updated',
+                type: ToastType.success,
+              );
+            } on ApiException catch (e) {
+              if (!mounted) return;
+              ToastService.show(
+                title: 'Could not update agent',
+                message: e.message,
+                type: ToastType.error,
+              );
+            }
           },
         ),
       ),
@@ -127,15 +212,25 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
     );
 
     if (confirmed == true && mounted) {
-      setState(() {
-        _agents.removeWhere((a) => a['id'] == agent['id']);
-      });
-
-      ToastService.show(
-        title: 'Agent deleted',
-        message: '${agent['name']} has been removed',
-        type: ToastType.success,
-      );
+      try {
+        await AgentApiService.instance.deleteAgent(agent['id'] as String);
+        setState(() {
+          _agents.removeWhere((a) => a['id'] == agent['id']);
+        });
+        if (!mounted) return;
+        ToastService.show(
+          title: 'Agent deleted',
+          message: '${agent['name']} has been removed',
+          type: ToastType.success,
+        );
+      } on ApiException catch (e) {
+        if (!mounted) return;
+        ToastService.show(
+          title: 'Could not delete agent',
+          message: e.message,
+          type: ToastType.error,
+        );
+      }
     }
   }
 
@@ -163,7 +258,7 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
   int get _activeAgents => _agents.where((a) => a['status'] == 'Active').length;
   int get _inactiveAgents =>
       _agents.where((a) => a['status'] != 'Active').length;
-  int get _addedThisMonth => _agents.length; // placeholder metric
+  int get _addedThisMonth => _agents.length; 
 
   @override
   Widget build(BuildContext context) {
@@ -173,38 +268,75 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
       body: LayoutBuilder(
         builder: (context, constraints) {
           final isNarrow = constraints.maxWidth < 700;
-          return SingleChildScrollView(
-            physics: const ClampingScrollPhysics(),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                PageHeader(
-                  title: 'Agent Management',
-                  subtitle: 'Add, edit, and manage your collection agents',
-                  actions: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: SizedBox(
-                        width: 150,
-                        child: ElevatedButton.icon(
-                          onPressed: _showAddAgentDialog,
-                          icon: const Icon(Icons.add),
-                          label: const Text('Add Agent'),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                          ),
-                        ),
-                      ),
+
+          if (_isLoading) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(48.0),
+                child: CircularProgressIndicator(),
+              ),
+            );
+          }
+
+          if (_loadError != null) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.error_outline,
+                        color: AppColors.kDanger, size: 40),
+                    const SizedBox(height: 12),
+                    Text(_loadError!, textAlign: TextAlign.center),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _loadAgents,
+                      child: const Text('Retry'),
                     ),
                   ],
                 ),
-                _buildStatsRow(isNarrow),
-                const SizedBox(height: 8),
-                _buildSearchAndFilters(isNarrow),
-                const SizedBox(height: 8),
-                _buildAgentsTable(isNarrow),
-                const SizedBox(height: 24),
-              ],
+              ),
+            );
+          }
+
+          return RefreshIndicator(
+            onRefresh: _loadAgents,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(
+                  parent: ClampingScrollPhysics()),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  PageHeader(
+                    title: 'Agent Management',
+                    subtitle: 'Add, edit, and manage your collection agents',
+                    actions: [
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: SizedBox(
+                          width: 150,
+                          child: ElevatedButton.icon(
+                            onPressed: _showAddAgentDialog,
+                            icon: const Icon(Icons.add),
+                            label: const Text('Add Agent'),
+                            style: ElevatedButton.styleFrom(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  _buildStatsRow(isNarrow),
+                  const SizedBox(height: 8),
+                  _buildSearchAndFilters(isNarrow),
+                  const SizedBox(height: 8),
+                  _buildAgentsTable(isNarrow),
+                  const SizedBox(height: 24),
+                ],
+              ),
             ),
           );
         },
@@ -212,134 +344,124 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
     );
   }
 
+  Widget _buildStatsRow(bool isNarrow) {
+    final cards = <Widget>[
+      _statCard(
+        icon: Icons.shield_outlined,
+        iconColor: AppColors.kSuccess,
+        iconBg: const Color(0xFFF0FDF4),
+        value: '$_totalAgents',
+        label: 'Total Agents',
+      ),
+      _statCard(
+        icon: Icons.person_outline,
+        iconColor: AppColors.kSuccess,
+        iconBg: const Color(0xFFF0FDF4),
+        value: '$_activeAgents',
+        label: 'Active Agents',
+      ),
+      _statCard(
+        icon: Icons.person_off_outlined,
+        iconColor: AppColors.kInfo,
+        iconBg: const Color(0xFFF0F5FF),
+        value: '$_inactiveAgents',
+        label: 'Inactive Agents',
+      ),
+      _statCard(
+        icon: Icons.person_add_alt_outlined,
+        iconColor: AppColors.kInfo,
+        iconBg: const Color(0xFFF0F5FF),
+        value: '$_addedThisMonth',
+        label: 'Added This Month',
+      ),
+    ];
 
-Widget _buildStatsRow(bool isNarrow) {
-  final cards = <Widget>[
-    _statCard(
-      icon: Icons.shield_outlined,
-      iconColor: AppColors.kSuccess,
-      iconBg: const Color(0xFFF0FDF4),
-      value: '$_totalAgents',
-      label: 'Total Agents',
-    ),
-    _statCard(
-      icon: Icons.person_outline,
-      iconColor: AppColors.kSuccess,
-      iconBg: const Color(0xFFF0FDF4),
-      value: '$_activeAgents',
-      label: 'Active Agents',
-    ),
-    _statCard(
-      icon: Icons.person_off_outlined,
-      iconColor: AppColors.kInfo,
-      iconBg: const Color(0xFFF0F5FF),
-      value: '$_inactiveAgents',
-      label: 'Inactive Agents',
-    ),
-    _statCard(
-      icon: Icons.person_add_alt_outlined,
-      iconColor: AppColors.kInfo,
-      iconBg: const Color(0xFFF0F5FF),
-      value: '$_addedThisMonth',
-      label: 'Added This Month',
-    ),
-  ];
+    final horizontalPadding = isNarrow ? 12.0 : 24.0;
 
-  final horizontalPadding = isNarrow ? 12.0 : 24.0;
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+      child: GridView.count(
+        crossAxisCount: isNarrow ? 2 : 4,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        mainAxisSpacing: 12,
+        crossAxisSpacing: isNarrow ? 12 : 16,
+        childAspectRatio: isNarrow ? 1.3 : 1.7,
+        children: cards,
+      ),
+    );
+  }
 
-  return Padding(
-    padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-    child: GridView.count(
-      crossAxisCount: isNarrow ? 2 : 4,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 12,
-      crossAxisSpacing: isNarrow ? 12 : 16,
-      // Reduced from 1.5 to 1.3 for mobile to ensure NO text clipping overflows
-      childAspectRatio: isNarrow ? 1.3 : 1.7, 
-      children: cards,
-    ),
-  );
-}
-
-
-Widget _statCard({
-  required IconData icon,
-  required Color iconColor,
-  required Color iconBg,
-  required String value,
-  required String label,
-}) {
-  return Container(
-    padding: const EdgeInsets.all(12.0),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Colors.grey.shade200),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.02),
-          blurRadius: 6,
-          offset: const Offset(0, 2),
-        ),
-      ], 
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisAlignment: MainAxisAlignment.spaceBetween, // Pushes label to the bottom
-      children: [
-        // Top Row: Number (Start) and Icon (End)
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: iconBg,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                icon,
-                color: iconColor,
-                size: 30,
-              ),
-            ),
-          ],
-        ),
-        
-        // Bottom Section: Label (Down Starting Position)
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: Colors.grey.shade600,
+  Widget _statCard({
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBg,
+    required String value,
+    required String label,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ],
-    ),
-  );
-}
-  
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  icon,
+                  color: iconColor,
+                  size: 30,
+                ),
+              ),
+            ],
+          ),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey.shade600,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
 
-
-
-  
   Widget _buildSearchAndFilters(bool isNarrow) {
     final searchField = TextField(
       decoration: const InputDecoration(
@@ -395,6 +517,20 @@ Widget _statCard({
 
   Widget _buildAgentsTable(bool isNarrow) {
     final agents = _filteredAgents;
+
+    if (agents.isEmpty) {
+      return Padding(
+        padding: EdgeInsets.symmetric(
+            horizontal: isNarrow ? 12.0 : 24.0, vertical: 32.0),
+        child: const Center(
+          child: Text(
+            'No agents found.',
+            style: TextStyle(color: AppColors.kTextMuted),
+          ),
+        ),
+      );
+    }
+
     final table = DataTable(
       columnSpacing: isNarrow ? 20 : 32,
       horizontalMargin: isNarrow ? 12 : 24,
@@ -414,29 +550,31 @@ Widget _statCard({
         DataColumn(label: Text('ACTIONS')),
       ],
       rows: agents.map((agent) {
+        final photoUrl = agent['photo_url'] as String?;
+        final agentInitials =
+            (agent['name'] as String?)?.trim().isNotEmpty == true
+                ? agent['name']!.trim()[0].toUpperCase()
+                : 'U';
+
         return DataRow(cells: [
           DataCell(Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               CircleAvatar(
-                radius: 18,
+                radius: 24,
                 backgroundColor: AppColors.kGold,
-                child: Text(
-                  agent['name']!.isNotEmpty
-                      ? agent['name']!
-                          .trim()
-                          .split(' ')
-                          .map((s) => s.isNotEmpty ? s[0] : '')
-                          .take(2)
-                          .join()
-                          .toUpperCase()
-                      : '?',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
-                ),
+                backgroundImage: photoUrl != null
+                    ? MemoryImage(base64Decode(photoUrl.split(',').last))
+                    : null,
+                child: photoUrl == null
+                    ? Text(
+                        agentInitials,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18),
+                      )
+                    : null,
               ),
               const SizedBox(width: 12),
               Column(
@@ -527,6 +665,8 @@ class AgentFormDialog extends StatefulWidget {
 
 class _AgentFormDialogState extends State<AgentFormDialog> {
   final _formKey = GlobalKey<FormState>();
+  final _photoService = PhotoService();
+  String? _photoDataUri;
 
   late final TextEditingController _nameController;
   late final TextEditingController _mobileController;
@@ -558,6 +698,7 @@ class _AgentFormDialogState extends State<AgentFormDialog> {
         TextEditingController(text: agent?['occupation'] ?? '');
     _role = agent?['role'] ?? 'Agent';
     _status = agent?['status'] ?? 'Active';
+    _photoDataUri = agent?['avatar_url'] as String?;
   }
 
   @override
@@ -571,6 +712,19 @@ class _AgentFormDialogState extends State<AgentFormDialog> {
     _panController.dispose();
     _occupationController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickPhoto() async {
+    try {
+      final dataUri = await _photoService.pickPhotoAsDataUri();
+      if (dataUri != null) setState(() => _photoDataUri = dataUri);
+    } catch (e) {
+      ToastService.show(
+        title: 'Photo upload failed',
+        message: e.toString(),
+        type: ToastType.error,
+      );
+    }
   }
 
   void _handleSave() {
@@ -587,8 +741,7 @@ class _AgentFormDialogState extends State<AgentFormDialog> {
 
     final updated = <String, dynamic>{
       ...?widget.agent,
-      'id': widget.agent?['id'] ??
-          'USR-${DateTime.now().millisecondsSinceEpoch % 100000}',
+      'id': widget.agent?['id'] ?? '',
       'name': _nameController.text.trim(),
       'mobile': _mobileController.text.trim(),
       'email': _emailController.text.trim(),
@@ -599,7 +752,9 @@ class _AgentFormDialogState extends State<AgentFormDialog> {
       'aadhaar': _aadhaarController.text.trim(),
       'pan': _panController.text.trim(),
       'occupation': _occupationController.text.trim(),
-      'created': widget.agent?['created'] ?? '14 Jul 2026',
+      'avatar_url': _photoDataUri,
+      'customer_id': widget.agent?['customer_id'],
+      'created': widget.agent?['created'] ?? '',
     };
 
     widget.onSaved?.call(updated);
@@ -702,7 +857,7 @@ class _AgentFormDialogState extends State<AgentFormDialog> {
               final isNarrow = constraints.maxWidth < 500;
               return _responsiveRow(
                 isNarrow,
-                _buildTextField('AADHAAR', '1234-5678-9012',
+                _buildTextField('AADHAAR', '[Aadhaar Redacted]',
                     controller: _aadhaarController),
                 _buildTextField('PAN', 'ABCDE1234F',
                     controller: _panController),
@@ -734,60 +889,32 @@ class _AgentFormDialogState extends State<AgentFormDialog> {
               ),
               const SizedBox(width: 12),
               OutlinedButton.icon(
-                onPressed: () {
-                  ToastService.show(
-                    title: 'Upload photo',
-                    message: 'Photo upload not implemented in this demo',
-                    type: ToastType.info,
-                  );
-                },
-                icon: const Icon(Icons.upload_outlined, size: 18),
+                onPressed: _pickPhoto,
+                icon: const Icon(Icons.upload_file),
                 label: const Text('Upload Photo'),
               ),
             ],
           ),
           const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              OutlinedButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancel'),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _handleSave,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
               ),
-              const SizedBox(width: 12),
-              ElevatedButton.icon(
-                style:
-                    ElevatedButton.styleFrom(backgroundColor: AppColors.kGold),
-                onPressed: _handleSave,
-                icon: const Icon(Icons.check_circle_outline),
-                label: Text(widget.isEdit ? 'Save Changes' : 'Create Profile'),
-              ),
-            ],
+              child: Text(widget.isEdit ? 'Save Changes' : 'Create User'),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _responsiveRow(bool isNarrow, Widget a, Widget b) {
-    if (isNarrow) {
-      return Column(
-        children: [a, const SizedBox(height: 16), b],
-      );
-    }
-    return Row(
-      children: [
-        Expanded(child: a),
-        const SizedBox(width: 16),
-        Expanded(child: b),
-      ],
-    );
-  }
-
   Widget _buildTextField(String label, String hint,
-      {TextEditingController? controller,
-      int maxLines = 1,
-      bool obscure = false}) {
+      {required TextEditingController controller,
+      bool obscure = false,
+      int maxLines = 1}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -797,21 +924,21 @@ class _AgentFormDialogState extends State<AgentFormDialog> {
                 fontWeight: FontWeight.bold,
                 color: AppColors.kTextMuted)),
         const SizedBox(height: 8),
-        TextField(
+        TextFormField(
           controller: controller,
-          maxLines: maxLines,
           obscureText: obscure,
-          onChanged: (_) => setState(() {}),
+          maxLines: maxLines,
           decoration: InputDecoration(
             hintText: hint,
             isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildDropdown(String label, String value, List<String> options,
+  Widget _buildDropdown(String label, String value, List<String> items,
       ValueChanged<String?> onChanged) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -823,13 +950,36 @@ class _AgentFormDialogState extends State<AgentFormDialog> {
                 color: AppColors.kTextMuted)),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          initialValue: value,
-          decoration: const InputDecoration(isDense: true),
-          items: options
-              .map((o) => DropdownMenuItem(value: o, child: Text(o)))
+          value: value,
+          items: items
+              .map((i) => DropdownMenuItem(value: i, child: Text(i)))
               .toList(),
           onChanged: onChanged,
+          decoration: InputDecoration(
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          ),
         ),
+      ],
+    );
+  }
+
+  Widget _responsiveRow(bool isNarrow, Widget w1, Widget w2) {
+    if (isNarrow) {
+      return Column(
+        children: [
+          w1,
+          const SizedBox(height: 16),
+          w2,
+        ],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: w1),
+        const SizedBox(width: 16),
+        Expanded(child: w2),
       ],
     );
   }

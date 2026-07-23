@@ -5,12 +5,21 @@
 // ============================================================
 
 return [
+    // 'db' => [
+    //     'host'    => '127.0.0.1',
+    //     'port'    => 3306,
+    //     'name'    => 'rrgroups',
+    //     'user'    => 'root',
+    //     'pass'    => 'anantha',   // must match the app user in schema.sql
+    //     'charset' => 'utf8mb4',
+    // ],
+
     'db' => [
         'host'    => '127.0.0.1',
         'port'    => 8889,
         'name'    => 'rrgroups',
         'user'    => 'root',
-        'pass'    => 'root',   // must match the app user in schema.sql
+        'pass'    => 'root',
         'charset' => 'utf8mb4',
     ],
 

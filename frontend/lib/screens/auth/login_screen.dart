@@ -5,7 +5,9 @@ import '../../routes/app_routes.dart';
 import '../../services/session_service.dart';
 import '../../theme/app_theme.dart';
 import '../../services/auth_api_service.dart';
+import '../../services/api_client.dart' hide ApiException;
 import 'forgot_password_screen.dart';
+
 
 /// Maps the backend's `role` string (Profile.role column) onto the app's
 /// UserRole enum. Adjust the string values on the left if your DB stores
@@ -72,6 +74,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         token: data['token']?.toString(),
       );
+      ApiClient.instance.authToken = data['token']?.toString();
       if (!mounted) return;
       // main.dart's onGenerateRoute -> _guarded() decides what's actually
       // shown based on this role, so we always push AppRoutes.dashboard here.

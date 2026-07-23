@@ -76,7 +76,7 @@ class FinCollectApp extends StatelessWidget {
             _guarded(const AgentManagementScreen(), const [UserRole.owner, UserRole.admin]);
         break;
       case AppRoutes.routeMap:
-        page = _guarded(const RouteMapScreen(), const [UserRole.agent]);
+        page = _guarded(const RouteMapScreen(), const [UserRole.owner, UserRole.admin, UserRole.agent]);
         break;
       case AppRoutes.chitGroups:
         page = _guarded(

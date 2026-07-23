@@ -24,6 +24,7 @@ USE rrgroups;
 SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS push_subscriptions;
 DROP TABLE IF EXISTS notifications;
+DROP TABLE IF EXISTS handovers;
 DROP TABLE IF EXISTS fund_payments;
 DROP TABLE IF EXISTS funds;
 DROP TABLE IF EXISTS chit_members;
@@ -69,6 +70,8 @@ CREATE TABLE customers (
   pan            VARCHAR(32)  NULL,
   occupation     VARCHAR(128) NULL,
   photo_url      LONGTEXT     NULL,
+  latitude       DECIMAL(10,7) NULL,
+  longitude      DECIMAL(10,7) NULL,
   loan_status    ENUM('none','active','overdue','closed') NOT NULL DEFAULT 'none',
   assigned_agent CHAR(36)     NULL,
   created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -215,6 +218,23 @@ CREATE TABLE fund_payments (
   INDEX idx_fund_payments_customer (customer_id),
   CONSTRAINT fk_fund_payments_fund FOREIGN KEY (fund_id)
     REFERENCES funds(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ---------- handovers (agent cash/UPI settlement to office) ----------
+CREATE TABLE handovers (
+  id            CHAR(36)     NOT NULL PRIMARY KEY,
+  agent_id      CHAR(36)     NULL,
+  agent_name    VARCHAR(191) NULL,
+  cash_amount   DECIMAL(14,2) NOT NULL DEFAULT 0,
+  upi_amount    DECIMAL(14,2) NOT NULL DEFAULT 0,
+  total_amount  DECIMAL(14,2) NOT NULL DEFAULT 0,   -- cash + upi
+  handover_date DATE         NULL,
+  notes         TEXT         NULL,
+  status        ENUM('pending','verified') NOT NULL DEFAULT 'pending',
+  received_by   CHAR(36)     NULL,   -- admin who verified receipt
+  created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_handovers_agent (agent_id),
+  INDEX idx_handovers_date (handover_date)
 ) ENGINE=InnoDB;
 
 -- ---------- notifications ----------

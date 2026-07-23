@@ -70,12 +70,21 @@ function json_error(string $message, int $status = 400): void
 
 function read_json_body(): array
 {
+    if (isset($GLOBALS['__json_body_override'])) {
+        return $GLOBALS['__json_body_override'];
+    }
     $raw = file_get_contents('php://input');
     if ($raw === '' || $raw === false) {
         return [];
     }
     $data = json_decode($raw, true);
     return is_array($data) ? $data : [];
+}
+
+/** Override the parsed request body for the rest of this request (per-process). */
+function set_json_body(array $body): void
+{
+    $GLOBALS['__json_body_override'] = $body;
 }
 
 function bearer_token(): ?string

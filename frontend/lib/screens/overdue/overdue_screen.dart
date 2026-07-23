@@ -4,7 +4,6 @@ import '../../theme/app_theme.dart';
 import '../../theme/glass_toast.dart';
 import '../../widgets/app_shell.dart';
 import '../../theme/confirm_dialog.dart';
-import '../../theme/edit_dialog.dart';
 
 /// -----------------------------------------------------------------------
 /// MODEL

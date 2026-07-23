@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/glass_toast.dart';
 import '../../widgets/page_header.dart';
+import '../../services/auth_api_service.dart';
 
 class ProfilePage extends StatefulWidget {
   final bool showScaffold;
@@ -17,16 +19,31 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  final _nameCtrl = TextEditingController(text: 'Priya Sharma');
-  final _mobileCtrl = TextEditingController(text: '9876543211');
-  final _occupationCtrl = TextEditingController(text: 'Manager');
+  final _nameCtrl = TextEditingController();
+  final _mobileCtrl = TextEditingController();
+  final _occupationCtrl = TextEditingController();
   final _aadhaarCtrl = TextEditingController();
   final _panCtrl = TextEditingController();
   final _addressCtrl = TextEditingController();
   final _imagePicker = ImagePicker();
 
+  bool _loading = true;
   bool _saving = false;
-  Uint8List? _avatarImageBytes;
+  String? _loadError;
+
+  Uint8List? _avatarImageBytes; // newly picked (unsaved) avatar
+  Uint8List? _storedAvatarBytes; // decoded from backend avatar_url
+
+  String _email = '';
+  String _role = '';
+  String _customerId = '';
+  String? _memberSince;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
 
   @override
   void dispose() {
@@ -39,22 +56,132 @@ class _ProfilePageState extends State<ProfilePage> {
     super.dispose();
   }
 
-  Future<void> _onSave() async {
-    setState(() => _saving = true);
+  Future<void> _loadProfile() async {
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
 
-    // TODO: wire this up to your actual profile update API / repository.
-    await Future.delayed(const Duration(milliseconds: 600));
+    try {
+      final profile = await AuthApiService.instance.getStoredProfile();
+
+      if (profile == null) {
+        setState(() {
+          _loading = false;
+          _loadError = 'No profile found. Please log in again.';
+        });
+        return;
+      }
+
+      _applyProfile(profile);
+    } catch (e) {
+      setState(() {
+        _loading = false;
+        _loadError = 'Could not load profile.';
+      });
+    }
+  }
+
+  void _applyProfile(Map<String, dynamic> profile) {
+    _nameCtrl.text = (profile['full_name'] ?? '').toString();
+    _mobileCtrl.text = (profile['mobile'] ?? '').toString();
+    _occupationCtrl.text = (profile['occupation'] ?? '').toString();
+    _aadhaarCtrl.text = (profile['aadhaar'] ?? '').toString();
+    _panCtrl.text = (profile['pan'] ?? '').toString();
+    _addressCtrl.text = (profile['address'] ?? '').toString();
+
+    _email = (profile['email'] ?? '').toString();
+    _role = (profile['role'] ?? '').toString();
+    _customerId = (profile['customer_id'] ?? '').toString();
+    _memberSince = _formatMemberSince(profile['created_at']?.toString());
+    _storedAvatarBytes = _decodeAvatar(profile['avatar_url']?.toString());
+
+    setState(() => _loading = false);
+  }
+
+  /// avatar_url comes back as a data URI: "data:image/jpeg;base64,...."
+  Uint8List? _decodeAvatar(String? avatarUrl) {
+    if (avatarUrl == null || avatarUrl.isEmpty) return null;
+    final commaIndex = avatarUrl.indexOf(',');
+    final base64Part =
+        commaIndex == -1 ? avatarUrl : avatarUrl.substring(commaIndex + 1);
+    try {
+      return base64Decode(base64Part);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String? _formatMemberSince(String? createdAt) {
+    if (createdAt == null || createdAt.isEmpty) return null;
+    try {
+      final date = DateTime.parse(createdAt);
+      const months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
+      return 'Member since ${months[date.month - 1]} ${date.year}';
+    } catch (_) {
+      return null;
+    }
+  }
+
+Future<void> _onSave() async {
+  setState(() => _saving = true);
+
+  try {
+    // NEW: encode the newly picked avatar (if any) as a base64 data URI
+    String? avatarBase64;
+    if (_avatarImageBytes != null) {
+      avatarBase64 =
+          'data:image/jpeg;base64,${base64Encode(_avatarImageBytes!)}';
+    }
+
+    final updated = await AuthApiService.instance.updateProfile(
+      fullName: _nameCtrl.text.trim(),
+      mobile: _mobileCtrl.text.trim(),
+      occupation: _occupationCtrl.text.trim(),
+      aadhaar: _aadhaarCtrl.text.trim(),
+      pan: _panCtrl.text.trim(),
+      address: _addressCtrl.text.trim(),
+      avatarBase64: avatarBase64, // NEW
+    );
 
     if (!mounted) return;
-    setState(() => _saving = false);
+    _applyProfile(updated);
+    _avatarImageBytes = null; // NEW: clear staged pick now that it's saved/synced into _storedAvatarBytes
 
-    // Smooth custom iOS-style toast replace
     ToastService.show(
       title: 'Success',
       message: 'Profile updated',
       type: ToastType.success,
     );
+  } on ApiException catch (e) {
+    if (!mounted) return;
+    ToastService.show(title: 'Error', message: e.message, type: ToastType.error);
+  } catch (_) {
+    if (!mounted) return;
+    ToastService.show(
+      title: 'Error',
+      message: 'Could not update profile. Try again.',
+      type: ToastType.error,
+    );
+  } finally {
+    if (mounted) setState(() => _saving = false);
   }
+}
+
+
 
   Future<void> _onPickAvatar() async {
     final source = await showModalBottomSheet<ImageSource>(
@@ -95,46 +222,76 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final content = SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.only(bottom: 32),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const PageHeader(
-              title: 'My Profile',
-              subtitle: 'Manage your account details and security',
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _ProfileHeaderCard(
-                    name: _nameCtrl.text,
-                    email: 'admin@fincollect.in',
-                    role: 'ADMINISTRATOR',
-                    avatarImageBytes: _avatarImageBytes,
-                    onPickAvatar: _onPickAvatar,
-                  ),
-                  const SizedBox(height: 20),
-                  _ProfileDetailsCard(
-                    nameCtrl: _nameCtrl,
-                    mobileCtrl: _mobileCtrl,
-                    occupationCtrl: _occupationCtrl,
-                    aadhaarCtrl: _aadhaarCtrl,
-                    panCtrl: _panCtrl,
-                    addressCtrl: _addressCtrl,
-                    saving: _saving,
-                    onSave: _onSave,
-                  ),
-                ],
-              ),
-            ),
-          ],
+    Widget content;
+
+    if (_loading) {
+      content = const Center(
+        child: Padding(
+          padding: EdgeInsets.all(40),
+          child: CircularProgressIndicator(),
         ),
-      ),
-    );
+      );
+    } else if (_loadError != null) {
+      content = Center(
+        child: Padding(
+          padding: const EdgeInsets.all(40),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_loadError!,
+                  style: const TextStyle(color: AppColors.kTextMuted)),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: _loadProfile,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      content = SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.only(bottom: 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const PageHeader(
+                title: 'My Profile',
+                subtitle: 'Manage your account details and security',
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _ProfileHeaderCard(
+                      name: _nameCtrl.text.isEmpty ? '—' : _nameCtrl.text,
+                      email: _email,
+                      role: _role.toUpperCase(),
+                      memberSince: _memberSince,
+                      avatarImageBytes: _avatarImageBytes ?? _storedAvatarBytes,
+                      onPickAvatar: _onPickAvatar,
+                    ),
+                    const SizedBox(height: 20),
+                    _ProfileDetailsCard(
+                      nameCtrl: _nameCtrl,
+                      mobileCtrl: _mobileCtrl,
+                      occupationCtrl: _occupationCtrl,
+                      aadhaarCtrl: _aadhaarCtrl,
+                      panCtrl: _panCtrl,
+                      addressCtrl: _addressCtrl,
+                      saving: _saving,
+                      onSave: _onSave,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     if (!widget.showScaffold) {
       return content;
@@ -153,6 +310,7 @@ class _ProfileHeaderCard extends StatelessWidget {
   final String name;
   final String email;
   final String role;
+  final String? memberSince;
   final Uint8List? avatarImageBytes;
   final VoidCallback onPickAvatar;
 
@@ -160,6 +318,7 @@ class _ProfileHeaderCard extends StatelessWidget {
     required this.name,
     required this.email,
     required this.role,
+    required this.memberSince,
     required this.avatarImageBytes,
     required this.onPickAvatar,
   });
@@ -214,57 +373,68 @@ class _ProfileHeaderCard extends StatelessWidget {
           ],
         );
 
-        final info = Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              name,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: AppColors.kTextDark,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(email,
-                style:
-                    const TextStyle(fontSize: 14, color: AppColors.kTextMuted)),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 10,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppColors.kGoldLight.withValues(alpha: 0.35),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.verified_user,
-                          size: 14, color: AppColors.kGoldDark),
-                      const SizedBox(width: 6),
-                      Text(
-                        role,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.kGoldDark,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
-                  ),
+        Widget nameEmailRoleBlock({required CrossAxisAlignment align}) {
+          return Column(
+            crossAxisAlignment: align,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                name,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.kTextDark,
                 ),
+              ),
+              const SizedBox(height: 2),
+              Text(email,
+                  style: const TextStyle(
+                      fontSize: 14, color: AppColors.kTextMuted)),
+              if (memberSince != null) ...[
+                const SizedBox(height: 2),
+                Text(memberSince!,
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.kTextMuted)),
               ],
-            ),
-          ],
-        );
+              const SizedBox(height: 10),
+              Wrap(
+                alignment: align == CrossAxisAlignment.center
+                    ? WrapAlignment.center
+                    : WrapAlignment.start,
+                spacing: 10,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.kGoldLight.withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.verified_user,
+                            size: 14, color: AppColors.kGoldDark),
+                        const SizedBox(width: 6),
+                        Text(
+                          role,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.kGoldDark,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        }
 
         return Container(
           padding: const EdgeInsets.all(20),
@@ -280,51 +450,8 @@ class _ProfileHeaderCard extends StatelessWidget {
                     avatar,
                     const SizedBox(height: 16),
                     Center(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Text(name,
-                              style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.kTextDark)),
-                          const SizedBox(height: 2),
-                          Text(email,
-                              style: const TextStyle(
-                                  fontSize: 14, color: AppColors.kTextMuted)),
-                          const SizedBox(height: 10),
-                          Wrap(
-                            alignment: WrapAlignment.center,
-                            spacing: 10,
-                            runSpacing: 8,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: AppColors.kGoldLight
-                                      .withValues(alpha: 0.35),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.verified_user,
-                                        size: 14, color: AppColors.kGoldDark),
-                                    const SizedBox(width: 6),
-                                    Text(role,
-                                        style: const TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                            color: AppColors.kGoldDark,
-                                            letterSpacing: 0.5)),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+                      child:
+                          nameEmailRoleBlock(align: CrossAxisAlignment.center),
                     ),
                   ],
                 )
@@ -333,7 +460,10 @@ class _ProfileHeaderCard extends StatelessWidget {
                   children: [
                     avatar,
                     const SizedBox(width: 20),
-                    Expanded(child: info),
+                    Expanded(
+                      child:
+                          nameEmailRoleBlock(align: CrossAxisAlignment.start),
+                    ),
                   ],
                 ),
         );
@@ -342,8 +472,7 @@ class _ProfileHeaderCard extends StatelessWidget {
   }
 }
 
-/// Details form card — responsive 2-column grid (1 column on narrow screens),
-/// with Address added as a full-width multiline field.
+/// Details form card — responsive 2-column grid (1 column on narrow screens).
 class _ProfileDetailsCard extends StatelessWidget {
   final TextEditingController nameCtrl;
   final TextEditingController mobileCtrl;
@@ -468,6 +597,7 @@ class _ProfileDetailsCard extends StatelessWidget {
                     label: 'OCCUPATION',
                     icon: Icons.work_outline,
                     controller: occupationCtrl,
+                    hint: 'e.g. Manager',
                   ),
                   field(
                     label: 'AADHAAR',
@@ -482,7 +612,6 @@ class _ProfileDetailsCard extends StatelessWidget {
                     controller: panCtrl,
                     hint: 'PAN number',
                   ),
-                  // New: Address — full width, multiline.
                   field(
                     label: 'ADDRESS',
                     icon: Icons.location_on_outlined,

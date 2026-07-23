@@ -21,6 +21,13 @@ class CustomerController extends Controller
         return $v === '' ? null : $v;
     }
 
+    /** Numeric coercion for coordinates (accepts JSON number or numeric string). */
+    private static function num($v): ?float
+    {
+        if ($v === null || $v === '' || !is_numeric($v)) return null;
+        return (float)$v;
+    }
+
     private static function genCode(): string
     {
         return 'CUST-' . random_int(100000, 999999);
@@ -38,6 +45,8 @@ class CustomerController extends Controller
             'occupation'     => self::clean($b['occupation'] ?? null),
             'photo_url'      => self::clean($b['photo_url'] ?? null),
             'assigned_agent' => self::clean($b['assigned_agent'] ?? null),
+            'latitude'       => self::num($b['latitude'] ?? null),
+            'longitude'      => self::num($b['longitude'] ?? null),
         ];
     }
 

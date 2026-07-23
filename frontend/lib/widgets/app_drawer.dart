@@ -79,7 +79,7 @@ const List<_DrawerSection> _sections = [
         label: 'Route Map',
         icon: Icons.map_outlined,
         route: AppRoutes.routeMap,
-        allowedRoles: [UserRole.agent]),
+        allowedRoles: [UserRole.agent, UserRole.owner, UserRole.admin]),
   ]),
   _DrawerSection(title: 'INSIGHTS', items: [
     _DrawerItem(

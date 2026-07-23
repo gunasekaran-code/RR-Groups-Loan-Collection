@@ -9,11 +9,23 @@ if ($model === null) {
     json_error("Unknown table: $table", 404);
 }
 
-if ($table === 'funds') {
-    $controller = new FundController($model);
-} elseif ($table === 'fund_payments') {
-    $controller = new FundPaymentController($model);
-} else {
-    $controller = new ResourceController($model);
-}
+// Each whitelisted table gets a controller that enforces role-based writes.
+// Reads stay open to any authenticated user; the frontend scopes rows per role.
+$controllers = [
+    'funds'              => FundController::class,
+    'fund_payments'      => FundPaymentController::class,
+    'handovers'          => HandoverController::class,
+    'loans'              => LoanController::class,
+    'profiles'           => AgentController::class,
+    'customers'          => CustomerRestController::class,
+    'collections'        => CollectionController::class,
+    'repayment_schedule' => ScheduleController::class,
+    'chit_groups'        => ChitGroupController::class,
+    'chit_members'       => ChitMemberController::class,
+    'notifications'      => NotificationController::class,
+    'settings'           => SettingController::class,
+    'push_subscriptions' => PushSubscriptionController::class,
+];
+$controllerClass = $controllers[$table] ?? ResourceController::class;
+$controller = new $controllerClass($model);
 $controller->handle();

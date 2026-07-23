@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/app_user.dart';
 import '../models/user_role.dart';
+import 'api_client.dart';
 
 class SessionService {
   SessionService._internal();
@@ -16,6 +17,7 @@ class SessionService {
   Future<void> restoreFromStorage() async {
     final prefs = await SharedPreferences.getInstance();
     token = prefs.getString(_tokenKey);
+    ApiClient.instance.authToken = token;
 
     final rawProfile = prefs.getString(_profileKey);
     if (rawProfile == null || rawProfile.isEmpty) {
@@ -41,12 +43,14 @@ class SessionService {
   AppUser login(AppUser user, {String? token}) {
     currentUser = user;
     this.token = token;
+    ApiClient.instance.authToken = token;
     return user;
   }
 
   void logout() {
     currentUser = null;
     token = null;
+    ApiClient.instance.authToken = null;
   }
 
   bool get isLoggedIn => currentUser != null;

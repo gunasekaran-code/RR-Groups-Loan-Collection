@@ -4,6 +4,10 @@ import '../../widgets/app_shell.dart';
 import '../../widgets/status_badge.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/glass_toast.dart';
+import '../../models/loan_record.dart';
+import '../../models/repayment_installment.dart';
+import '../../services/api_service_repayment.dart';
+import '../../services/loan_service.dart';
 
 class RepaymentScheduleScreen extends StatefulWidget {
   const RepaymentScheduleScreen({super.key});
@@ -14,59 +18,94 @@ class RepaymentScheduleScreen extends StatefulWidget {
 }
 
 class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
-  String _selectedLoan = 'LN-232037';
+  bool _loading = true;
+  String? _error;
 
-  // Dummy data matching the screenshot
-  static const List<Map<String, String>> _installments = [
-    {
-      'inst': '#1',
-      'due': '31 Jul 2026',
-      'amount': '₹9,383',
-      'paid': '₹0',
-      'balance': '₹9,383',
-      'status': 'Pending'
-    },
-    {
-      'inst': '#2',
-      'due': '31 Aug 2026',
-      'amount': '₹9,383',
-      'paid': '₹0',
-      'balance': '₹9,383',
-      'status': 'Pending'
-    },
-    {
-      'inst': '#3',
-      'due': '30 Sep 2026',
-      'amount': '₹9,383',
-      'paid': '₹0',
-      'balance': '₹9,383',
-      'status': 'Pending'
-    },
-    {
-      'inst': '#4',
-      'due': '31 Oct 2026',
-      'amount': '₹9,383',
-      'paid': '₹0',
-      'balance': '₹9,383',
-      'status': 'Pending'
-    },
-    {
-      'inst': '#5',
-      'due': '30 Nov 2026',
-      'amount': '₹9,383',
-      'paid': '₹0',
-      'balance': '₹9,383',
-      'status': 'Pending'
-    },
-    {
-      'inst': '#6',
-      'due': '31 Dec 2026',
-      'amount': '₹9,383',
-      'paid': '₹0',
-      'balance': '₹9,383',
-      'status': 'Pending'
-    },
-  ];
+  List<LoanRecord> _loanOptions = [];
+  LoanRecord? _selectedLoan;
+  List<RepaymentInstallment> _installments = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLoans();
+  }
+
+  Future<void> _loadLoans() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+      _loanOptions = [];
+      _selectedLoan = null;
+      _installments = [];
+    });
+
+    try {
+      final customers = await LoanService.instance.fetchCustomers();
+      final agents = await LoanService.instance.fetchAgents();
+      final loans = await LoanService.instance.fetchLoans(
+        customers: customers,
+        agents: agents,
+      );
+      if (!mounted) return;
+      setState(() {
+        _loanOptions = loans;
+        _selectedLoan = loans.isNotEmpty ? loans.first : null;
+      });
+      if (_selectedLoan != null) {
+        await _loadSchedule();
+      } else {
+        setState(() {
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Could not load loans';
+        _loading = false;
+      });
+      ToastService.show(
+        title: 'Loan load failed',
+        message: e.toString(),
+        type: ToastType.error,
+      );
+    }
+  }
+
+  Future<void> _loadSchedule() async {
+    if (_selectedLoan == null) {
+      setState(() {
+        _loading = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final data = await ApiServiceRepayment.instance
+          .fetchSchedule(_selectedLoan!.id);
+      if (!mounted) return;
+      setState(() {
+        _installments = data;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Could not load repayment schedule';
+        _loading = false;
+      });
+      ToastService.show(
+        title: 'Load failed',
+        message: e.toString(),
+        type: ToastType.error,
+      );
+    }
+  }
 
   BadgeTone _toneFor(String status) {
     switch (status) {
@@ -87,27 +126,58 @@ class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
         return AppShell(
           currentRoute: AppRoutes.repayment,
           title: 'Repayment Schedule',
-          body: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(
-                horizontal: isNarrow ? 12 : 24, vertical: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildHeader(context, isNarrow),
-                const SizedBox(height: 24),
-                _buildLoanSelector(),
-                const SizedBox(height: 20),
-                _buildSummaryGrid(isNarrow),
-                const SizedBox(height: 24),
-                _buildSectionLabel('INSTALLMENT BREAKDOWN'),
-                const SizedBox(height: 12),
-                _buildInstallmentsTable(isNarrow),
-                const SizedBox(height: 24),
-              ],
+          body: RefreshIndicator(
+            onRefresh: _loadSchedule,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.symmetric(
+                  horizontal: isNarrow ? 12 : 24, vertical: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(context, isNarrow),
+                  const SizedBox(height: 24),
+                  _buildLoanSelector(),
+                  const SizedBox(height: 20),
+                  if (_loading)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 60),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (_error != null)
+                    _buildErrorState()
+                  else ...[
+                    _buildSummaryGrid(isNarrow),
+                    const SizedBox(height: 24),
+                    _buildSectionLabel('INSTALLMENT BREAKDOWN'),
+                    const SizedBox(height: 12),
+                    _buildInstallmentsTable(isNarrow),
+                  ],
+                  const SizedBox(height: 24),
+                ],
+              ),
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 40),
+      child: Column(
+        children: [
+          const Icon(Icons.error_outline, color: AppColors.kDanger, size: 32),
+          const SizedBox(height: 12),
+          Text(_error!, style: const TextStyle(color: AppColors.kTextMuted)),
+          const SizedBox(height: 12),
+          OutlinedButton(
+            onPressed: _loadSchedule,
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -126,7 +196,7 @@ class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
           onPressed: () {
             ToastService.show(
               title: 'Download started',
-              message: 'Schedule for $_selectedLoan',
+              message: _selectedLoan?.loanNumber ?? 'No loan selected',
               type: ToastType.info,
             );
           },
@@ -182,8 +252,9 @@ class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
                 letterSpacing: 0.5),
           ),
           const SizedBox(height: 8),
-          DropdownButtonFormField<String>(
+          DropdownButtonFormField<LoanRecord>(
             value: _selectedLoan,
+            isExpanded: true,
             decoration: InputDecoration(
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -196,20 +267,26 @@ class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
                 borderSide: const BorderSide(color: AppColors.kBorder),
               ),
             ),
-            items: const [
-              DropdownMenuItem(
-                  value: 'LN-232037', child: Text('LN-232037 — Lakshmi Iyer')),
-            ],
-            onChanged: (val) {
-              if (val != null) {
-                setState(() => _selectedLoan = val);
-                ToastService.show(
-                  title: 'Loan switched',
-                  message: val,
-                  type: ToastType.info,
-                );
-              }
-            },
+            hint: const Text('Select loan'),
+            items: _loanOptions
+                .map((loan) => DropdownMenuItem<LoanRecord>(
+                      value: loan,
+                      child: Text('${loan.loanNumber} — ${loan.customerName}'),
+                    ))
+                .toList(),
+            onChanged: _loanOptions.isEmpty
+                ? null
+                : (loan) {
+                    if (loan != null) {
+                      setState(() => _selectedLoan = loan);
+                      ToastService.show(
+                        title: 'Loan switched',
+                        message: loan.loanNumber,
+                        type: ToastType.info,
+                      );
+                      _loadSchedule();
+                    }
+                  },
           ),
         ],
       ),
@@ -228,35 +305,71 @@ class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
     );
   }
 
-  // Summary cards grid — responsive: 2 columns narrow, 4 columns wide
+  // Summary cards grid — responsive: 2 columns narrow, 4 columns wide.
+  // All figures below are derived from the fetched schedule rows.
   Widget _buildSummaryGrid(bool isNarrow) {
+    final total = _installments.length;
+    final paidCount =
+        _installments.where((i) => i.status == 'paid').length;
+    final overdueCount =
+        _installments.where((i) => i.status == 'overdue').length;
+    final pendingCount = total - paidCount - overdueCount;
+
+    final emi = _installments.isNotEmpty
+        ? _installments.first.emiAmount
+        : 0.0;
+    final totalRepayment =
+        _installments.fold<double>(0, (sum, i) => sum + i.emiAmount);
+    final outstanding =
+        _installments.fold<double>(0, (sum, i) => sum + i.balance);
+
+    final nextDue = _installments
+        .where((i) => i.status != 'paid' && i.dueDate != null)
+        .toList()
+      ..sort((a, b) => a.dueDate!.compareTo(b.dueDate!));
+    final nextDueDisplay =
+        nextDue.isNotEmpty ? nextDue.first.dueDateDisplay : '-';
+
+    String _fmt(double v) =>
+        RepaymentInstallment(
+          id: '',
+          loanId: '',
+          installmentNo: 0,
+          dueDate: null,
+          emiAmount: v,
+          paidAmount: 0,
+          balance: 0,
+          status: 'pending',
+        ).amountDisplay;
+
     final cards = <Widget>[
-      _buildStatCard('LOAN NUMBER', 'LN-232037', icon: Icons.badge_outlined),
-      _buildStatCard('CUSTOMER', 'Lakshmi Iyer', icon: Icons.person_outline),
-      _buildStatCard('LOAN AMOUNT', '₹50,000',
+      _buildStatCard('LOAN NUMBER', _selectedLoan?.loanNumber ?? '-', icon: Icons.badge_outlined),
+      _buildStatCard('CUSTOMER', _selectedLoan?.customerName ?? '-', icon: Icons.person_outline),
+      _buildStatCard('LOAN AMOUNT', '—',
           icon: Icons.account_balance_wallet_outlined),
-      _buildStatCard('EMI', '₹9,383', icon: Icons.calendar_month_outlined),
-      _buildStatCard('TOTAL REPAYMENT', '₹56,300',
+      _buildStatCard('EMI', _fmt(emi), icon: Icons.calendar_month_outlined),
+      _buildStatCard('TOTAL REPAYMENT', _fmt(totalRepayment),
           icon: Icons.summarize_outlined),
-      _buildStatCard('OUTSTANDING', '₹52,500',
+      _buildStatCard('OUTSTANDING', _fmt(outstanding),
           icon: Icons.warning_amber_outlined, textColor: AppColors.kDanger),
-      _buildStatCard('TOTAL INST.', '6', icon: Icons.format_list_numbered),
-      _buildStatCard('PAID', '0',
+      _buildStatCard('TOTAL INST.', '$total',
+          icon: Icons.format_list_numbered),
+      _buildStatCard('PAID', '$paidCount',
           icon: Icons.check_circle_outline,
           textColor: AppColors.kSuccess,
           borderColor: AppColors.kSuccess.withOpacity(0.3),
           bgColor: AppColors.kSuccess.withOpacity(0.05)),
-      _buildStatCard('PENDING', '6',
+      _buildStatCard('PENDING', '$pendingCount',
           icon: Icons.hourglass_empty,
           textColor: AppColors.kWarning,
           borderColor: AppColors.kWarning.withOpacity(0.3),
           bgColor: AppColors.kWarning.withOpacity(0.05)),
-      _buildStatCard('OVERDUE', '0',
+      _buildStatCard('OVERDUE', '$overdueCount',
           icon: Icons.error_outline,
           textColor: AppColors.kDanger,
           borderColor: AppColors.kDanger.withOpacity(0.3),
           bgColor: AppColors.kDanger.withOpacity(0.05)),
-      _buildStatCard('NEXT DUE', '31 Jul 2026',
+      _buildStatCard('NEXT DUE', nextDueDisplay,
           icon: Icons.event_outlined,
           textColor: AppColors.kInfo,
           borderColor: AppColors.kInfo.withOpacity(0.3),
@@ -328,10 +441,25 @@ class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
     );
   }
 
-  // Installments table — same visual pattern as the Loans table:
-  // Card wrapper, scrollbar with visible thumb, min-width for horizontal
-  // scroll on small screens, and StatusBadge for the status column.
+  // Installments table — same visual pattern as before, now sourced
+  // from live `_installments` fetched via ApiServiceRepayment.
   Widget _buildInstallmentsTable(bool isNarrow) {
+    if (_installments.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: AppColors.kSurface,
+          border: Border.all(color: AppColors.kBorder),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Text(
+          'No installments found for this loan',
+          style: TextStyle(color: AppColors.kTextMuted),
+        ),
+      );
+    }
+
     final table = DataTable(
       headingTextStyle: const TextStyle(
         color: AppColors.kTextMuted,
@@ -353,15 +481,15 @@ class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
       ],
       rows: _installments.map((inst) {
         return DataRow(cells: [
-          DataCell(Text(inst['inst']!,
+          DataCell(Text('#${inst.installmentNo}',
               style: const TextStyle(fontWeight: FontWeight.w600))),
-          DataCell(Text(inst['due']!)),
-          DataCell(Text(inst['amount']!)),
-          DataCell(Text(inst['paid']!)),
-          DataCell(Text(inst['balance']!,
+          DataCell(Text(inst.dueDateDisplay)),
+          DataCell(Text(inst.amountDisplay)),
+          DataCell(Text(inst.paidDisplay)),
+          DataCell(Text(inst.balanceDisplay,
               style: const TextStyle(fontWeight: FontWeight.w600))),
           DataCell(StatusBadge(
-              label: inst['status']!, tone: _toneFor(inst['status']!))),
+              label: inst.statusLabel, tone: _toneFor(inst.statusLabel))),
         ]);
       }).toList(),
     );
@@ -377,8 +505,6 @@ class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: Scrollbar(
-          // Always show the horizontal scrollbar/thumb so users on mobile
-          // get a clear visual affordance that the table can be swiped.
           thumbVisibility: true,
           trackVisibility: true,
           notificationPredicate: (notification) => notification.depth == 0,
@@ -386,9 +512,6 @@ class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
             scrollDirection: Axis.horizontal,
             physics: const ClampingScrollPhysics(),
             child: ConstrainedBox(
-              // Force a sensible minimum width so the table always has
-              // something wider than the viewport to scroll on small
-              // screens, instead of silently shrinking to fit.
               constraints: const BoxConstraints(minWidth: 720),
               child: SingleChildScrollView(
                 child: table,
