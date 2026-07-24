@@ -4,14 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../theme/glass_toast.dart';
 import '../../routes/app_routes.dart';
-import '../../theme/app_theme.dart'; // adjust path if your app_theme.dart lives elsewhere
+import '../../theme/app_theme.dart';
 import '../../widgets/app_shell.dart';
+import '../../models/chit_group.dart';
+import '../../services/chit_group_api_service.dart'; 
 
 /// -----------------------------------------------------------------------
-/// MODEL
+/// MODEL HELPERS
 /// -----------------------------------------------------------------------
-enum ChitGroupStatus { active, completed, upcoming }
-
 extension ChitGroupStatusX on ChitGroupStatus {
   String get label {
     switch (this) {
@@ -46,58 +46,6 @@ extension ChitGroupStatusX on ChitGroupStatus {
     }
   }
 }
-
-class ChitGroup {
-  ChitGroup({
-    required this.id,
-    required this.code,
-    required this.name,
-    required this.status,
-    required this.totalMembers,
-    required this.durationMonths,
-    required this.groupValue,
-    required this.monthlyContribution,
-    required this.startDate,
-    required this.collectedPercent,
-  });
-
-  final String id;
-  final String code;
-  final String name;
-  final ChitGroupStatus status;
-  final int totalMembers;
-  final int durationMonths;
-  final double groupValue;
-  final double monthlyContribution;
-  final DateTime startDate;
-  final int collectedPercent; // 0-100
-
-  ChitGroup copyWith({
-    String? name,
-    int? totalMembers,
-    int? durationMonths,
-    double? groupValue,
-    double? monthlyContribution,
-    DateTime? startDate,
-  }) {
-    return ChitGroup(
-      id: id,
-      code: code,
-      name: name ?? this.name,
-      status: status,
-      totalMembers: totalMembers ?? this.totalMembers,
-      durationMonths: durationMonths ?? this.durationMonths,
-      groupValue: groupValue ?? this.groupValue,
-      monthlyContribution: monthlyContribution ?? this.monthlyContribution,
-      startDate: startDate ?? this.startDate,
-      collectedPercent: collectedPercent,
-    );
-  }
-}
-
-/// -----------------------------------------------------------------------
-/// HELPERS
-/// -----------------------------------------------------------------------
 
 /// Formats a number in the Indian numbering system, e.g. 500000 -> "5,00,000".
 String formatIndianCurrency(num value, {bool withSymbol = true}) {
@@ -162,49 +110,44 @@ class ChitGroupsScreen extends StatefulWidget {
 
 class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
   final TextEditingController _searchController = TextEditingController();
-  final ScrollController _scrollController =
-      ScrollController(); // Fixes web scrollbar controller exceptions
+  final ScrollController _scrollController = ScrollController();
   String _statusFilter = 'All Status';
 
-  // TODO(backend): replace with GET /api/notifications via ApiService.
-  final List<ChitGroup> _groups = [
-    ChitGroup(
-      id: '1',
-      code: 'GRP-81BA08',
-      name: 'Saraswati Chit Fund',
-      status: ChitGroupStatus.active,
-      totalMembers: 10,
-      durationMonths: 10,
-      groupValue: 500000,
-      monthlyContribution: 50000,
-      startDate: DateTime(2025, 1, 1),
-      collectedPercent: 50,
-    ),
-    ChitGroup(
-      id: '2',
-      code: 'GRP-4C21F9',
-      name: 'Lakshmi Chit Fund',
-      status: ChitGroupStatus.active,
-      totalMembers: 20,
-      durationMonths: 20,
-      groupValue: 1000000,
-      monthlyContribution: 50000,
-      startDate: DateTime(2025, 3, 1),
-      collectedPercent: 35,
-    ),
-    ChitGroup(
-      id: '3',
-      code: 'GRP-9F0D42',
-      name: 'Ganesh Chit Fund',
-      status: ChitGroupStatus.completed,
-      totalMembers: 12,
-      durationMonths: 12,
-      groupValue: 600000,
-      monthlyContribution: 50000,
-      startDate: DateTime(2024, 1, 1),
-      collectedPercent: 100,
-    ),
-  ];
+  List<ChitGroup> _groups = [];
+  bool _isLoading = true;
+  String? _loadError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadGroups();
+  }
+
+  Future<void> _loadGroups() async {
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
+    try {
+      final groups = await ChitGroupApiService.fetchAll();
+      if (!mounted) return;
+      setState(() {
+        _groups = groups;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = e.toString();
+        _isLoading = false;
+      });
+      ToastService.show(
+        title: 'Failed to load groups',
+        message: e.toString(),
+        type: ToastType.error,
+      );
+    }
+  }
 
   List<ChitGroup> get _filteredGroups {
     final query = _searchController.text.trim().toLowerCase();
@@ -272,13 +215,21 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
         child: const _GroupFormDialog(),
       ),
     );
+    if (result == null) return;
 
-    if (result != null) {
-      setState(() => _groups.insert(0, result));
+    try {
+      final created = await ChitGroupApiService.create(result);
+      setState(() => _groups.insert(0, created));
       ToastService.show(
         title: 'Group created',
-        message: result.name,
+        message: created.name,
         type: ToastType.success,
+      );
+    } catch (e) {
+      ToastService.show(
+        title: 'Create failed',
+        message: e.toString(),
+        type: ToastType.error,
       );
     }
   }
@@ -293,22 +244,29 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
         child: _GroupFormDialog(existing: group),
       ),
     );
+    if (result == null) return;
 
-    if (result != null) {
+    try {
+      final updated = await ChitGroupApiService.update(result);
       setState(() {
         final idx = _groups.indexWhere((g) => g.id == group.id);
-        if (idx != -1) _groups[idx] = result;
+        if (idx != -1) _groups[idx] = updated;
       });
       ToastService.show(
         title: 'Group updated',
-        message: result.name,
+        message: updated.name,
         type: ToastType.success,
+      );
+    } catch (e) {
+      ToastService.show(
+        title: 'Update failed',
+        message: e.toString(),
+        type: ToastType.error,
       );
     }
   }
 
   Future<void> _confirmDelete(ChitGroup group) async {
-    // Invoke your custom bottom edge-to-edge iOS presentation layout sheet
     final confirmed = await AppConfirmDialog.show(
       context: context,
       title: 'Delete Group',
@@ -317,14 +275,21 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
       confirmLabel: 'Delete',
       confirmButtonColor: AppColors.kDanger,
     );
+    if (confirmed != true || !mounted) return;
 
-    // Apply mutation blocks safely if the user confirmed the dialog sheet
-    if (confirmed == true && mounted) {
+    try {
+      await ChitGroupApiService.delete(group.id);
       setState(() => _groups.removeWhere((g) => g.id == group.id));
       ToastService.show(
         title: 'Group deleted',
         message: group.name,
         type: ToastType.warning,
+      );
+    } catch (e) {
+      ToastService.show(
+        title: 'Delete failed',
+        message: e.toString(),
+        type: ToastType.error,
       );
     }
   }
@@ -344,142 +309,158 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
       currentRoute: AppRoutes.chitGroups,
       title: 'Chit Groups',
       body: RefreshIndicator(
-        onRefresh: () async => setState(() {}),
-        child: ListView(
-          controller: _scrollController, // Connected scroll controller
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-          children: [
-            const SizedBox(height: 6),
-            const Text(
-              'Manage chit fund groups and member contributions',
-              style: TextStyle(color: AppColors.kTextMuted, fontSize: 14),
-            ),
-            const SizedBox(height: 16),
-
-            Align(
-              alignment: Alignment.centerLeft,
-              child: SizedBox(
-                width: 150,
-                child: ElevatedButton.icon(
-                  onPressed: _openCreateDialog,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Create Group',
-                      style: TextStyle(fontWeight: FontWeight.w600)),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+        onRefresh: _loadGroups,
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _loadError != null
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_loadError!,
+                            style: const TextStyle(color: AppColors.kDanger)),
+                        const SizedBox(height: 12),
+                        ElevatedButton(
+                            onPressed: _loadGroups, child: const Text('Retry')),
+                      ],
+                    ),
+                  )
+                : ListView(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                    children: [
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Manage chit fund groups and member contributions',
+                        style: TextStyle(
+                            color: AppColors.kTextMuted, fontSize: 14),
+                      ),
+                      const SizedBox(height: 16),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: SizedBox(
+                          width: 150,
+                          child: ElevatedButton.icon(
+                            onPressed: _openCreateDialog,
+                            icon: const Icon(Icons.add),
+                            label: const Text('Create Group',
+                                style: TextStyle(fontWeight: FontWeight.w600)),
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      GridView.count(
+                        crossAxisCount: 2,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        mainAxisSpacing: 12,
+                        crossAxisSpacing: 12,
+                        childAspectRatio: 1.5,
+                        children: [
+                          _StatCard(
+                            icon: Icons.qr_code_2_rounded,
+                            iconBg: const Color(0xFFEDE9FE),
+                            iconColor: const Color(0xFF7C3AED),
+                            label: 'Total Groups',
+                            value: '${_groups.length}',
+                          ),
+                          _StatCard(
+                            icon: Icons.trending_up_rounded,
+                            iconBg: const Color(0xFFFEF3C7),
+                            iconColor: AppColors.kWarning,
+                            label: 'Active Groups',
+                            value: '$_activeCount',
+                          ),
+                          _StatCard(
+                            icon: Icons.currency_rupee_rounded,
+                            iconBg: const Color(0xFFDCFCE7),
+                            iconColor: AppColors.kSuccess,
+                            label: 'Collected',
+                            value: formatIndianCurrency(_totalCollected),
+                          ),
+                          _StatCard(
+                            icon: Icons.currency_rupee_rounded,
+                            iconBg: const Color(0xFFFEE2E2),
+                            iconColor: AppColors.kDanger,
+                            label: 'Pending',
+                            value: formatIndianCurrency(_totalPending),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      TextField(
+                        controller: _searchController,
+                        onChanged: (_) => setState(() {}),
+                        decoration: InputDecoration(
+                          hintText: 'Search groups...',
+                          prefixIcon: const Icon(Icons.search,
+                              color: AppColors.kTextMuted),
+                          filled: true,
+                          fillColor: AppColors.kSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: AppColors.kSurface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.kBorder),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _statusFilter,
+                            isExpanded: true,
+                            icon: const Icon(Icons.unfold_more_rounded,
+                                color: AppColors.kTextMuted),
+                            style: const TextStyle(
+                                color: AppColors.kTextDark, fontSize: 15),
+                            items: const [
+                              DropdownMenuItem(
+                                  value: 'All Status',
+                                  child: Text('All Status')),
+                              DropdownMenuItem(
+                                  value: 'Active', child: Text('Active')),
+                              DropdownMenuItem(
+                                  value: 'Completed', child: Text('Completed')),
+                              DropdownMenuItem(
+                                  value: 'Upcoming', child: Text('Upcoming')),
+                            ],
+                            onChanged: (v) => setState(
+                                () => _statusFilter = v ?? 'All Status'),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      if (filtered.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 40),
+                          child: Center(
+                            child: Text(
+                              'No groups match your search.',
+                              style: TextStyle(color: AppColors.kTextMuted),
+                            ),
+                          ),
+                        )
+                      else
+                        ...filtered.map(
+                          (g) => Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: _GroupCard(
+                              group: g,
+                              onEdit: () => _openEditDialog(g),
+                              onDelete: () => _confirmDelete(g),
+                              onViewDashboard: () {
+                                // TODO: navigate to group Dashboard Route
+                              },
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 20),
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 1.5,
-              children: [
-                _StatCard(
-                  icon: Icons.qr_code_2_rounded,
-                  iconBg: const Color(0xFFEDE9FE),
-                  iconColor: const Color(0xFF7C3AED),
-                  label: 'Total Groups',
-                  value: '${_groups.length}',
-                ),
-                _StatCard(
-                  icon: Icons.trending_up_rounded,
-                  iconBg: const Color(0xFFFEF3C7),
-                  iconColor: AppColors.kWarning,
-                  label: 'Active Groups',
-                  value: '$_activeCount',
-                ),
-                _StatCard(
-                  icon: Icons.currency_rupee_rounded,
-                  iconBg: const Color(0xFFDCFCE7),
-                  iconColor: AppColors.kSuccess,
-                  label: 'Collected',
-                  value: formatIndianCurrency(_totalCollected),
-                ),
-                _StatCard(
-                  icon: Icons.currency_rupee_rounded,
-                  iconBg: const Color(0xFFFEE2E2),
-                  iconColor: AppColors.kDanger,
-                  label: 'Pending',
-                  value: formatIndianCurrency(_totalPending),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: _searchController,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                hintText: 'Search groups...',
-                prefixIcon:
-                    const Icon(Icons.search, color: AppColors.kTextMuted),
-                filled: true,
-                fillColor: AppColors.kSurface,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: AppColors.kSurface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.kBorder),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _statusFilter,
-                  isExpanded: true,
-                  icon: const Icon(Icons.unfold_more_rounded,
-                      color: AppColors.kTextMuted),
-                  style:
-                      const TextStyle(color: AppColors.kTextDark, fontSize: 15),
-                  items: const [
-                    DropdownMenuItem(
-                        value: 'All Status', child: Text('All Status')),
-                    DropdownMenuItem(value: 'Active', child: Text('Active')),
-                    DropdownMenuItem(
-                        value: 'Completed', child: Text('Completed')),
-                    DropdownMenuItem(
-                        value: 'Upcoming', child: Text('Upcoming')),
-                  ],
-                  onChanged: (v) =>
-                      setState(() => _statusFilter = v ?? 'All Status'),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            if (filtered.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(top: 40),
-                child: Center(
-                  child: Text(
-                    'No groups match your search.',
-                    style: TextStyle(color: AppColors.kTextMuted),
-                  ),
-                ),
-              )
-            else
-              ...filtered.map(
-                (g) => Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: _GroupCard(
-                    group: g,
-                    onEdit: () => _openEditDialog(g),
-                    onDelete: () => _confirmDelete(g),
-                    onViewDashboard: () {
-                      // TODO: navigate to group Dashboard Route
-                    },
-                  ),
-                ),
-              ),
-          ],
-        ),
       ),
     );
   }
@@ -867,7 +848,7 @@ class _GroupFormDialogState extends State<_GroupFormDialog> {
       groupValue: double.parse(_valueCtrl.text),
       monthlyContribution: double.parse(_monthlyCtrl.text),
       startDate: _startDate,
-      collectedPercent: widget.existing?.collectedPercent ?? 0,
+      collectedAmount: widget.existing?.collectedAmount ?? 0,
     );
 
     Navigator.of(context).pop(result);
@@ -918,9 +899,8 @@ class _GroupFormDialogState extends State<_GroupFormDialog> {
                       'GROUP NAME *',
                       'e.g. Lakshmi Chit Fund',
                       controller: _nameCtrl,
-                      validator: (v) => (v == null || v.trim().isEmpty)
-                          ? 'Required'
-                          : null,
+                      validator: (v) =>
+                          (v == null || v.trim().isEmpty) ? 'Required' : null,
                     ),
                     const SizedBox(height: 16),
                     _responsiveRow(
