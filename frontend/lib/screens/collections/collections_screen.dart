@@ -761,6 +761,9 @@ class _StatCardData {
   });
 }
 
+/// -----------------------------------------------------------------------
+/// STAT CARD
+/// -----------------------------------------------------------------------
 class _StatCard extends StatelessWidget {
   final _StatCardData data;
   const _StatCard({required this.data});
@@ -774,39 +777,55 @@ class _StatCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.kBorder),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-                color: data.iconBg, borderRadius: BorderRadius.circular(10)),
-            child: Icon(data.icon, color: data.iconColor, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  data.label,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.kTextMuted),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  data.value,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+          // Top Row: Number (Starting) and Icon (End)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Value / Number -> Starting, Top
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    data.value,
+                    style: const TextStyle(
+                      color: AppColors.kTextDark,
                       fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.kTextDark),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
-              ],
+              ),
+              const SizedBox(width: 8),
+              // Icon -> End, Top
+              Container(
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: data.iconBg,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(data.icon, color: data.iconColor, size: 18),
+              ),
+            ],
+          ),
+
+          const Spacer(), // Pushes text label to the bottom
+
+          // Bottom Section: Text Label -> Starting, Down
+          Text(
+            data.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.kTextMuted,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
@@ -814,6 +833,7 @@ class _StatCard extends StatelessWidget {
     );
   }
 }
+
 
 // ==========================================
 // ADD / EDIT COLLECTION SHEET (Removed Dialog Wrapping)

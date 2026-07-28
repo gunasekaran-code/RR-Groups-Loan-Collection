@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../config/api_config.dart';
 import 'auth_api_service.dart'; // reuse your existing base URL + token storage
 
 class CollectionApiService {
-  static const String _baseUrl = 'http://localhost:8889';
+  static const String _baseUrl = ApiConfig.baseUrl;
   static const String _restEndpoint = '$_baseUrl/rest.php';
 
   static Future<Map<String, String>> _headers() async {

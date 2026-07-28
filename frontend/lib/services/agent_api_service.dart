@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'auth_api_service.dart'; // adjust import path to wherever this actually lives
+import '../config/api_config.dart';
 
 /// CRUD client for the generic `ResourceController`-backed agent/profile
 /// endpoint. Mirrors AuthApiService's error handling so both services throw
@@ -14,7 +15,7 @@ class AgentApiService {
   // and update accounts through the admin-only users endpoint so passwords
   // are hashed and extra profile fields are handled correctly.
   // ---------------------------------------------------------------------
-  static const String baseUrl = AuthApiService.baseUrl;
+  static const String baseUrl = ApiConfig.baseUrl;
   static const String agentEndpoint = '$baseUrl/rest.php?table=profiles';
   static const String userEndpoint = '$baseUrl/users.php';
 

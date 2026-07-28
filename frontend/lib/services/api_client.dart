@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../config/api_config.dart';
 
 /// Low-level REST client matching the PHP backend's generic resource
 /// endpoint (`Model::forTable()` / `ResourceController` / `rest.php?table=`).
@@ -27,8 +28,7 @@ class ApiClient {
   ApiClient._();
   static final ApiClient instance = ApiClient._();
 
-  /// TODO: point this at your real backend host.
-  static const String baseUrl = 'http://localhost:8889';
+  static const String baseUrl = ApiConfig.baseUrl;
 
   /// Set after login, e.g. `ApiClient.instance.authToken = token;`
   String? authToken;

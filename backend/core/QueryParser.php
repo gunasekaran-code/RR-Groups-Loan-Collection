@@ -4,7 +4,7 @@
 
 class QueryParser
 {
-    private const RESERVED = ['table', 'select', 'order', 'limit', 'offset', 'upsert', 'on_conflict', 'action'];
+    private const RESERVED = ['table', 'select', 'order', 'limit', 'offset', 'upsert', 'on_conflict', 'action', 'view'];
 
     /** @return array{0:string,1:array} [sqlFragment, binds] */
     public static function where(array $columns): array

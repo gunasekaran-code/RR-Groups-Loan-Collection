@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/api_config.dart';
 
 /// Thrown for any non-2xx response. `message` is the human-readable
 /// error your PHP `json_error()` sends back.
@@ -16,7 +17,7 @@ class AuthApiService {
   AuthApiService._();
   static final AuthApiService instance = AuthApiService._();
   
-  static const String baseUrl = 'http://localhost:8889';
+  static const String baseUrl = ApiConfig.baseUrl;
   static const String authEndpoint = '$baseUrl/auth.php';
 
   static const _tokenKey = 'auth_token';

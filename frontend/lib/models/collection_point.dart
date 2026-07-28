@@ -26,17 +26,24 @@ class CollectionPoint {
   factory CollectionPoint.fromJson(Map<String, dynamic> json) {
     return CollectionPoint(
       id: json['id'].toString(),
-      customerName: json['customer_name']?.toString() ?? 'Unknown',
-      agentName: json['agent_name']?.toString() ?? 'Unknown Agent',
-      agentId: json['agent_id']?.toString() ?? '',
+      customerName: (json['customer_name'] ?? json['full_name'] ?? json['name'])
+              ?.toString() ??
+          'Unknown',
+      agentName: (json['agent_name'] ?? json['assigned_agent_name'])
+              ?.toString() ??
+          'Unknown Agent',
+      agentId: (json['agent_id'] ?? json['assigned_agent'])?.toString() ?? '',
       amount: _toDouble(json['amount']),
-      collectedAt: DateTime.tryParse(json['collected_at']?.toString() ?? '') ??
+      collectedAt: DateTime.tryParse(
+              (json['collected_at'] ?? json['created_at'])?.toString() ?? '') ??
           DateTime.now(),
       latitude: _toDouble(json['latitude']),
       longitude: _toDouble(json['longitude']),
       collected: (json['collected'] == true ||
           json['collected'] == 1 ||
-          json['collected'] == '1'),
+          json['collected'] == '1' ||
+          (json['status']?.toString() ?? '') == 'active' ||
+          (json['loan_status']?.toString() ?? '') == 'active'),
     );
   }
 }
@@ -72,7 +79,8 @@ class AgentOption {
   factory AgentOption.fromJson(Map<String, dynamic> json) {
     return AgentOption(
       id: json['id'].toString(),
-      name: json['name']?.toString() ?? 'Unknown',
+      name: (json['full_name'] ?? json['name'])?.toString() ?? 'Unknown',
+      // name: json['name']?.toString() ?? 'Unknown',
     );
   }
 }

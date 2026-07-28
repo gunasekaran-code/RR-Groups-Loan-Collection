@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../config/api_config.dart';
 import '../models/customer.dart';
 import 'session_service.dart'; // adjust import to your actual SessionService path
 
@@ -22,7 +23,7 @@ class CustomerApiService {
 
   final http.Client _client;
 
-  static const String _baseUrl = 'http://localhost:8889';
+  static const String _baseUrl = ApiConfig.baseUrl;
   static const String _customerEndpoint = '$_baseUrl/customers.php';
   static const String _restEndpoint = '$_baseUrl/rest.php';
 

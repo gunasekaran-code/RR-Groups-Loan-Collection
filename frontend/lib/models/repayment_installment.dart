@@ -22,8 +22,9 @@ class RepaymentInstallment {
     this.createdAt,
   });
 
-  factory RepaymentInstallment.fromJson(Map<String, dynamic> json) {
-    double num(dynamic v) {
+factory RepaymentInstallment.fromJson(Map<String, dynamic> json) {
+    // Renamed from 'num' to 'parseDouble' to avoid shadowing Dart's built-in num type
+    double parseDouble(dynamic v) {
       if (v == null) return 0;
       if (v is num) return v.toDouble();
       return double.tryParse(v.toString()) ?? 0;
@@ -39,9 +40,9 @@ class RepaymentInstallment {
       loanId: json['loan_id']?.toString() ?? '',
       installmentNo: int.tryParse(json['installment_no']?.toString() ?? '') ?? 0,
       dueDate: date(json['due_date']),
-      emiAmount: num(json['emi_amount']),
-      paidAmount: num(json['paid_amount']),
-      balance: num(json['balance']),
+      emiAmount: parseDouble(json['emi_amount']), 
+      paidAmount: parseDouble(json['paid_amount']), 
+      balance: parseDouble(json['balance']), 
       status: (json['status'] ?? 'pending').toString(),
       createdAt: date(json['created_at']),
     );

@@ -370,46 +370,68 @@ class _StatCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: iconBg,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: iconColor, size: 20),
-          ),
-          const Spacer(),
-          Text(label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style:
-                  const TextStyle(color: AppColors.kTextMuted, fontSize: 13)),
-          const SizedBox(height: 2),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              style: const TextStyle(
-                color: AppColors.kTextDark,
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
+          // Top Row: Number (Starting) and Icon (End)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Value / Number -> Starting, Top
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    style: const TextStyle(
+                      color: AppColors.kTextDark,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
               ),
+              const SizedBox(width: 8),
+              // Icon -> End, Top
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: iconColor, size: 20),
+              ),
+            ],
+          ),
+
+          const Spacer(), // Pushes text labels to the bottom
+
+          // Bottom Section: Text Label & Optional Subtitle -> Starting, Down
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.kTextMuted,
+              fontSize: 13,
             ),
           ),
           if (subtitle != null) ...[
             const SizedBox(height: 2),
-            Text(subtitle!,
-                style:
-                    const TextStyle(color: AppColors.kSuccess, fontSize: 12)),
+            Text(
+              subtitle!,
+              style: const TextStyle(
+                color: AppColors.kSuccess,
+                fontSize: 12,
+              ),
+            ),
           ],
         ],
       ),
     );
   }
 }
+
 
 /// -----------------------------------------------------------------------
 /// SETTLEMENT TABLE

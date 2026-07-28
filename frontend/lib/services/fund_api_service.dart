@@ -1,11 +1,12 @@
 
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../config/api_config.dart';
 import '../models/fund.dart';
 import 'session_service.dart';
 
 class FundApiService {
-  static const String _baseUrl = 'http://localhost:8889';
+  static const String _baseUrl = ApiConfig.baseUrl;
   static const String _restEndpoint = '$_baseUrl/rest.php';
 
   static Map<String, String> get _headers => {

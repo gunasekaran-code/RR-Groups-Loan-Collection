@@ -80,8 +80,10 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       // Default center: Thoothukudi
       return const LatLng(8.7642, 78.1348);
     }
-    final avgLat = _points.map((p) => p.latitude).reduce((a, b) => a + b) / _points.length;
-    final avgLng = _points.map((p) => p.longitude).reduce((a, b) => a + b) / _points.length;
+    final avgLat =
+        _points.map((p) => p.latitude).reduce((a, b) => a + b) / _points.length;
+    final avgLng = _points.map((p) => p.longitude).reduce((a, b) => a + b) /
+        _points.length;
     return LatLng(avgLat, avgLng);
   }
 
@@ -99,9 +101,11 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(_loadError!, style: const TextStyle(color: AppColors.kDanger)),
+                        Text(_loadError!,
+                            style: const TextStyle(color: AppColors.kDanger)),
                         const SizedBox(height: 12),
-                        ElevatedButton(onPressed: _loadData, child: const Text('Retry')),
+                        ElevatedButton(
+                            onPressed: _loadData, child: const Text('Retry')),
                       ],
                     ),
                   )
@@ -111,14 +115,16 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                       const SizedBox(height: 6),
                       const Text(
                         'Where each agent has collected — live',
-                        style: TextStyle(color: AppColors.kTextMuted, fontSize: 14),
+                        style: TextStyle(
+                            color: AppColors.kTextMuted, fontSize: 14),
                       ),
                       const SizedBox(height: 16),
                       Row(
                         children: [
                           Expanded(
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
                               decoration: BoxDecoration(
                                 color: AppColors.kSurface,
                                 borderRadius: BorderRadius.circular(12),
@@ -134,7 +140,8 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                                       color: AppColors.kTextDark, fontSize: 15),
                                   items: [
                                     const DropdownMenuItem(
-                                        value: 'all', child: Text('All agents')),
+                                        value: 'all',
+                                        child: Text('All agents')),
                                     ..._agents.map(
                                       (a) => DropdownMenuItem(
                                           value: a.id, child: Text(a.name)),
@@ -185,15 +192,16 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                             iconBg: const Color(0xFFFEF3C7),
                             iconColor: AppColors.kGold,
                             label: 'Total Collected',
-                            value: formatIndianCurrency(_summary?.totalCollected ??
-                                _points.fold(0.0, (s, p) => s + p.amount)),
+                            value: formatIndianCurrency(
+                                _summary?.totalCollected ??
+                                    _points.fold(0.0, (s, p) => s + p.amount)),
                           ),
                         ],
                       ),
                       const SizedBox(height: 20),
                       if (_points.isEmpty)
                         Container(
-                          height: 320,
+                          height: 40,
                           decoration: BoxDecoration(
                             color: AppColors.kSurface,
                             borderRadius: BorderRadius.circular(20),
@@ -215,7 +223,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: SizedBox(
-                              height: 480,
+                              height: 200,
                               child: Stack(
                                 children: [
                                   FlutterMap(
@@ -227,8 +235,10 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                                     children: [
                                       TileLayer(
                                         urlTemplate:
-                                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                        userAgentPackageName: 'com.nexora.fincollect',
+                                            'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+                                        subdomains: const ['a', 'b', 'c', 'd'],
+                                        userAgentPackageName:
+                                            'com.nexora.fincollect',
                                       ),
                                       MarkerLayer(
                                         markers: _points
@@ -243,8 +253,10 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                                                 height: 40,
                                                 child: _MapPin(
                                                   index: entry.key + 1,
-                                                  collected: entry.value.collected,
-                                                  onTap: () => _showPointInfo(entry.value),
+                                                  collected:
+                                                      entry.value.collected,
+                                                  onTap: () => _showPointInfo(
+                                                      entry.value),
                                                 ),
                                               ),
                                             )
@@ -287,7 +299,8 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                         ),
                       const SizedBox(height: 12),
                       Container(
-                        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 14, horizontal: 16),
                         decoration: BoxDecoration(
                           color: AppColors.kSurface,
                           borderRadius: BorderRadius.circular(16),
@@ -298,12 +311,14 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                             _LegendDot(color: AppColors.kSuccess),
                             SizedBox(width: 6),
                             Text('Collected',
-                                style: TextStyle(color: AppColors.kTextDark, fontSize: 13)),
+                                style: TextStyle(
+                                    color: AppColors.kTextDark, fontSize: 13)),
                             SizedBox(width: 20),
                             _LegendDot(color: AppColors.kDanger),
                             SizedBox(width: 6),
                             Text('Not collected',
-                                style: TextStyle(color: AppColors.kTextDark, fontSize: 13)),
+                                style: TextStyle(
+                                    color: AppColors.kTextDark, fontSize: 13)),
                           ],
                         ),
                       ),
@@ -330,7 +345,9 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
           children: [
             Text(point.customerName,
                 style: const TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.kTextDark)),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.kTextDark)),
             const SizedBox(height: 6),
             Text(
               '${point.agentName} · ${formatIndianCurrency(point.amount)} · ${_formatTime(point.collectedAt)}',
@@ -344,8 +361,18 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
 
   String _formatTime(DateTime d) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final dd = d.day.toString().padLeft(2, '0');
     int hour12 = d.hour % 12;
@@ -385,25 +412,52 @@ class _StatCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(12)),
-            child: Icon(icon, color: iconColor, size: 20),
+          // Top Section: Number (Start) and Icon (End)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Value / Number -> Starting, Top
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    style: const TextStyle(
+                      color: AppColors.kTextDark,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Icon -> End, Top
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: iconColor, size: 20),
+              ),
+            ],
           ),
-          const Spacer(),
-          Text(label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: AppColors.kTextMuted, fontSize: 13)),
-          const SizedBox(height: 2),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(value,
-                style: const TextStyle(
-                    color: AppColors.kTextDark, fontSize: 20, fontWeight: FontWeight.w700)),
+
+          const Spacer(), // Pushes the label text to the bottom
+
+          // Bottom Section: Label Text -> Starting, Down
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.kTextMuted,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ),
@@ -415,7 +469,8 @@ class _StatCard extends StatelessWidget {
 /// MAP PIN
 /// -----------------------------------------------------------------------
 class _MapPin extends StatelessWidget {
-  const _MapPin({required this.index, required this.collected, required this.onTap});
+  const _MapPin(
+      {required this.index, required this.collected, required this.onTap});
   final int index;
   final bool collected;
   final VoidCallback onTap;
@@ -437,12 +492,18 @@ class _MapPin extends StatelessWidget {
               shape: BoxShape.circle,
               border: Border.all(color: Colors.white, width: 2),
               boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 4, offset: const Offset(0, 2)),
+                BoxShadow(
+                    color: Colors.black.withOpacity(0.25),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2)),
               ],
             ),
             child: Text(
               '$index',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13),
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13),
             ),
           ),
           CustomPaint(
@@ -462,14 +523,14 @@ class _PinTailPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = color;
-    
+
     // Explicitly use the UI path
     final path = ui.Path()
       ..moveTo(0, 0)
       ..lineTo(size.width, 0)
       ..lineTo(size.width / 2, size.height)
       ..close();
-      
+
     canvas.drawPath(path, paint);
   }
 

@@ -418,17 +418,43 @@ class _StatCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: iconBg,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: iconColor, size: 18),
+          // Top Row: Number (Starting) and Icon (End)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Value / Number -> Starting, Top
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    style: const TextStyle(
+                      color: AppColors.kTextDark,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Icon -> End, Top
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: iconColor, size: 18),
+              ),
+            ],
           ),
-          const Spacer(),
+
+          const Spacer(), // Pushes text labels to the bottom
+
+          // Bottom Section: Text Labels -> Starting, Down
           Text(
             label,
             style: const TextStyle(
@@ -439,26 +465,19 @@ class _StatCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 2),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              style: const TextStyle(
-                color: AppColors.kTextDark,
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-              ),
+          Text(
+            sub,
+            style: const TextStyle(
+              color: AppColors.kTextMuted,
+              fontSize: 11,
             ),
           ),
-          Text(sub,
-              style:
-                  const TextStyle(color: AppColors.kTextMuted, fontSize: 11)),
         ],
       ),
     );
   }
 }
+
 
 /// -----------------------------------------------------------------------
 /// OVERDUE ACCOUNT CARD

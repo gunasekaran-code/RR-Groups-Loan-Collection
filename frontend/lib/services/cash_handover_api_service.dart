@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../config/api_config.dart';
 import '../models/cash_handover.dart';
 import 'session_service.dart';
 
@@ -7,7 +8,7 @@ import 'session_service.dart';
 /// The backend exposes generic CRUD for the handovers table, so this service
 /// reads the rows and derives the summary/settlement view on the Flutter side.
 class CashHandoverApiService {
-  static const String _baseUrl = 'http://localhost:8889';
+  static const String _baseUrl = ApiConfig.baseUrl;
   static const String _restEndpoint = '$_baseUrl/rest.php';
 
   static Map<String, String> get _headers => {
