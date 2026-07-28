@@ -801,8 +801,8 @@ class _AgentFormDialogState extends State<AgentFormDialog> {
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: const Color(0xFFFDE68A)),
               ),
-              child: Row(
-                children: const [
+              child: const Row(
+                children: [
                   Icon(Icons.shield_outlined,
                       size: 18, color: AppColors.kWarning),
                   SizedBox(width: 10),
@@ -950,7 +950,7 @@ class _AgentFormDialogState extends State<AgentFormDialog> {
                 color: AppColors.kTextMuted)),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: value,
+          initialValue: value,
           items: items
               .map((i) => DropdownMenuItem(value: i, child: Text(i)))
               .toList(),

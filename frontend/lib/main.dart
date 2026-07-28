@@ -17,6 +17,8 @@ import 'screens/chit_groups/chit_groups_screen.dart';
 import 'screens/reports/reports_screen.dart';
 import 'screens/notifications/notifications_screen.dart';
 import 'screens/user_management/user_management_screen.dart';
+import 'screens/handover/cash_handover.dart';
+import 'screens/funds/funds_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/settings/profile_page.dart';
 import 'screens/agent_page.dart';
@@ -98,6 +100,12 @@ class FinCollectApp extends StatelessWidget {
         break;
       case AppRoutes.profile:
         page = _guarded(const ProfilePage(), UserRole.values);
+        break;
+      case AppRoutes.handover:
+        page = _guarded(const CashHandoverScreen(), UserRole.values);
+        break;
+      case AppRoutes.funds:
+        page = _guarded(const FundsScreen(), UserRole.values);
         break;
       default:
         page = const LoginScreen();

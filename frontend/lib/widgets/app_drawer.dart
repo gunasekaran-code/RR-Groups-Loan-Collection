@@ -59,6 +59,16 @@ const List<_DrawerSection> _sections = [
         route: AppRoutes.collections,
         allowedRoles: UserRole.values),
     _DrawerItem(
+        label: 'Handover',
+        icon: Icons.handshake_outlined,
+        route: AppRoutes.handover,
+        allowedRoles: UserRole.values),
+    _DrawerItem(
+    label: 'Funds',
+    icon: Icons.account_balance_wallet_outlined, 
+    route: AppRoutes.funds,
+    allowedRoles: UserRole.values),
+    _DrawerItem(
         label: 'Overdue',
         icon: Icons.error_outline,
         route: AppRoutes.overdue,

@@ -224,7 +224,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              PageHeader(
+              const PageHeader(
                 title: 'Customers',
                 subtitle: 'Manage customer information and details',
               ),

@@ -64,10 +64,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Row(
+          const Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -671,7 +671,7 @@ class _ToggleRow extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         Switch(
-            value: value, activeColor: AppColors.kGold, onChanged: onChanged),
+            value: value, activeThumbColor: AppColors.kGold, onChanged: onChanged),
       ],
     );
   }

@@ -325,9 +325,9 @@ class _OverdueScreenState extends State<OverdueScreen> {
           TextField(
             controller: _searchController,
             onChanged: (_) => setState(() {}),
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
               hintText: 'Search customer or loan number...',
-              prefixIcon: const Icon(Icons.search, color: AppColors.kTextMuted),
+              prefixIcon: Icon(Icons.search, color: AppColors.kTextMuted),
               filled: true,
               fillColor: AppColors.kSurface,
             ),

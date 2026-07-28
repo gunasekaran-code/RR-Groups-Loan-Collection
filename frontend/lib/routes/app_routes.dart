@@ -17,4 +17,6 @@ class AppRoutes {
   static const String userManagement = '/user-management';
   static const String settings = '/settings';
   static const String profile = '/profile';
+  static const String handover = '/handover';
+  static const String funds = '/Funds';
 }

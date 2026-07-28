@@ -992,9 +992,9 @@ class _SimpleBarChart extends StatelessWidget {
                     child: FractionallySizedBox(
                       heightFactor: heightFraction,
                       child: Container(
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           color: AppColors.kInfo,
-                          borderRadius: const BorderRadius.vertical(
+                          borderRadius: BorderRadius.vertical(
                               top: Radius.circular(6)),
                         ),
                       ),

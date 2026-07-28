@@ -10,7 +10,7 @@ class StatCard extends StatelessWidget {
   final Color iconBackground;
 
   const StatCard({
-    Key? key,
+    super.key,
     required this.label,
     required this.value,
     this.trend,
@@ -18,7 +18,7 @@ class StatCard extends StatelessWidget {
     required this.icon,
     required this.iconColor,
     required this.iconBackground,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

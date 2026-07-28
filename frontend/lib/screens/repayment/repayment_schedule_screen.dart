@@ -183,7 +183,7 @@ class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
 
   // Header
   Widget _buildHeader(BuildContext context, bool isNarrow) {
-    final subtitle = const Text(
+    const subtitle = Text(
       'Track installment-wise EMI collections and outstanding balances',
       style: TextStyle(color: AppColors.kTextMuted, fontSize: 14),
     );
@@ -253,7 +253,7 @@ class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
           ),
           const SizedBox(height: 8),
           DropdownButtonFormField<LoanRecord>(
-            value: _selectedLoan,
+            initialValue: _selectedLoan,
             isExpanded: true,
             decoration: InputDecoration(
               contentPadding:
@@ -330,7 +330,7 @@ class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
     final nextDueDisplay =
         nextDue.isNotEmpty ? nextDue.first.dueDateDisplay : '-';
 
-    String _fmt(double v) =>
+    String fmt(double v) =>
         RepaymentInstallment(
           id: '',
           loanId: '',
@@ -347,10 +347,10 @@ class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
       _buildStatCard('CUSTOMER', _selectedLoan?.customerName ?? '-', icon: Icons.person_outline),
       _buildStatCard('LOAN AMOUNT', '—',
           icon: Icons.account_balance_wallet_outlined),
-      _buildStatCard('EMI', _fmt(emi), icon: Icons.calendar_month_outlined),
-      _buildStatCard('TOTAL REPAYMENT', _fmt(totalRepayment),
+      _buildStatCard('EMI', fmt(emi), icon: Icons.calendar_month_outlined),
+      _buildStatCard('TOTAL REPAYMENT', fmt(totalRepayment),
           icon: Icons.summarize_outlined),
-      _buildStatCard('OUTSTANDING', _fmt(outstanding),
+      _buildStatCard('OUTSTANDING', fmt(outstanding),
           icon: Icons.warning_amber_outlined, textColor: AppColors.kDanger),
       _buildStatCard('TOTAL INST.', '$total',
           icon: Icons.format_list_numbered),

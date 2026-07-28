@@ -104,8 +104,9 @@ class AuthApiService {
   Future<void> _saveSession(String token, Map<String, dynamic>? profile) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_tokenKey, token);
-    if (profile != null)
+    if (profile != null) {
       await prefs.setString(_profileKey, jsonEncode(profile));
+    }
   }
 
   Future<String?> getToken() async {

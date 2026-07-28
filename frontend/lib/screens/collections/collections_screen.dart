@@ -431,7 +431,7 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text('Failed to load collections',
+                      const Text('Failed to load collections',
                           style: TextStyle(color: AppColors.kDanger)),
                       const SizedBox(height: 8),
                       Text(_loadError!,
@@ -977,7 +977,7 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
           _label('CUSTOMER *'),
           DropdownButtonFormField<String>(
             isExpanded: true,
-            value: _customer,
+            initialValue: _customer,
             decoration: const InputDecoration(
                 hintText: 'Select customer', isDense: true),
             items: widget.customers
@@ -992,7 +992,7 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
           _label('LOAN NUMBER'),
           DropdownButtonFormField<String>(
             isExpanded: true,
-            value: _loanNumber,
+            initialValue: _loanNumber,
             decoration: InputDecoration(
               hintText: _customer == null
                   ? 'Select customer first'
@@ -1022,7 +1022,7 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
           _label('PAYMENT METHOD *'),
           DropdownButtonFormField<String>(
             isExpanded: true,
-            value: _paymentMethod,
+            initialValue: _paymentMethod,
             decoration: const InputDecoration(isDense: true),
             items: _paymentMethods
                 .map((m) => DropdownMenuItem(value: m, child: Text(m)))
@@ -1040,7 +1040,7 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
           _label('AGENT'),
           DropdownButtonFormField<String>(
             isExpanded: true,
-            value: _agent,
+            initialValue: _agent,
             decoration: const InputDecoration(
                 hintText: 'Select agent', isDense: true),
             items: _agents

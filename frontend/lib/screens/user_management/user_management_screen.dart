@@ -273,7 +273,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 ),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
-                  value: _roleFilter,
+                  initialValue: _roleFilter,
                   decoration: const InputDecoration(),
                   items: const [
                     'All Roles',
@@ -296,7 +296,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: DataTable(
-                headingRowColor: MaterialStateProperty.all(AppColors.kSurface),
+                headingRowColor: WidgetStateProperty.all(AppColors.kSurface),
                 columnSpacing: 24,
                 columns: const [
                   DataColumn(
@@ -348,7 +348,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: DataTable(
-                headingRowColor: MaterialStateProperty.all(AppColors.kSurface),
+                headingRowColor: WidgetStateProperty.all(AppColors.kSurface),
                 columnSpacing: 28,
                 columns: [
                   const DataColumn(
@@ -624,7 +624,7 @@ class _AddUserDialogContentState extends State<_AddUserDialogContent> {
                       final narrow = constraints.maxWidth < 340;
 
                       final roleDropdown = DropdownButtonFormField<String>(
-                        value: _role,
+                        initialValue: _role,
                         decoration: InputDecoration(
                           filled: true,
                           fillColor: Colors.grey.shade100,
@@ -643,7 +643,7 @@ class _AddUserDialogContentState extends State<_AddUserDialogContent> {
                       );
 
                       final statusDropdown = DropdownButtonFormField<String>(
-                        value: _status,
+                        initialValue: _status,
                         decoration: InputDecoration(
                           filled: true,
                           fillColor: Colors.grey.shade100,
@@ -803,12 +803,12 @@ class _StatCard extends StatelessWidget {
   final Color tint;
 
   const _StatCard({
-    Key? key,
+    super.key,
     required this.icon,
     required this.value,
     required this.label,
     required this.tint,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

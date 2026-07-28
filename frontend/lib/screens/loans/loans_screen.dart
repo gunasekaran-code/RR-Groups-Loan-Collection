@@ -759,7 +759,7 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
 
     /// Converts a 'DD/MM/YYYY' (or 'D/M/YYYY') string to 'YYYY-MM-DD' for the backend.
 /// Returns null if the input can't be parsed.
-String? _toIsoDate(String input) {
+String? toIsoDate(String input) {
   final trimmed = input.trim();
   if (trimmed.isEmpty) return null;
 
@@ -805,7 +805,7 @@ String? _toIsoDate(String input) {
       'duration_months': durationUnits,
       'collection_type': _collectionType,
      'start_date':
-          _toIsoDate(_startDateController.text) ?? _startDateController.text,
+          toIsoDate(_startDateController.text) ?? _startDateController.text,
       'outstanding_balance': widget.loan?.outstandingBalance ?? _principal,
       'emi_amount': _currentInstallment(),
       'processing_fee': double.tryParse(_feeController.text) ?? 0,
@@ -828,8 +828,9 @@ String? _toIsoDate(String input) {
 
   // --- Monthly Calculation Logic ---
   double _calcMonthlyInterest() {
-    if (_principal <= 0 || _monthlyInterestRate <= 0 || _duration <= 0)
+    if (_principal <= 0 || _monthlyInterestRate <= 0 || _duration <= 0) {
       return 0;
+    }
     return _principal * (_monthlyInterestRate / 100) * (_duration / 12);
   }
 

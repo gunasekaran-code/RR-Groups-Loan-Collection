@@ -394,9 +394,9 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
                       TextField(
                         controller: _searchController,
                         onChanged: (_) => setState(() {}),
-                        decoration: InputDecoration(
+                        decoration: const InputDecoration(
                           hintText: 'Search groups...',
-                          prefixIcon: const Icon(Icons.search,
+                          prefixIcon: Icon(Icons.search,
                               color: AppColors.kTextMuted),
                           filled: true,
                           fillColor: AppColors.kSurface,
@@ -997,8 +997,7 @@ class _GroupFormDialogState extends State<_GroupFormDialog> {
       ),
     );
   }
-
-  Widget _responsiveRow(bool isNarrow, Widget a, Widget b) {
+    Widget _responsiveRow(bool isNarrow, Widget a, Widget b) {
     if (isNarrow) {
       return Column(
         children: [a, const SizedBox(height: 16), b],

@@ -23,13 +23,13 @@ class RepaymentInstallment {
   });
 
   factory RepaymentInstallment.fromJson(Map<String, dynamic> json) {
-    double _num(dynamic v) {
+    double num(dynamic v) {
       if (v == null) return 0;
       if (v is num) return v.toDouble();
       return double.tryParse(v.toString()) ?? 0;
     }
 
-    DateTime? _date(dynamic v) {
+    DateTime? date(dynamic v) {
       if (v == null || v.toString().isEmpty) return null;
       return DateTime.tryParse(v.toString());
     }
@@ -38,12 +38,12 @@ class RepaymentInstallment {
       id: json['id']?.toString() ?? '',
       loanId: json['loan_id']?.toString() ?? '',
       installmentNo: int.tryParse(json['installment_no']?.toString() ?? '') ?? 0,
-      dueDate: _date(json['due_date']),
-      emiAmount: _num(json['emi_amount']),
-      paidAmount: _num(json['paid_amount']),
-      balance: _num(json['balance']),
+      dueDate: date(json['due_date']),
+      emiAmount: num(json['emi_amount']),
+      paidAmount: num(json['paid_amount']),
+      balance: num(json['balance']),
       status: (json['status'] ?? 'pending').toString(),
-      createdAt: _date(json['created_at']),
+      createdAt: date(json['created_at']),
     );
   }
 
