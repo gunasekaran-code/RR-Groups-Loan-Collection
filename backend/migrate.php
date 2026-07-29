@@ -181,4 +181,24 @@ foreach ($geoCols as $col => $def) {
     }
 }
 
+// 10. Add KYC document image columns to customers (data-URI images) if missing.
+$docCols = [
+    'aadhaar_front_url' => 'LONGTEXT NULL',
+    'aadhaar_back_url'  => 'LONGTEXT NULL',
+    'pan_url'           => 'LONGTEXT NULL',
+    'signature_url'     => 'LONGTEXT NULL',
+];
+foreach ($docCols as $col => $def) {
+    $has = $pdo->query(
+        "SELECT COUNT(*) FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'customers' AND COLUMN_NAME = '$col'"
+    )->fetchColumn();
+    if (!$has) {
+        $pdo->exec("ALTER TABLE customers ADD COLUMN `$col` $def AFTER photo_url");
+        echo "customers.$col column added.\n";
+    } else {
+        echo "customers.$col column already present.\n";
+    }
+}
+
 echo "Migration complete.\n";

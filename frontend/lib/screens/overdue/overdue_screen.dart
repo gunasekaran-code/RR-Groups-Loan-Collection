@@ -4,43 +4,8 @@ import '../../theme/app_theme.dart';
 import '../../theme/glass_toast.dart';
 import '../../widgets/app_shell.dart';
 import '../../theme/confirm_dialog.dart';
-
-/// -----------------------------------------------------------------------
-/// MODEL
-/// -----------------------------------------------------------------------
-class OverdueAccount {
-  OverdueAccount({
-    required this.id,
-    required this.customerName,
-    required this.phone,
-    required this.loanNo,
-    required this.dueAmount,
-    required this.daysOverdue,
-    required this.startedDate,
-    this.followUpNote,
-    this.followUpDate,
-  });
-
-  final String id;
-  final String customerName;
-  final String phone;
-  final String loanNo;
-  final double dueAmount;
-  final int daysOverdue;
-  final DateTime startedDate;
-  String? followUpNote;
-  DateTime? followUpDate;
-
-  bool get isCritical => daysOverdue > 30;
-
-  String get initials {
-    final parts = customerName.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty) return '?';
-    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
-    return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
-        .toUpperCase();
-  }
-}
+import '../../models/overdue.dart';
+import '../../services/overdue_api_service.dart';
 
 /// -----------------------------------------------------------------------
 /// HELPERS
@@ -70,20 +35,11 @@ String formatIndianCurrency(num value, {bool withSymbol = true}) {
   return '${withSymbol ? '₹' : ''}${isNegative ? '-' : ''}$formatted';
 }
 
-String formatDate(DateTime d) {
+String formatDate(DateTime? d) {
+  if (d == null) return '—';
   const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
   ];
   final dd = d.day.toString().padLeft(2, '0');
   return '$dd ${months[d.month - 1]} ${d.year}';
@@ -101,29 +57,62 @@ class OverdueScreen extends StatefulWidget {
 
 class _OverdueScreenState extends State<OverdueScreen> {
   final TextEditingController _searchController = TextEditingController();
-  final ScrollController _scrollController =
-      ScrollController(); // Fixes web scrollbar controller exceptions
-  String _filter = 'All overdue';
+  final ScrollController _scrollController = ScrollController();
+  final OverdueApiService _api = OverdueApiService();
 
-  // TODO(backend): replace with GET /api/overdue via ApiService.
-  final List<OverdueAccount> _accounts = [
-    OverdueAccount(
-      id: '1',
-      customerName: 'Lakshmi Iyer',
-      phone: '9988776654',
-      loanNo: 'LN-DE34F5',
-      dueAmount: 197301,
-      daysOverdue: 499,
-      startedDate: DateTime(2025, 3, 1),
-    ),
-  ];
+  String _filter = 'All overdue';
+  List<OverdueAccount> _accounts = [];
+  bool _isLoading = true;
+  bool _isRefreshing = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAccounts();
+  }
+
+  Future<void> _loadAccounts({bool recompute = false}) async {
+    setState(() {
+      if (_accounts.isEmpty) _isLoading = true;
+      _errorMessage = null;
+    });
+    try {
+      final data = recompute
+          ? await _api.recomputeAndFetch()
+          : await _api.fetchOverdueAccounts();
+      if (!mounted) return;
+      setState(() {
+        _accounts = data;
+        _isLoading = false;
+      });
+    } on OverdueApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = e.message;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Something went wrong. Please try again.';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _onRefresh() async {
+    setState(() => _isRefreshing = true);
+    await _loadAccounts(recompute: true);
+    if (mounted) setState(() => _isRefreshing = false);
+  }
 
   List<OverdueAccount> get _filtered {
     final query = _searchController.text.trim().toLowerCase();
     return _accounts.where((a) {
       final matchesQuery = query.isEmpty ||
           a.customerName.toLowerCase().contains(query) ||
-          a.loanNo.toLowerCase().contains(query);
+          a.loanNumber.toLowerCase().contains(query);
       final matchesFilter = switch (_filter) {
         'Critical (>30d)' => a.isCritical,
         _ => true,
@@ -133,7 +122,7 @@ class _OverdueScreenState extends State<OverdueScreen> {
   }
 
   double get _totalOverdueAmount =>
-      _accounts.fold(0, (sum, a) => sum + a.dueAmount);
+      _accounts.fold(0, (sum, a) => sum + a.overdueAmount);
 
   double get _avgDaysOverdue {
     if (_accounts.isEmpty) return 0;
@@ -144,19 +133,17 @@ class _OverdueScreenState extends State<OverdueScreen> {
   int get _criticalCount => _accounts.where((a) => a.isCritical).length;
 
   Future<void> _confirmMessage(OverdueAccount account) async {
-    // Displays the smooth bottom-sheet style confirmation dialog
     final confirmed = await AppConfirmDialog.show(
       context: context,
       title: 'Send Message Reminder',
       message:
           'Send an automated overdue reminder to ${account.customerName} (${account.phone})?',
       confirmLabel: 'Send',
-      confirmButtonColor:
-          AppColors.kInfo, // Info/blue brand color fits messaging actions well
+      confirmButtonColor: AppColors.kInfo,
     );
 
-    // Execute the sending logic only if confirmed
     if (confirmed == true && mounted) {
+      // TODO(backend): no messaging endpoint yet — this is UI-only.
       ToastService.show(
         title: 'Message sent',
         message: account.customerName,
@@ -166,17 +153,14 @@ class _OverdueScreenState extends State<OverdueScreen> {
   }
 
   Future<void> _confirmCall(OverdueAccount account) async {
-    // Call your custom edge-to-edge iOS-style bottom dialog helper asynchronously
     final confirmed = await AppConfirmDialog.show(
       context: context,
       title: 'Call Customer',
       message: '${account.customerName}\n${account.phone}',
       confirmLabel: 'Call',
-      confirmButtonColor: AppColors
-          .kGoldDark, // Using your vibrant brand color for a friendly prompt
+      confirmButtonColor: AppColors.kGoldDark,
     );
 
-    // Execute the calling sequence only if confirmed
     if (confirmed == true && mounted) {
       ToastService.show(
         title: 'Calling...',
@@ -223,6 +207,10 @@ class _OverdueScreenState extends State<OverdueScreen> {
     );
 
     if (result != null) {
+      // NOTE: not persisted to backend — overdue.php has no field/endpoint
+      // for follow-up notes. This only updates local in-memory state, so it
+      // will reset next time the list is refetched. Flag if you want this
+      // saved server-side (needs a small schema/endpoint addition).
       setState(() {
         account.followUpNote = result.note;
         account.followUpDate = result.date;
@@ -238,7 +226,7 @@ class _OverdueScreenState extends State<OverdueScreen> {
   @override
   void dispose() {
     _searchController.dispose();
-    _scrollController.dispose(); // Properly dispose the scroll controller
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -251,138 +239,186 @@ class _OverdueScreenState extends State<OverdueScreen> {
     return AppShell(
       currentRoute: AppRoutes.overdue,
       title: 'Overdue Management',
-      body: ListView(
-        controller: _scrollController,
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-        children: [
-          const Text(
-            'Track and follow up on overdue loan accounts',
-            style: TextStyle(color: AppColors.kTextMuted, fontSize: 14),
-          ),
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFEE2E2),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(
-                '${_accounts.length} overdue',
-                style: const TextStyle(
-                  color: AppColors.kDanger,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          GridView.count(
-            crossAxisCount: isWide ? 4 : 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 1.35,
-            children: [
-              _StatCard(
-                icon: Icons.error_outline_rounded,
-                iconBg: const Color(0xFFFEE2E2),
-                iconColor: AppColors.kDanger,
-                label: 'TOTAL OVERDUE',
-                value: '${_accounts.length}',
-                sub: 'accounts',
-              ),
-              _StatCard(
-                icon: Icons.phone_in_talk_outlined,
-                iconBg: const Color(0xFFFEE2E2),
-                iconColor: AppColors.kDanger,
-                label: 'OVERDUE AMOUNT',
-                value: formatIndianCurrency(_totalOverdueAmount),
-                sub: 'outstanding',
-              ),
-              _StatCard(
-                icon: Icons.notifications_active_outlined,
-                iconBg: const Color(0xFFFEF3C7),
-                iconColor: AppColors.kWarning,
-                label: 'AVG DAYS OVERDUE',
-                value: '${_avgDaysOverdue.round()} d',
-                sub: 'across accounts',
-              ),
-              _StatCard(
-                icon: Icons.error_outline_rounded,
-                iconBg: const Color(0xFFFEE2E2),
-                iconColor: AppColors.kDanger,
-                label: 'CRITICAL (>30D)',
-                value: '$_criticalCount',
-                sub: 'needs attention',
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: _searchController,
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-              hintText: 'Search customer or loan number...',
-              prefixIcon: Icon(Icons.search, color: AppColors.kTextMuted),
-              filled: true,
-              fillColor: AppColors.kSurface,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              color: AppColors.kSurface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.kBorder),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _filter,
-                isExpanded: true,
-                icon: const Icon(Icons.unfold_more_rounded,
-                    color: AppColors.kTextMuted),
-                style:
-                    const TextStyle(color: AppColors.kTextDark, fontSize: 15),
-                items: const [
-                  DropdownMenuItem(
-                      value: 'All overdue', child: Text('All overdue')),
-                  DropdownMenuItem(
-                      value: 'Critical (>30d)', child: Text('Critical (>30d)')),
-                ],
-                onChanged: (v) => setState(() => _filter = v ?? 'All overdue'),
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          if (filtered.isEmpty)
-            const Padding(
-              padding: EdgeInsets.only(top: 40),
-              child: Center(
-                child: Text(
-                  'No overdue accounts match your search.',
-                  style: TextStyle(color: AppColors.kTextMuted),
-                ),
-              ),
-            )
-          else
-            ...filtered.map(
-              (a) => Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: _OverdueCard(
-                  account: a,
-                  onMessage: () => _confirmMessage(a),
-                  onCall: () => _confirmCall(a),
-                  onAssignFollowUp: () => _openAssignFollowUp(a),
-                ),
-              ),
-            ),
-        ],
+      body: RefreshIndicator(
+        onRefresh: _onRefresh,
+        child: _buildBody(filtered, isWide),
       ),
+    );
+  }
+
+  Widget _buildBody(List<OverdueAccount> filtered, bool isWide) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_errorMessage != null && _accounts.isEmpty) {
+      return ListView(
+        // Wrapped in ListView so RefreshIndicator's pull-to-refresh works
+        // even on an error/empty state.
+        children: [
+          const SizedBox(height: 120),
+          Icon(Icons.wifi_off_rounded, size: 40, color: AppColors.kTextMuted),
+          const SizedBox(height: 12),
+          Center(
+            child: Text(
+              _errorMessage!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.kTextMuted),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Center(
+            child: OutlinedButton(
+              onPressed: () => _loadAccounts(),
+              child: const Text('Retry'),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return ListView(
+      controller: _scrollController,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Track and follow up on overdue loan accounts',
+                style: TextStyle(color: AppColors.kTextMuted, fontSize: 14),
+              ),
+            ),
+            if (_isRefreshing)
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerRight,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEE2E2),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              '${_accounts.length} overdue',
+              style: const TextStyle(
+                color: AppColors.kDanger,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        GridView.count(
+          crossAxisCount: isWide ? 4 : 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          childAspectRatio: 1.35,
+          children: [
+            _StatCard(
+              icon: Icons.error_outline_rounded,
+              iconBg: const Color(0xFFFEE2E2),
+              iconColor: AppColors.kDanger,
+              label: 'TOTAL OVERDUE',
+              value: '${_accounts.length}',
+              sub: 'accounts',
+            ),
+            _StatCard(
+              icon: Icons.phone_in_talk_outlined,
+              iconBg: const Color(0xFFFEE2E2),
+              iconColor: AppColors.kDanger,
+              label: 'OVERDUE AMOUNT',
+              value: formatIndianCurrency(_totalOverdueAmount),
+              sub: 'outstanding',
+            ),
+            _StatCard(
+              icon: Icons.notifications_active_outlined,
+              iconBg: const Color(0xFFFEF3C7),
+              iconColor: AppColors.kWarning,
+              label: 'AVG DAYS OVERDUE',
+              value: '${_avgDaysOverdue.round()} d',
+              sub: 'across accounts',
+            ),
+            _StatCard(
+              icon: Icons.error_outline_rounded,
+              iconBg: const Color(0xFFFEE2E2),
+              iconColor: AppColors.kDanger,
+              label: 'CRITICAL (>30D)',
+              value: '$_criticalCount',
+              sub: 'needs attention',
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        TextField(
+          controller: _searchController,
+          onChanged: (_) => setState(() {}),
+          decoration: const InputDecoration(
+            hintText: 'Search customer or loan number...',
+            prefixIcon: Icon(Icons.search, color: AppColors.kTextMuted),
+            filled: true,
+            fillColor: AppColors.kSurface,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: AppColors.kSurface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.kBorder),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _filter,
+              isExpanded: true,
+              icon: const Icon(Icons.unfold_more_rounded,
+                  color: AppColors.kTextMuted),
+              style: const TextStyle(color: AppColors.kTextDark, fontSize: 15),
+              items: const [
+                DropdownMenuItem(
+                    value: 'All overdue', child: Text('All overdue')),
+                DropdownMenuItem(
+                    value: 'Critical (>30d)', child: Text('Critical (>30d)')),
+              ],
+              onChanged: (v) => setState(() => _filter = v ?? 'All overdue'),
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        if (filtered.isEmpty)
+          const Padding(
+            padding: EdgeInsets.only(top: 40),
+            child: Center(
+              child: Text(
+                'No overdue accounts match your search.',
+                style: TextStyle(color: AppColors.kTextMuted),
+              ),
+            ),
+          )
+        else
+          ...filtered.map(
+            (a) => Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: _OverdueCard(
+                account: a,
+                onMessage: () => _confirmMessage(a),
+                onCall: () => _confirmCall(a),
+                onAssignFollowUp: () => _openAssignFollowUp(a),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -419,12 +455,10 @@ class _StatCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Top Row: Number (Starting) and Icon (End)
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Value / Number -> Starting, Top
               Expanded(
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
@@ -440,7 +474,6 @@ class _StatCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              // Icon -> End, Top
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
@@ -451,10 +484,7 @@ class _StatCard extends StatelessWidget {
               ),
             ],
           ),
-
-          const Spacer(), // Pushes text labels to the bottom
-
-          // Bottom Section: Text Labels -> Starting, Down
+          const Spacer(),
           Text(
             label,
             style: const TextStyle(
@@ -467,17 +497,13 @@ class _StatCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             sub,
-            style: const TextStyle(
-              color: AppColors.kTextMuted,
-              fontSize: 11,
-            ),
+            style: const TextStyle(color: AppColors.kTextMuted, fontSize: 11),
           ),
         ],
       ),
     );
   }
 }
-
 
 /// -----------------------------------------------------------------------
 /// OVERDUE ACCOUNT CARD
@@ -559,11 +585,12 @@ class _OverdueCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                  child: _InfoBlock(label: 'Loan No.', value: account.loanNo)),
+                  child: _InfoBlock(
+                      label: 'Loan No.', value: account.loanNumber)),
               Expanded(
                 child: _InfoBlock(
                   label: 'Due Amount',
-                  value: formatIndianCurrency(account.dueAmount),
+                  value: formatIndianCurrency(account.overdueAmount),
                   valueColor: AppColors.kDanger,
                 ),
               ),
@@ -579,7 +606,8 @@ class _OverdueCard extends StatelessWidget {
               ),
               Expanded(
                 child: _InfoBlock(
-                    label: 'Started', value: formatDate(account.startedDate)),
+                    label: 'Started',
+                    value: formatDate(account.earliestDueDate)),
               ),
             ],
           ),
@@ -622,7 +650,6 @@ class _OverdueCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 18),
-          // Mobile-responsive action row: wraps to a new line on narrow screens.
           LayoutBuilder(
             builder: (context, constraints) {
               final narrow = constraints.maxWidth < 380;
@@ -864,7 +891,7 @@ class _AssignFollowUpDialogState extends State<_AssignFollowUpDialog> {
                               fontWeight: FontWeight.w700, fontSize: 15),
                         ),
                         Text(
-                          a.loanNo,
+                          a.loanNumber,
                           style: const TextStyle(
                               color: AppColors.kTextMuted, fontSize: 13),
                         ),
@@ -916,12 +943,12 @@ class _AssignFollowUpDialogState extends State<_AssignFollowUpDialog> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Started: ${formatDate(a.startedDate)}',
+                  'Started: ${formatDate(a.earliestDueDate)}',
                   style: const TextStyle(
                       color: AppColors.kTextMuted, fontSize: 13),
                 ),
                 Text(
-                  'Outstanding: ${formatIndianCurrency(a.dueAmount)}',
+                  'Outstanding: ${formatIndianCurrency(a.overdueAmount)}',
                   style: const TextStyle(
                     color: AppColors.kTextDark,
                     fontSize: 13,
