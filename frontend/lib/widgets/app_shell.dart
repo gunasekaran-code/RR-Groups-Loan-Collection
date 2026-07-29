@@ -8,7 +8,6 @@ import '../screens/dashboard/dashboard_screen.dart';
 import '../screens/loans/loans_screen.dart';
 import '../screens/repayment/repayment_schedule_screen.dart';
 import '../screens/settings/profile_page.dart';
-import '../theme/app_theme.dart';
 import 'app_bottom_nav.dart';
 import 'app_drawer.dart';
 
@@ -103,17 +102,19 @@ class _AppShellState extends State<AppShell> {
     }
 
     final AppUser? user = SessionService.instance.currentUser;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
 
     return Scaffold(
-      backgroundColor: AppColors.kBackground,
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.kSurface,
+        backgroundColor: scheme.surface,
         elevation: 0,
         titleSpacing: 4,
         title: Text(
           _headerTitle,
-          style: const TextStyle(
-            color: AppColors.kTextDark,
+          style: TextStyle(
+            color: scheme.onSurface,
             fontWeight: FontWeight.bold,
             fontSize: 18,
           ),
@@ -136,7 +137,7 @@ class _AppShellState extends State<AppShell> {
                 onTap: () => setState(() => _activeRoute = AppRoutes.profile),
                 child: CircleAvatar(
                   radius: 16,
-                  backgroundColor: AppColors.kGold,
+                  backgroundColor: scheme.primary,
                   child: Text(
                     user?.initials ?? '?',
                     style: const TextStyle(

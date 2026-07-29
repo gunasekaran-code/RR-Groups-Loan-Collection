@@ -69,6 +69,7 @@ class DashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppUser user = SessionService.instance.currentUser!;
+    final theme = Theme.of(context);
     final String today = DateFormat('EEEE, d MMMM y').format(DateTime.now());
     final String firstName = user.name.split(' ').first;
 
@@ -79,7 +80,7 @@ class DashboardScreen extends StatelessWidget {
         children: [
           // ---- Glass background: base color + soft blurred color orbs ----
           Positioned.fill(
-            child: Container(color: AppColors.kBackground),
+            child: Container(color: theme.scaffoldBackgroundColor),
           ),
           Positioned(
             top: -60,
@@ -218,6 +219,8 @@ class DashboardScreen extends StatelessWidget {
 
   // ---- Hero banner (glass over gold gradient) ----
   Widget _buildHeroBanner(BuildContext context, String today, String firstName) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return ClipRRect(
       borderRadius: BorderRadius.circular(26),
       child: BackdropFilter(
@@ -227,14 +230,14 @@ class DashboardScreen extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                AppColors.kGold.withOpacity(0.92),
-                AppColors.kGoldDark.withOpacity(0.92),
+                scheme.primary.withValues(alpha: 0.92),
+                AppColors.kGoldDark.withValues(alpha: 0.92),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(26),
-            border: Border.all(color: Colors.white.withOpacity(0.35), width: 1.2),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 1.2),
             boxShadow: [
               BoxShadow(
                 color: AppColors.kGoldDark.withOpacity(0.25),

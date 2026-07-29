@@ -155,20 +155,56 @@ class AppTheme {
     );
   }
 
-  /// Optional dark-panel theme for sidebars / chart cards that should
-  /// stay on the ink-800→950 range per the "dark panels" mapping rule.
-  static ThemeData get darkPanel {
+  static ThemeData get dark {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      scaffoldBackgroundColor: AppColors.kPanelDark,
+      scaffoldBackgroundColor: AppColors.ink950,
       fontFamily: fontFamily,
       colorScheme: ColorScheme.fromSeed(
         seedColor: AppColors.kGold,
         primary: AppColors.kGold,
         secondary: AppColors.kGoldLight,
-        surface: AppColors.kPanelDarkAlt,
+        surface: AppColors.ink900,
+        onSurface: AppColors.kTextOnDark,
+        onPrimary: Colors.white,
+        onSecondary: Colors.white,
+        outline: AppColors.kPanelDarkBorder,
+        error: AppColors.kDanger,
         brightness: Brightness.dark,
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: AppColors.ink900,
+        foregroundColor: AppColors.kTextOnDark,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        iconTheme: IconThemeData(color: AppColors.kTextOnDark),
+      ),
+      textTheme: const TextTheme(
+        bodyLarge: TextStyle(color: AppColors.kTextOnDark),
+        bodyMedium: TextStyle(color: AppColors.kTextOnDark),
+        bodySmall: TextStyle(color: AppColors.kTextOnDarkMuted),
+      ).apply(fontFamily: fontFamily),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.kGold,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.ink900,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.kPanelDarkBorder),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.kPanelDarkBorder),
+        ),
       ),
       dividerTheme: const DividerThemeData(color: AppColors.kPanelDarkBorder, thickness: 1),
     );

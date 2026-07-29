@@ -207,6 +207,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final filtered = _customers.where((c) {
       final matchesName = c.fullName.toLowerCase().contains(_query.toLowerCase());
       final matchesStatus =
@@ -218,7 +220,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
       currentRoute: AppRoutes.customers,
       title: 'Customers',
       body: Container(
-        color: AppColors.kBackground,
+        color: theme.scaffoldBackgroundColor,
         child: RefreshIndicator(
           onRefresh: _loadCustomers,
           child: ListView(
@@ -254,9 +256,9 @@ class _CustomersScreenState extends State<CustomersScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.kSurface,
+                  color: scheme.surface,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.kBorder),
+                  border: Border.all(color: scheme.outline.withValues(alpha: 0.2)),
                 ),
                 child: Column(
                   children: [
@@ -264,7 +266,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                       onChanged: (v) => setState(() => _query = v),
                       decoration: const InputDecoration(
                         hintText: 'Search by name...',
-                        prefixIcon: Icon(Icons.search, color: AppColors.kTextMuted),
+                        prefixIcon: Icon(Icons.search),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -272,8 +274,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.kBorder),
-                        color: AppColors.kSurface,
+                        border: Border.all(color: scheme.outline.withValues(alpha: 0.2)),
+                        color: scheme.surface,
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(

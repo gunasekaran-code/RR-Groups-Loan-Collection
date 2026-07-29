@@ -2,7 +2,6 @@ import 'dart:ui'; // Required for ImageFilter.blur
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import '../routes/app_routes.dart';
-import '../theme/app_theme.dart';
 
 class _NavItem {
   final String label;
@@ -51,6 +50,8 @@ class AppBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final int index = _navItems.indexWhere((i) => i.route == currentRoute);
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
 
     return DecoratedBox(
       decoration: const BoxDecoration(
@@ -68,24 +69,20 @@ class AppBottomNav extends StatelessWidget {
               height: 68,
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               decoration: BoxDecoration(
-                // Semi-transparent surface allowing underlying content to bleed through
-                color: AppColors.kSurface.withValues(alpha: 0.65),
+                color: scheme.surface.withValues(alpha: 0.78),
                 borderRadius: BorderRadius.circular(34),
-                // The "Glass Highlight" border mimicking a glossy edge refraction
                 border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.24),
+                  color: scheme.outline.withValues(alpha: 0.18),
                   width: 1.5,
                 ),
                 boxShadow: [
-                  // Subtle ambient contact shadow for physical depth
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.08),
                     blurRadius: 24,
                     offset: const Offset(0, 10),
                   ),
-                  // Keeps your signature gold shadow glowing beneath the glass
                   BoxShadow(
-                    color: AppColors.kGoldDark.withValues(alpha: 0.12),
+                    color: scheme.primary.withValues(alpha: 0.12),
                     blurRadius: 16,
                     offset: const Offset(0, 6),
                   ),
@@ -108,7 +105,8 @@ class AppBottomNav extends StatelessWidget {
   }
 
   Widget _buildTab(BuildContext context, _NavItem item, bool selected) {
-    final Color color = selected ? AppColors.kGoldDark : AppColors.kTextMuted;
+    final scheme = Theme.of(context).colorScheme;
+    final Color color = selected ? scheme.primary : scheme.outline;
     
     return Material(
       color: Colors.transparent,
@@ -135,21 +133,18 @@ class AppBottomNav extends StatelessWidget {
   height: 30,
   alignment: Alignment.center,
   decoration: BoxDecoration(
-    // Liquid-slick white glass button indicator for the active state
-    color: selected 
-        ? Colors.transparent   // was: Colors.white.withValues(alpha: 0.85)
-        : Colors.transparent,
+    color: Colors.transparent,
     shape: BoxShape.circle,
     border: selected
         ? Border.all(
-            color: Colors.white.withValues(alpha: 0.4),
+            color: scheme.onSurface.withValues(alpha: 0.25),
             width: 1,
           )
         : null,
     boxShadow: selected
         ? [
             BoxShadow(
-              color: AppColors.kGoldDark.withValues(alpha: 0.14),
+              color: scheme.primary.withValues(alpha: 0.14),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),

@@ -298,7 +298,7 @@ Future<void> _onSave() async {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.kBackground,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(title: const Text('My Profile')),
       body: content,
     );

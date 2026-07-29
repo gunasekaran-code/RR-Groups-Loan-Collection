@@ -120,6 +120,7 @@ class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return LayoutBuilder(
       builder: (context, constraints) {
         final isNarrow = constraints.maxWidth < 700;
@@ -164,13 +165,14 @@ class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
   }
 
   Widget _buildErrorState() {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 40),
       child: Column(
         children: [
           const Icon(Icons.error_outline, color: AppColors.kDanger, size: 32),
           const SizedBox(height: 12),
-          Text(_error!, style: const TextStyle(color: AppColors.kTextMuted)),
+          Text(_error!, style: TextStyle(color: scheme.onSurfaceVariant)),
           const SizedBox(height: 12),
           OutlinedButton(
             onPressed: _loadSchedule,
@@ -183,9 +185,10 @@ class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
 
   // Header
   Widget _buildHeader(BuildContext context, bool isNarrow) {
-    const subtitle = Text(
+    final scheme = Theme.of(context).colorScheme;
+    final subtitle = Text(
       'Track installment-wise EMI collections and outstanding balances',
-      style: TextStyle(color: AppColors.kTextMuted, fontSize: 14),
+      style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 14),
     );
 
     final downloadButton = Align(

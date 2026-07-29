@@ -421,6 +421,7 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return AppShell(
       currentRoute: AppRoutes.collections,
       title: 'Collections',
@@ -431,11 +432,11 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text('Failed to load collections',
-                          style: TextStyle(color: AppColors.kDanger)),
+                      Text('Failed to load collections',
+                          style: TextStyle(color: scheme.error)),
                       const SizedBox(height: 8),
                       Text(_loadError!,
-                          style: const TextStyle(color: AppColors.kTextMuted)),
+                          style: TextStyle(color: scheme.onSurfaceVariant)),
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: _loadCollections,

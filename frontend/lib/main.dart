@@ -4,6 +4,7 @@ import 'routes/app_routes.dart';
 import 'services/session_service.dart';
 import 'theme/app_theme.dart';
 import 'theme/glass_toast.dart';
+import 'theme/theme_controller.dart';
 import 'screens/splash/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/dashboard/dashboard_screen.dart';
@@ -21,6 +22,7 @@ import 'screens/handover/cash_handover.dart';
 import 'screens/funds/funds_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/settings/profile_page.dart';
+import 'widgets/app_shell.dart';
 import 'screens/agent_page.dart';
 
 Future<void> main() async {
@@ -34,14 +36,21 @@ class FinCollectApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      navigatorKey: ToastService.navigatorKey,
-      title: 'FinCollect',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
-      // initialRoute: AppRoutes.login,
-      initialRoute: AppRoutes.splash,
-      onGenerateRoute: _onGenerateRoute,
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: ThemeController.mode,
+      builder: (context, themeMode, _) {
+        return MaterialApp(
+          navigatorKey: ToastService.navigatorKey,
+          title: 'FinCollect',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light,
+          darkTheme: AppTheme.dark,
+          themeMode: themeMode,
+          // initialRoute: AppRoutes.login,
+          initialRoute: AppRoutes.splash,
+          onGenerateRoute: _onGenerateRoute,
+        );
+      },
     );
   }
 
@@ -99,7 +108,14 @@ class FinCollectApp extends StatelessWidget {
             const SettingsScreen(), const [UserRole.owner, UserRole.admin]);
         break;
       case AppRoutes.profile:
-        page = _guarded(const ProfilePage(), UserRole.values);
+        page = _guarded(
+          AppShell(
+            currentRoute: AppRoutes.profile,
+            title: 'My Profile',
+            body: const ProfilePage(showScaffold: false),
+          ),
+          UserRole.values,
+        );
         break;
       case AppRoutes.handover:
         page = _guarded(const CashHandoverScreen(), UserRole.values);

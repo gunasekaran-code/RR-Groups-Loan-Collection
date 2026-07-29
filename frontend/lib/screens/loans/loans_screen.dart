@@ -232,6 +232,8 @@ class _LoansScreenState extends State<LoansScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return AppShell(
       currentRoute: '/loans',
       title: 'Loans',
@@ -293,6 +295,7 @@ class _LoansScreenState extends State<LoansScreen> {
   }
 
   Widget _buildSearchAndFilters(bool isNarrow) {
+    final scheme = Theme.of(context).colorScheme;
     final searchField = TextField(
       decoration: const InputDecoration(
         prefixIcon: Icon(Icons.search),
@@ -312,9 +315,9 @@ class _LoansScreenState extends State<LoansScreen> {
             child: ChoiceChip(
               label: Text(filter),
               selected: isSelected,
-              selectedColor: AppColors.kGold,
+              selectedColor: scheme.primary,
               labelStyle: TextStyle(
-                color: isSelected ? Colors.white : AppColors.kTextDark,
+                color: isSelected ? Colors.white : scheme.onSurface,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
               onSelected: (selected) =>
@@ -330,9 +333,9 @@ class _LoansScreenState extends State<LoansScreen> {
         margin: const EdgeInsets.symmetric(horizontal: 20),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.kSurface,
+          color: scheme.surface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.kBorder),
+          border: Border.all(color: scheme.outline.withValues(alpha: 0.2)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

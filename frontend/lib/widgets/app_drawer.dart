@@ -124,9 +124,11 @@ class AppDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppUser user = SessionService.instance.currentUser!;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
 
     return Drawer(
-      backgroundColor: AppColors.kSurface,
+      backgroundColor: scheme.surface.withValues(alpha: 0.98),
       child: SafeArea(
         child: Column(
           children: [
@@ -138,35 +140,39 @@ class AppDrawer extends StatelessWidget {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                        color: AppColors.kGold,
+                        color: scheme.primary,
                         borderRadius: BorderRadius.circular(10)),
                     child: const Icon(Icons.account_balance,
                         color: Colors.white, size: 22),
                   ),
                   const SizedBox(width: 12),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('FinCollect',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                                color: AppColors.kTextDark)),
-                        Text('Loan & Collection',
-                            style: TextStyle(
-                                fontSize: 12, color: AppColors.kTextMuted)),
+                        Text(
+                          'FinCollect',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: scheme.onSurface,
+                          ),
+                        ),
+                        Text(
+                          'Loan & Collection',
+                          style: TextStyle(fontSize: 12, color: scheme.outline),
+                        ),
                       ],
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close, color: AppColors.kTextMuted),
+                    icon: Icon(Icons.close, color: scheme.onSurfaceVariant),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1),
+            Divider(height: 1, color: scheme.outline.withValues(alpha: 0.2)),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.symmetric(vertical: 8),
@@ -176,14 +182,14 @@ class AppDrawer extends StatelessWidget {
                 ],
               ),
             ),
-            const Divider(height: 1),
+            Divider(height: 1, color: scheme.outline.withValues(alpha: 0.2)),
             Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
                   CircleAvatar(
                     radius: 18,
-                    backgroundColor: AppColors.kGold,
+                    backgroundColor: scheme.primary,
                     child: Text(user.initials,
                         style: const TextStyle(
                             color: Colors.white,
@@ -196,20 +202,21 @@ class AppDrawer extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(user.name,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontWeight: FontWeight.w600,
                                 fontSize: 13,
-                                color: AppColors.kTextDark),
+                                color: scheme.onSurface),
                             overflow: TextOverflow.ellipsis),
                         Text(user.role.label,
-                            style: const TextStyle(
-                                fontSize: 12, color: AppColors.kTextMuted)),
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: scheme.onSurfaceVariant)),
                       ],
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.logout,
-                        color: AppColors.kTextMuted, size: 20),
+                    icon: Icon(Icons.logout,
+                        color: scheme.onSurfaceVariant, size: 20),
                     onPressed: () {
                       SessionService.instance.logout();
                       Navigator.of(context).pushNamedAndRemoveUntil(
@@ -258,11 +265,12 @@ class AppDrawer extends StatelessWidget {
   }
 
   Widget _buildItem(BuildContext context, _DrawerItem item) {
+    final scheme = Theme.of(context).colorScheme;
     final bool selected = currentRoute == item.route;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       child: Material(
-        color: selected ? AppColors.kGold : Colors.transparent,
+        color: selected ? scheme.primary : Colors.transparent,
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
@@ -278,13 +286,13 @@ class AppDrawer extends StatelessWidget {
               children: [
                 Icon(item.icon,
                     size: 20,
-                    color: selected ? Colors.white : AppColors.kTextDark),
+                    color: selected ? Colors.white : scheme.onSurface),
                 const SizedBox(width: 14),
                 Text(
                   item.label,
                   style: TextStyle(
                     fontSize: 14,
-                    color: selected ? Colors.white : AppColors.kTextDark,
+                    color: selected ? Colors.white : scheme.onSurface,
                     fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                   ),
                 ),
