@@ -1,154 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../routes/app_routes.dart';
-import '../../theme/app_theme.dart'; // adjust path if your app_theme.dart lives elsewhere
+import '../../theme/app_theme.dart';
 import '../../widgets/app_shell.dart';
 import '../../theme/confirm_dialog.dart';
 import '../../theme/glass_toast.dart';
+import '../../models/AppNotification.dart';
+import '../../services/NotificationService.dart';
 
-/// -----------------------------------------------------------------------
-/// MODEL
-/// -----------------------------------------------------------------------
-enum NotificationType { reminder, info, emiDue, overdue, approval }
-
-extension NotificationTypeX on NotificationType {
-  String get label {
-    switch (this) {
-      case NotificationType.reminder:
-        return 'Reminder';
-      case NotificationType.info:
-        return 'Info';
-      case NotificationType.emiDue:
-        return 'EMI Due';
-      case NotificationType.overdue:
-        return 'Overdue';
-      case NotificationType.approval:
-        return 'Approval';
-    }
-  }
-
-  IconData get icon {
-    switch (this) {
-      case NotificationType.reminder:
-        return Icons.alarm_rounded;
-      case NotificationType.info:
-        return Icons.info_outline_rounded;
-      case NotificationType.emiDue:
-        return Icons.event_note_rounded;
-      case NotificationType.overdue:
-        return Icons.error_outline_rounded;
-      case NotificationType.approval:
-        return Icons.task_alt_rounded;
-    }
-  }
-
-  Color get iconColor {
-    switch (this) {
-      case NotificationType.reminder:
-        return const Color(0xFF7C3AED);
-      case NotificationType.info:
-        return AppColors.kTextMuted;
-      case NotificationType.emiDue:
-        return AppColors.kWarning;
-      case NotificationType.overdue:
-        return AppColors.kDanger;
-      case NotificationType.approval:
-        return AppColors.kInfo;
-    }
-  }
-
-  Color get iconBg {
-    switch (this) {
-      case NotificationType.reminder:
-        return const Color(0xFFEDE9FE);
-      case NotificationType.info:
-        return const Color(0xFFF1EFE8);
-      case NotificationType.emiDue:
-        return const Color(0xFFFEF3C7);
-      case NotificationType.overdue:
-        return const Color(0xFFFEE2E2);
-      case NotificationType.approval:
-        return const Color(0xFFDCEAFE);
-    }
-  }
-
-  Color get badgeBg {
-    switch (this) {
-      case NotificationType.reminder:
-        return const Color(0xFFEDE9FE);
-      case NotificationType.info:
-        return const Color(0xFFE5E7EB);
-      case NotificationType.emiDue:
-        return const Color(0xFFFEF3C7);
-      case NotificationType.overdue:
-        return const Color(0xFFFEE2E2);
-      case NotificationType.approval:
-        return const Color(0xFFDCEAFE);
-    }
-  }
-
-  Color get badgeFg {
-    switch (this) {
-      case NotificationType.reminder:
-        return const Color(0xFF7C3AED);
-      case NotificationType.info:
-        return AppColors.kTextMuted;
-      case NotificationType.emiDue:
-        return AppColors.kWarning;
-      case NotificationType.overdue:
-        return AppColors.kDanger;
-      case NotificationType.approval:
-        return AppColors.kInfo;
-    }
-  }
-}
-
-class AppNotification {
-  AppNotification({
-    required this.id,
-    required this.type,
-    required this.title,
-    required this.body,
-    required this.timestamp,
-    this.read = false,
-  });
-
-  final String id;
-  final NotificationType type;
-  final String title;
-  final String body;
-  final DateTime timestamp;
-  bool read;
-}
-
-/// -----------------------------------------------------------------------
-/// HELPERS
-/// -----------------------------------------------------------------------
-String formatNotificationTime(DateTime d) {
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-  final dd = d.day.toString().padLeft(2, '0');
-  final hour24 = d.hour;
-  final hour12 = hour24 % 12 == 0 ? 12 : hour24 % 12;
-  final minute = d.minute.toString().padLeft(2, '0');
-  final period = hour24 >= 12 ? 'PM' : 'AM';
-  return '$dd ${months[d.month - 1]} ${d.year} at $hour12:$minute $period';
-}
-
-/// -----------------------------------------------------------------------
-/// FILTERS
-/// -----------------------------------------------------------------------
 enum NotificationFilter { all, unread, emiDue, overdue, approvals, reminders }
 
 extension NotificationFilterX on NotificationFilter {
@@ -170,9 +28,6 @@ extension NotificationFilterX on NotificationFilter {
   }
 }
 
-/// -----------------------------------------------------------------------
-/// SCREEN
-/// -----------------------------------------------------------------------
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
 
@@ -182,41 +37,45 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   NotificationFilter _filter = NotificationFilter.all;
-  // Fixes the web scrollbar exception seen in your console
   final ScrollController _scrollController = ScrollController();
 
-  // TODO(backend): replace with GET /api/notifications via ApiService.
-  final List<AppNotification> _notifications = [
-    AppNotification(
-      id: '1',
-      type: NotificationType.reminder,
-      title: 'Follow-up call to Lakshmi Iyer',
-      body: 'Call placed to 9988776654 for overdue loan LN-DE34F5.',
-      timestamp: DateTime(2026, 7, 13, 10, 8),
-      read: false,
-    ),
-    AppNotification(
-      id: '2',
-      type: NotificationType.reminder,
-      title: 'Follow-up SMS to Lakshmi Iyer',
-      body: 'SMS sent to 9988776654 for overdue loan LN-DE34F5.',
-      timestamp: DateTime(2026, 7, 13, 10, 8),
-      read: false,
-    ),
-    AppNotification(
-      id: '3',
-      type: NotificationType.info,
-      title: 'New Collection Received',
-      body: 'Agent Arjun Mehta collected ₹4,349.42 from Lakshmi Iyer.',
-      timestamp: DateTime(2026, 7, 13, 9, 40),
-      read: true,
-    ),
-  ];
+  List<AppNotification> _notifications = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotifications();
+  }
 
   @override
   void dispose() {
-    _scrollController.dispose(); // Clean up the controller
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadNotifications() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final list = await NotificationService.fetchAll();
+      list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      if (!mounted) return;
+      setState(() => _notifications = list);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = 'Failed to load notifications');
+      ToastService.show(
+        title: 'Could not load notifications',
+        message: e.toString(),
+        type: ToastType.error,
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   int get _totalCount => _notifications.length;
@@ -272,24 +131,43 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
-void _markAllRead() {
-    if (_unreadCount == 0) return;
+  void _markAllRead() async {
+    final unreadIds =
+        _notifications.where((n) => !n.read).map((n) => n.id).toList();
+    if (unreadIds.isEmpty) return;
+
+    final previousStates = {for (var n in _notifications) n.id: n.read};
 
     setState(() {
       for (var n in _notifications) {
-        n.read = true; // Fixed: changed 'isRead' to 'read'
+        n.read = true;
       }
-    }); // Automatically updates the counts via getters
+    });
 
-    ToastService.show(
-      title: 'All notifications cleared',
-      message: 'Everything has been marked as read.',
-      type: ToastType.success,
-    );
+    try {
+      await NotificationService.markAllRead(unreadIds);
+      if (!mounted) return;
+      ToastService.show(
+        title: 'All notifications cleared',
+        message: 'Everything has been marked as read.',
+        type: ToastType.success,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        for (var n in _notifications) {
+          n.read = previousStates[n.id] ?? n.read;
+        }
+      });
+      ToastService.show(
+        title: 'Failed to update',
+        message: e.toString(),
+        type: ToastType.error,
+      );
+    }
   }
 
   void _deleteNotification(AppNotification n) async {
-    // Invoke your custom bottom edge-to-edge iOS layout dialog helper
     final confirmed = await AppConfirmDialog.show(
       context: context,
       title: 'Delete Notification',
@@ -299,141 +177,188 @@ void _markAllRead() {
       confirmButtonColor: AppColors.kDanger,
     );
 
-    // Update state only if user explicitly provides confirmation intent
-    if (confirmed == true && mounted) {
-      setState(() => _notifications.removeWhere((x) => x.id == n.id));
+    if (confirmed != true || !mounted) return;
 
+    final index = _notifications.indexOf(n);
+    setState(() => _notifications.removeWhere((x) => x.id == n.id));
+
+    try {
+      await NotificationService.delete(n.id);
+      if (!mounted) return;
       ToastService.show(
         title: 'Notification removed',
         message: n.title,
         type: ToastType.success,
       );
+    } catch (e) {
+      if (!mounted) return;
+      setState(
+        () => _notifications.insert(index.clamp(0, _notifications.length), n),
+      );
+      ToastService.show(
+        title: 'Failed to delete',
+        message: e.toString(),
+        type: ToastType.error,
+      );
     }
   }
 
-void _markRead(AppNotification notification) { // Fixed: changed 'NotificationModel' to 'AppNotification'
-    // Prevent toast spam if it's already read
-    if (notification.read) return; // Fixed: changed 'isRead' to 'read'
+  void _markRead(AppNotification notification) async {
+    if (notification.read) return;
 
-    setState(() {
-      notification.read = true; // Fixed: changed 'isRead' to 'read'
-    }); // Automatically updates the counts via getters
+    setState(() => notification.read = true);
 
-    ToastService.show(
-      title: 'Marked as read',
-      type: ToastType.success,
-    );
+    try {
+      await NotificationService.markRead(notification.id);
+      if (!mounted) return;
+      ToastService.show(title: 'Marked as read', type: ToastType.success);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => notification.read = false);
+      ToastService.show(
+        title: 'Failed to mark as read',
+        message: e.toString(),
+        type: ToastType.error,
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return const AppShell(
+        currentRoute: AppRoutes.notifications,
+        title: 'Notifications',
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_error != null && _notifications.isEmpty) {
+      return AppShell(
+        currentRoute: AppRoutes.notifications,
+        title: 'Notifications',
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_error!,
+                  style: const TextStyle(color: AppColors.kTextMuted)),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: _loadNotifications,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final filtered = _filtered;
 
     return AppShell(
       currentRoute: AppRoutes.notifications,
       title: 'Notifications',
-      body: ListView(
-        controller:
-            _scrollController, // Connected to prevent web console errors
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-        children: [
-          const SizedBox(height: 6),
-          const Text(
-            'Stay on top of dues, approvals, and reminders',
-            style: TextStyle(color: AppColors.kTextMuted, fontSize: 14),
-          ),
-
-          const SizedBox(height: 16),
-
-          Align(
-            alignment: Alignment.centerLeft,
-            child: SizedBox(
-              width: 150,
-              child: OutlinedButton.icon(
-                onPressed: _unreadCount == 0 ? null : _markAllRead,
-                // Changed from Icons.person_add_alt_1_outlined to double checkmarks
-                icon: const Icon(Icons.done_all_rounded, size: 18),
-                label: const Text('Mark all read'),
-              ),
+      body: RefreshIndicator(
+        onRefresh: _loadNotifications,
+        child: ListView(
+          controller: _scrollController,
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+          children: [
+            const SizedBox(height: 6),
+            const Text(
+              'Stay on top of dues, approvals, and reminders',
+              style: TextStyle(color: AppColors.kTextMuted, fontSize: 14),
             ),
-          ),
-
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: _StatCard(
-                  icon: Icons.notifications_none_rounded,
-                  iconBg: const Color(0xFFDCEAFE),
-                  iconColor: AppColors.kInfo,
-                  label: 'TOTAL',
-                  value: '$_totalCount',
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _StatCard(
-                  icon: Icons.notifications_off_outlined,
-                  iconBg: const Color(0xFFEDE9FE),
-                  iconColor: const Color(0xFF7C3AED),
-                  label: 'UNREAD',
-                  value: '$_unreadCount',
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _StatCard(
-                  icon: Icons.error_outline_rounded,
-                  iconBg: const Color(0xFFFEE2E2),
-                  iconColor: AppColors.kDanger,
-                  label: 'OVERDUE',
-                  value: '$_overdueCount',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            height: 44,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: NotificationFilter.values.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 10),
-              itemBuilder: (context, index) {
-                final f = NotificationFilter.values[index];
-                final isSelected = f == _filter;
-                return _FilterPill(
-                  label: f.label,
-                  count: _countFor(f),
-                  selected: isSelected,
-                  onTap: () => setState(() => _filter = f),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 20),
-          if (filtered.isEmpty)
-            const Padding(
-              padding: EdgeInsets.only(top: 40),
-              child: Center(
-                child: Text(
-                  'No notifications here.',
-                  style: TextStyle(color: AppColors.kTextMuted),
-                ),
-              ),
-            )
-          else
-            ...filtered.map(
-              (n) => Padding(
-                padding: const EdgeInsets.only(bottom: 14),
-                child: _NotificationCard(
-                  notification: n,
-                  onTap: () => _markRead(n),
-                  onDelete: () => _deleteNotification(n),
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: SizedBox(
+                width: 150,
+                child: OutlinedButton.icon(
+                  onPressed: _unreadCount == 0 ? null : _markAllRead,
+                  icon: const Icon(Icons.done_all_rounded, size: 18),
+                  label: const Text('Mark all read'),
                 ),
               ),
             ),
-        ],
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: _StatCard(
+                    icon: Icons.notifications_none_rounded,
+                    iconBg: const Color(0xFFDCEAFE),
+                    iconColor: AppColors.kInfo,
+                    label: 'TOTAL',
+                    value: '$_totalCount',
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _StatCard(
+                    icon: Icons.notifications_off_outlined,
+                    iconBg: const Color(0xFFEDE9FE),
+                    iconColor: const Color(0xFF7C3AED),
+                    label: 'UNREAD',
+                    value: '$_unreadCount',
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _StatCard(
+                    icon: Icons.error_outline_rounded,
+                    iconBg: const Color(0xFFFEE2E2),
+                    iconColor: AppColors.kDanger,
+                    label: 'OVERDUE',
+                    value: '$_overdueCount',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              height: 44,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: NotificationFilter.values.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                itemBuilder: (context, index) {
+                  final f = NotificationFilter.values[index];
+                  final isSelected = f == _filter;
+                  return _FilterPill(
+                    label: f.label,
+                    count: _countFor(f),
+                    selected: isSelected,
+                    onTap: () => setState(() => _filter = f),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 20),
+            if (filtered.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 40),
+                child: Center(
+                  child: Text(
+                    'No notifications here.',
+                    style: TextStyle(color: AppColors.kTextMuted),
+                  ),
+                ),
+              )
+            else
+              ...filtered.map(
+                (n) => Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: _NotificationCard(
+                    notification: n,
+                    onTap: () => _markRead(n),
+                    onDelete: () => _deleteNotification(n),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -525,8 +450,8 @@ class _FilterPill extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected ? AppColors.kGold : AppColors.kSurface,
           borderRadius: BorderRadius.circular(999),
-          border:
-              Border.all(color: selected ? AppColors.kGold : AppColors.kBorder),
+          border: Border.all(
+              color: selected ? AppColors.kGold : AppColors.kBorder),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -541,7 +466,8 @@ class _FilterPill extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
                 color: selected
                     ? Colors.white.withOpacity(0.25)
@@ -636,8 +562,8 @@ class _NotificationCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 3),
                     decoration: BoxDecoration(
                       color: n.type.badgeBg,
                       borderRadius: BorderRadius.circular(999),
