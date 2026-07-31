@@ -255,17 +255,27 @@ CREATE TABLE notifications (
 
 -- ---------- settings ----------
 CREATE TABLE settings (
-  id              CHAR(36)     NOT NULL PRIMARY KEY,
-  company_name    VARCHAR(191) NOT NULL DEFAULT '',
-  logo_url        LONGTEXT     NULL,
-  address         TEXT         NULL,
-  gst_number      VARCHAR(64)  NULL,
-  contact_number  VARCHAR(32)  NULL,
-  interest_config DECIMAL(8,2) NOT NULL DEFAULT 0,
-  emi_formula     TEXT         NULL,
-  sms_enabled     TINYINT(1)   NOT NULL DEFAULT 0,
-  whatsapp_enabled TINYINT(1)  NOT NULL DEFAULT 0,
-  updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+  id                       CHAR(36)     NOT NULL PRIMARY KEY,
+  company_name             VARCHAR(191) NOT NULL DEFAULT '',
+  logo_url                 LONGTEXT     NULL,
+  address                  TEXT         NULL,
+  gst_number               VARCHAR(64)  NULL,
+  contact_number           VARCHAR(32)  NULL,
+  interest_config          DECIMAL(8,2) NOT NULL DEFAULT 0,
+  emi_formula              TEXT         NULL,
+  sms_enabled              TINYINT(1)   NOT NULL DEFAULT 0,
+  whatsapp_enabled         TINYINT(1)   NOT NULL DEFAULT 0,
+  reminder_days            INT          NOT NULL DEFAULT 3,
+  reminder_time            VARCHAR(10)  NOT NULL DEFAULT '09:00',
+  auto_reminders_enabled   TINYINT(1)   NOT NULL DEFAULT 1,
+  reminder_template        TEXT         NULL,
+  group_updates_enabled    TINYINT(1)   NOT NULL DEFAULT 1,
+  group_auction_alerts     TINYINT(1)   NOT NULL DEFAULT 1,
+  group_payment_alerts     TINYINT(1)   NOT NULL DEFAULT 1,
+  biometric_enabled        TINYINT(1)   NOT NULL DEFAULT 0,
+  biometric_required_roles VARCHAR(191) NOT NULL DEFAULT 'admin,agent',
+  language                 VARCHAR(10)  NOT NULL DEFAULT 'en',
+  updated_at               DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
 -- ---------- push_subscriptions ----------
@@ -277,6 +287,19 @@ CREATE TABLE push_subscriptions (
   auth       TEXT         NULL,
   created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uniq_push_endpoint (endpoint(255))
+) ENGINE=InnoDB;
+
+-- ---------- biometric_credentials (WebAuthn / passkeys) ----------
+CREATE TABLE biometric_credentials (
+  id            CHAR(36)     NOT NULL PRIMARY KEY,
+  user_id       CHAR(36)     NOT NULL,
+  credential_id VARCHAR(255) NOT NULL,
+  public_key    TEXT         NULL,
+  label         VARCHAR(191) NULL,
+  created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_used_at  DATETIME     NULL,
+  INDEX idx_biocred_user (user_id),
+  UNIQUE KEY uniq_biocred (credential_id)
 ) ENGINE=InnoDB;
 
 -- ============================================================

@@ -201,4 +201,54 @@ foreach ($docCols as $col => $def) {
     }
 }
 
+// 11. Add payment reminder, group updates, biometric login, and language columns to settings if missing.
+$settingsCols = [
+    'reminder_days'            => 'INT NOT NULL DEFAULT 3',
+    'reminder_time'            => "VARCHAR(10) NOT NULL DEFAULT '09:00'",
+    'auto_reminders_enabled'   => 'TINYINT(1) NOT NULL DEFAULT 1',
+    'reminder_template'        => 'TEXT NULL',
+    'group_updates_enabled'    => 'TINYINT(1) NOT NULL DEFAULT 1',
+    'group_auction_alerts'     => 'TINYINT(1) NOT NULL DEFAULT 1',
+    'group_payment_alerts'     => 'TINYINT(1) NOT NULL DEFAULT 1',
+    'biometric_enabled'        => 'TINYINT(1) NOT NULL DEFAULT 0',
+    'biometric_required_roles' => "VARCHAR(191) NOT NULL DEFAULT 'admin,agent'",
+    'language'                 => "VARCHAR(10) NOT NULL DEFAULT 'en'",
+];
+foreach ($settingsCols as $col => $def) {
+    $has = $pdo->query(
+        "SELECT COUNT(*) FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'settings' AND COLUMN_NAME = '$col'"
+    )->fetchColumn();
+    if (!$has) {
+        $pdo->exec("ALTER TABLE settings ADD COLUMN `$col` $def");
+        echo "settings.$col column added.\n";
+    } else {
+        echo "settings.$col column already present.\n";
+    }
+}
+
+// 12. Biometric credentials table (WebAuthn / passkeys) for biometric login.
+$hasBio = $pdo->query(
+    "SELECT COUNT(*) FROM information_schema.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'biometric_credentials'"
+)->fetchColumn();
+if (!$hasBio) {
+    $pdo->exec("
+        CREATE TABLE biometric_credentials (
+          id            CHAR(36)     NOT NULL PRIMARY KEY,
+          user_id       CHAR(36)     NOT NULL,
+          credential_id VARCHAR(255) NOT NULL,
+          public_key    TEXT         NULL,
+          label         VARCHAR(191) NULL,
+          created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          last_used_at  DATETIME     NULL,
+          INDEX idx_biocred_user (user_id),
+          UNIQUE KEY uniq_biocred (credential_id)
+        ) ENGINE=InnoDB
+    ");
+    echo "biometric_credentials table created.\n";
+} else {
+    echo "biometric_credentials table already present.\n";
+}
+
 echo "Migration complete.\n";

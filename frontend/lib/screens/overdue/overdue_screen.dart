@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../routes/app_routes.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/glass_toast.dart';
@@ -38,11 +39,29 @@ String formatIndianCurrency(num value, {bool withSymbol = true}) {
 String formatDate(DateTime? d) {
   if (d == null) return '—';
   const months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
   final dd = d.day.toString().padLeft(2, '0');
   return '$dd ${months[d.month - 1]} ${d.year}';
+}
+
+String _normalizePhone(String raw) {
+  final digits = raw.replaceAll(RegExp(r'[^0-9+]'), '');
+  if (digits.startsWith('91') && digits.length == 12) return digits;
+  if (digits.startsWith('+91')) return digits.substring(1);
+  if (digits.length == 10) return '91$digits';
+  return digits.replaceAll('+', '');
 }
 
 /// -----------------------------------------------------------------------
@@ -133,40 +152,70 @@ class _OverdueScreenState extends State<OverdueScreen> {
   int get _criticalCount => _accounts.where((a) => a.isCritical).length;
 
   Future<void> _confirmMessage(OverdueAccount account) async {
+    final phone = account.phone.trim();
+    if (phone.isEmpty) {
+      ToastService.show(
+        title: 'No phone number',
+        message: 'This overdue account does not have a mobile number yet.',
+        type: ToastType.error,
+      );
+      return;
+    }
+
     final confirmed = await AppConfirmDialog.show(
       context: context,
       title: 'Send Message Reminder',
-      message:
-          'Send an automated overdue reminder to ${account.customerName} (${account.phone})?',
+      message: 'Open WhatsApp for ${account.customerName}?\n$phone',
       confirmLabel: 'Send',
       confirmButtonColor: AppColors.kInfo,
     );
 
     if (confirmed == true && mounted) {
-      // TODO(backend): no messaging endpoint yet — this is UI-only.
-      ToastService.show(
-        title: 'Message sent',
-        message: account.customerName,
-        type: ToastType.success,
+      final normalized = _normalizePhone(phone);
+      final text =
+          'Hello ${account.customerName}, your loan ${account.loanNumber} is overdue by ${account.daysOverdue} days. Please contact us to clear the pending amount of ${formatIndianCurrency(account.overdueAmount)}.';
+      final uri = Uri.parse(
+        'https://wa.me/$normalized?text=${Uri.encodeComponent(text)}',
       );
+
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        ToastService.show(
+          title: 'Unable to open WhatsApp',
+          message: phone,
+          type: ToastType.error,
+        );
+      }
     }
   }
 
   Future<void> _confirmCall(OverdueAccount account) async {
+    final phone = account.phone.trim();
+    if (phone.isEmpty) {
+      ToastService.show(
+        title: 'No phone number',
+        message: 'This overdue account does not have a mobile number yet.',
+        type: ToastType.error,
+      );
+      return;
+    }
+
     final confirmed = await AppConfirmDialog.show(
       context: context,
       title: 'Call Customer',
-      message: '${account.customerName}\n${account.phone}',
+      message: '${account.customerName}\n$phone',
       confirmLabel: 'Call',
       confirmButtonColor: AppColors.kGoldDark,
     );
 
     if (confirmed == true && mounted) {
-      ToastService.show(
-        title: 'Calling...',
-        message: account.phone,
-        type: ToastType.info,
-      );
+      final uri = Uri.parse('tel:${phone.replaceAll(RegExp(r'[^0-9+]'), '')}');
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        ToastService.show(
+          title: 'Unable to start call',
+          message: phone,
+          type: ToastType.error,
+        );
+      }
     }
   }
 
@@ -585,8 +634,8 @@ class _OverdueCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                  child: _InfoBlock(
-                      label: 'Loan No.', value: account.loanNumber)),
+                  child:
+                      _InfoBlock(label: 'Loan No.', value: account.loanNumber)),
               Expanded(
                 child: _InfoBlock(
                   label: 'Due Amount',

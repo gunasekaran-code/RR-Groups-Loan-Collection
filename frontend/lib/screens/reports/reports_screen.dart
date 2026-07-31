@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../routes/app_routes.dart';
-import '../../theme/app_theme.dart'; // adjust path if your app_theme.dart lives elsewhere
+import '../../theme/app_theme.dart'; 
 import '../../widgets/app_shell.dart';
 import '../../theme/glass_toast.dart';
+import '../../models/report_model.dart';
+import '../../services/report_service.dart';
 
 /// -----------------------------------------------------------------------
 /// HELPERS
@@ -43,29 +45,30 @@ String formatSlashDate(DateTime d) {
   return '$dd/$mm/${d.year}';
 }
 
+/// Formats an ISO-ish date/time string coming from the backend
+/// (e.g. "2026-07-30 14:05:00" or "2026-07-30") into "30/07/2026".
+String formatBackendDate(String raw) {
+  if (raw.isEmpty) return '';
+  final datePart = raw.split(' ').first.split('T').first;
+  final parsed = DateTime.tryParse(datePart);
+  if (parsed == null) return raw;
+  return formatSlashDate(parsed);
+}
+
+/// Formats a backend timestamp into a short time string, e.g. "2:05 PM".
+String formatBackendTime(String raw) {
+  final parsed = DateTime.tryParse(raw);
+  if (parsed == null) return '';
+  final hour = parsed.hour % 12 == 0 ? 12 : parsed.hour % 12;
+  final minute = parsed.minute.toString().padLeft(2, '0');
+  final period = parsed.hour >= 12 ? 'PM' : 'AM';
+  return '$hour:$minute $period';
+}
+
 /// -----------------------------------------------------------------------
-/// MODELS
+/// MODELS (UI-local)
 /// -----------------------------------------------------------------------
 enum ReportTab { daily, monthly, agent }
-
-class MonthPoint {
-  const MonthPoint(this.label, this.value);
-  final String label;
-  final double value;
-}
-
-class AgentPerf {
-  const AgentPerf({
-    required this.name,
-    required this.assigned,
-    required this.collectedCount,
-    required this.collectedAmount,
-  });
-  final String name;
-  final int assigned;
-  final int collectedCount;
-  final double collectedAmount;
-}
 
 /// -----------------------------------------------------------------------
 /// SCREEN
@@ -80,61 +83,79 @@ class ReportsScreen extends StatefulWidget {
 class _ReportsScreenState extends State<ReportsScreen> {
   final ScrollController _scrollController =
       ScrollController(); // Fixes web scrollbar controller exceptions
+  final ReportService _reportService = ReportService.instance;
+
   ReportTab _tab = ReportTab.daily;
   DateTime _startDate = DateTime.now().subtract(const Duration(days: 13));
   DateTime _endDate = DateTime.now();
 
-  // TODO(backend): replace all sample data below with real API responses.
-  final List<Map<String, String>> _todaysCollections = const [];
-  final List<Map<String, String>> _newLoansToday = const [];
+  bool _isLoading = false;
+  String? _errorMessage;
 
-  final double _loanDisbursement = 150000;
-  final double _interestEarned = 17627;
-  final double _collectionTotal = 13699;
-  final int _newCustomers = 0;
+  DailyReport? _dailyReport;
+  MonthlyReport? _monthlyReport;
+  AgentReport? _agentReport;
 
-  final List<MonthPoint> _collectionsTrend = const [
-    MonthPoint('Feb 26', 0),
-    MonthPoint('Mar 26', 0),
-    MonthPoint('Apr 26', 0),
-    MonthPoint('May 26', 0),
-    MonthPoint('Jun 26', 100),
-    MonthPoint('Jul 26', 14),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
 
-  final List<MonthPoint> _loanDisbursementByMonth = const [
-    MonthPoint('Feb 26', 0),
-    MonthPoint('Mar 26', 0),
-    MonthPoint('Apr 26', 0),
-    MonthPoint('May 26', 0),
-    MonthPoint('Jun 26', 1900000),
-    MonthPoint('Jul 26', 150000),
-  ];
+  @override
+  void dispose() {
+    _scrollController.dispose(); // Properly dispose the scroll controller
+    super.dispose();
+  }
 
-  final List<AgentPerf> _agentPerformance = const [
-    AgentPerf(
-        name: 'Arjun Mehta',
-        assigned: 4,
-        collectedCount: 3,
-        collectedAmount: 13699),
-    AgentPerf(
-        name: 'Sneha Reddy',
-        assigned: 0,
-        collectedCount: 0,
-        collectedAmount: 0),
-    AgentPerf(
-        name: 'Priya Sharma',
-        assigned: 0,
-        collectedCount: 0,
-        collectedAmount: 0),
-    AgentPerf(
-        name: 'Unassigned', assigned: 1, collectedCount: 0, collectedAmount: 0),
-  ];
+  Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
-  List<MonthPoint> get _collectionsByAgent => _agentPerformance
-      .where((a) => a.name != 'Unassigned')
-      .map((a) => MonthPoint(a.name.split(' ').first, a.collectedAmount))
-      .toList();
+    try {
+      switch (_tab) {
+        case ReportTab.daily:
+          // Daily report is for a single date; use the end date of the
+          // selected range as "the day" being reported on.
+          final report = await _reportService.fetchDailyReport(date: _endDate);
+          if (!mounted) return;
+          setState(() => _dailyReport = report);
+          break;
+        case ReportTab.monthly:
+          final report = await _reportService.fetchMonthlyReport(
+            start: _startDate,
+            end: _endDate,
+          );
+          if (!mounted) return;
+          setState(() => _monthlyReport = report);
+          break;
+        case ReportTab.agent:
+          final report = await _reportService.fetchAgentReport(
+            start: _startDate,
+            end: _endDate,
+          );
+          if (!mounted) return;
+          setState(() => _agentReport = report);
+          break;
+      }
+    } on ReportApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _errorMessage = e.message);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _errorMessage = 'Something went wrong while loading the report.');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _changeTab(ReportTab t) {
+    if (t == _tab) return;
+    setState(() => _tab = t);
+    _loadData();
+  }
 
   Future<void> _pickDate({required bool isStart}) async {
     final initial = isStart ? _startDate : _endDate;
@@ -159,10 +180,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
         _endDate = picked;
       }
     });
+    _loadData();
   }
 
   Future<void> _exportPdf() async {
-    // 1. Show the initial "Loading/Info" status
     ToastService.show(
       title: 'Exporting PDF',
       message: 'Your report is being prepared...',
@@ -173,18 +194,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
       // TODO(backend): Hook up real PDF export here
       // Example: await backendService.generatePdf();
 
-      // 2. Show success toast if it works
       ToastService.show(
         title: 'Export Complete',
         message: 'PDF has been downloaded successfully.',
         type: ToastType.success,
       );
     } catch (error) {
-      // 3. Catch any failures and display the error message
       ToastService.show(
         title: 'Export Failed',
-        message: error.toString(), // Passes the actual error message
-        type: ToastType.error, // Triggers the iOS System Red style
+        message: error.toString(),
+        type: ToastType.error,
       );
     }
   }
@@ -215,108 +234,157 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   @override
-  void dispose() {
-    _scrollController.dispose(); // Properly dispose the scroll controller
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return AppShell(
       currentRoute: AppRoutes.reports,
       title: 'Reports & Analytics',
-      body: ListView(
-        controller: _scrollController, // Connected scroll controller
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-        children: [
-          // Added the missing main page heading widget here
-          const SizedBox(height: 6),
-          const Text(
-            'Daily, monthly and agent performance insights',
-            style: TextStyle(color: AppColors.kTextMuted, fontSize: 14),
-          ),
-          const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final narrow = constraints.maxWidth < 380;
-              final pdfBtn = OutlinedButton.icon(
-                onPressed: _exportPdf,
-                icon: const Icon(Icons.description_outlined, size: 18),
-                label: const Text('Export PDF'),
-              );
-              final excelBtn = ElevatedButton.icon(
-                onPressed: _exportExcel,
-                icon: const Icon(Icons.file_download_outlined, size: 18),
-                label: const Text('Export Excel',
-                    style: TextStyle(fontWeight: FontWeight.w600)),
-              );
-              if (narrow) {
-                return Column(
+      body: RefreshIndicator(
+        onRefresh: _loadData,
+        child: ListView(
+          controller: _scrollController, // Connected scroll controller
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+          children: [
+            const SizedBox(height: 6),
+            const Text(
+              'Daily, monthly and agent performance insights',
+              style: TextStyle(color: AppColors.kTextMuted, fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final narrow = constraints.maxWidth < 380;
+                final pdfBtn = OutlinedButton.icon(
+                  onPressed: _exportPdf,
+                  icon: const Icon(Icons.description_outlined, size: 18),
+                  label: const Text('Export PDF'),
+                );
+                final excelBtn = ElevatedButton.icon(
+                  onPressed: _exportExcel,
+                  icon: const Icon(Icons.file_download_outlined, size: 18),
+                  label: const Text('Export Excel',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+                );
+                if (narrow) {
+                  return Column(
+                    children: [
+                      SizedBox(width: double.infinity, child: pdfBtn),
+                      const SizedBox(height: 10),
+                      SizedBox(width: double.infinity, child: excelBtn),
+                    ],
+                  );
+                }
+                return Row(
                   children: [
-                    SizedBox(width: double.infinity, child: pdfBtn),
-                    const SizedBox(height: 10),
-                    SizedBox(width: double.infinity, child: excelBtn),
+                    Expanded(child: pdfBtn),
+                    const SizedBox(width: 12),
+                    Expanded(child: excelBtn),
                   ],
                 );
-              }
-              return Row(
-                children: [
-                  Expanded(child: pdfBtn),
-                  const SizedBox(width: 12),
-                  Expanded(child: excelBtn),
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 20),
-          _SegmentedTabs(
-            selected: _tab,
-            onChanged: (t) => setState(() => _tab = t),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              const Icon(Icons.calendar_today_outlined,
-                  size: 18, color: AppColors.kTextMuted),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _DateField(
-                  date: _startDate,
-                  onTap: () => _pickDate(isStart: true),
+              },
+            ),
+            const SizedBox(height: 20),
+            _SegmentedTabs(
+              selected: _tab,
+              onChanged: _changeTab,
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Icon(Icons.calendar_today_outlined,
+                    size: 18, color: AppColors.kTextMuted),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _DateField(
+                    date: _startDate,
+                    onTap: () => _pickDate(isStart: true),
+                  ),
                 ),
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8),
-                child: Icon(Icons.arrow_forward,
-                    size: 16, color: AppColors.kTextMuted),
-              ),
-              Expanded(
-                child: _DateField(
-                  date: _endDate,
-                  onTap: () => _pickDate(isStart: false),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8),
+                  child: Icon(Icons.arrow_forward,
+                      size: 16, color: AppColors.kTextMuted),
                 ),
+                Expanded(
+                  child: _DateField(
+                    date: _endDate,
+                    onTap: () => _pickDate(isStart: false),
+                  ),
+                ),
+              ],
+            ),
+            if (_tab == ReportTab.daily) ...[
+              const SizedBox(height: 6),
+              const Text(
+                'Daily report shows data for the end date above.',
+                style: TextStyle(color: AppColors.kTextMuted, fontSize: 12),
               ),
             ],
+            const SizedBox(height: 20),
+            _buildBody(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 60),
+        child: Center(child: CircularProgressIndicator(color: AppColors.kGold)),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return _ErrorState(message: _errorMessage!, onRetry: _loadData);
+    }
+
+    switch (_tab) {
+      case ReportTab.daily:
+        if (_dailyReport == null) return const SizedBox.shrink();
+        return _DailyReportSection(report: _dailyReport!);
+      case ReportTab.monthly:
+        if (_monthlyReport == null) return const SizedBox.shrink();
+        return _MonthlyReportSection(report: _monthlyReport!);
+      case ReportTab.agent:
+        if (_agentReport == null) return const SizedBox.shrink();
+        return _AgentPerformanceSection(report: _agentReport!);
+    }
+  }
+}
+
+/// -----------------------------------------------------------------------
+/// ERROR STATE
+/// -----------------------------------------------------------------------
+class _ErrorState extends StatelessWidget {
+  const _ErrorState({required this.message, required this.onRetry});
+  final String message;
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+      decoration: BoxDecoration(
+        color: AppColors.kSurface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.kBorder),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.cloud_off_outlined, size: 40, color: AppColors.kTextMuted),
+          const SizedBox(height: 12),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppColors.kTextMuted, fontSize: 13),
           ),
-          const SizedBox(height: 20),
-          switch (_tab) {
-            ReportTab.daily => _DailyReportSection(
-                collections: _todaysCollections,
-                newLoans: _newLoansToday,
-              ),
-            ReportTab.monthly => _MonthlyReportSection(
-                loanDisbursement: _loanDisbursement,
-                interestEarned: _interestEarned,
-                collectionTotal: _collectionTotal,
-                newCustomers: _newCustomers,
-                trend: _collectionsTrend,
-                disbursementByMonth: _loanDisbursementByMonth,
-              ),
-            ReportTab.agent => _AgentPerformanceSection(
-                agents: _agentPerformance,
-                collectionsByAgent: _collectionsByAgent,
-              ),
-          },
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh, size: 18),
+            label: const Text('Retry'),
+          ),
         ],
       ),
     );
@@ -364,7 +432,7 @@ class _SegmentedTabs extends StatelessWidget {
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.06),
+                      color: Colors.black.withValues(alpha: 0.06),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),
@@ -535,13 +603,14 @@ class _EmptyMini extends StatelessWidget {
 /// DAILY REPORT
 /// -----------------------------------------------------------------------
 class _DailyReportSection extends StatelessWidget {
-  const _DailyReportSection(
-      {required this.collections, required this.newLoans});
-  final List<Map<String, String>> collections;
-  final List<Map<String, String>> newLoans;
+  const _DailyReportSection({required this.report});
+  final DailyReport report;
 
   @override
   Widget build(BuildContext context) {
+    final collections = report.collections;
+    final newLoans = report.newLoans;
+
     return Column(
       children: [
         _SectionCard(
@@ -560,10 +629,10 @@ class _DailyReportSection extends StatelessWidget {
                       .map(
                         (c) => ListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: Text(c['customer'] ?? ''),
-                          subtitle: Text(c['time'] ?? ''),
+                          title: Text(c.customerName),
+                          subtitle: Text(formatBackendTime(c.createdAt)),
                           trailing: Text(
-                            c['amount'] ?? '',
+                            formatIndianCurrency(c.collectionAmount),
                             style: const TextStyle(
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.kSuccess),
@@ -590,10 +659,10 @@ class _DailyReportSection extends StatelessWidget {
                       .map(
                         (l) => ListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: Text(l['customer'] ?? ''),
-                          subtitle: Text(l['loanNo'] ?? ''),
+                          title: Text(l.customerName),
+                          subtitle: Text(l.loanNumber),
                           trailing: Text(
-                            l['amount'] ?? '',
+                            formatIndianCurrency(l.loanAmount),
                             style: const TextStyle(
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.kTextDark),
@@ -612,29 +681,18 @@ class _DailyReportSection extends StatelessWidget {
 /// MONTHLY REPORT
 /// -----------------------------------------------------------------------
 class _MonthlyReportSection extends StatelessWidget {
-  const _MonthlyReportSection({
-    required this.loanDisbursement,
-    required this.interestEarned,
-    required this.collectionTotal,
-    required this.newCustomers,
-    required this.trend,
-    required this.disbursementByMonth,
-  });
-
-  final double loanDisbursement;
-  final double interestEarned;
-  final double collectionTotal;
-  final int newCustomers;
-  final List<MonthPoint> trend;
-  final List<MonthPoint> disbursementByMonth;
+  const _MonthlyReportSection({required this.report});
+  final MonthlyReport report;
 
   @override
   Widget build(BuildContext context) {
+    final s = report.summary;
+
     return Column(
       children: [
         _MetricRow(
           label: 'LOAN DISBURSEMENT',
-          value: formatIndianCurrency(loanDisbursement),
+          value: formatIndianCurrency(s.disbursement),
           icon: Icons.account_balance_wallet_outlined,
           iconBg: const Color(0xFFDCEAFE),
           iconColor: AppColors.kInfo,
@@ -642,7 +700,7 @@ class _MonthlyReportSection extends StatelessWidget {
         const SizedBox(height: 12),
         _MetricRow(
           label: 'INTEREST EARNED',
-          value: formatIndianCurrency(interestEarned),
+          value: formatIndianCurrency(s.interest),
           icon: Icons.trending_up_rounded,
           iconBg: const Color(0xFFDCFCE7),
           iconColor: AppColors.kSuccess,
@@ -650,7 +708,7 @@ class _MonthlyReportSection extends StatelessWidget {
         const SizedBox(height: 12),
         _MetricRow(
           label: 'COLLECTION TOTAL',
-          value: formatIndianCurrency(collectionTotal),
+          value: formatIndianCurrency(s.collected),
           icon: Icons.currency_rupee_rounded,
           iconBg: const Color(0xFFEDE9FE),
           iconColor: const Color(0xFF7C3AED),
@@ -658,7 +716,7 @@ class _MonthlyReportSection extends StatelessWidget {
         const SizedBox(height: 12),
         _MetricRow(
           label: 'NEW CUSTOMERS',
-          value: '$newCustomers',
+          value: '${s.newCustomers}',
           icon: Icons.people_alt_outlined,
           iconBg: const Color(0xFFFEF3C7),
           iconColor: AppColors.kWarning,
@@ -666,15 +724,15 @@ class _MonthlyReportSection extends StatelessWidget {
         const SizedBox(height: 20),
         _ChartCard(
           title: 'Collections Trend',
-          subtitle: 'Last ${trend.length} months',
-          child: _SimpleLineChart(points: trend),
+          subtitle: 'Last ${report.collectionTrend.length} months',
+          child: _SimpleLineChart(points: report.collectionTrend),
         ),
         const SizedBox(height: 16),
         _ChartCard(
           title: 'Loan Disbursement',
           subtitle: 'By month',
           child: _SimpleBarChart(
-              points: disbursementByMonth, valueFormatter: formatCompact),
+              points: report.disbursementTrend, valueFormatter: formatCompact),
         ),
       ],
     );
@@ -747,13 +805,13 @@ class _MetricRow extends StatelessWidget {
 /// AGENT PERFORMANCE
 /// -----------------------------------------------------------------------
 class _AgentPerformanceSection extends StatelessWidget {
-  const _AgentPerformanceSection(
-      {required this.agents, required this.collectionsByAgent});
-  final List<AgentPerf> agents;
-  final List<MonthPoint> collectionsByAgent;
+  const _AgentPerformanceSection({required this.report});
+  final AgentReport report;
 
   @override
   Widget build(BuildContext context) {
+    final agents = report.agents;
+
     return Column(
       children: [
         _SectionCard(
@@ -761,49 +819,57 @@ class _AgentPerformanceSection extends StatelessWidget {
           iconColor: AppColors.kInfo,
           title: 'Agent Performance',
           count: agents.length,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              headingRowHeight: 36,
-              dataRowMinHeight: 44,
-              dataRowMaxHeight: 52,
-              columnSpacing: 28,
-              headingTextStyle: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: AppColors.kTextMuted,
-                letterSpacing: 0.3,
-              ),
-              dataTextStyle:
-                  const TextStyle(fontSize: 14, color: AppColors.kTextDark),
-              columns: const [
-                DataColumn(label: Text('AGENT')),
-                DataColumn(label: Text('ASSIGNED')),
-                DataColumn(label: Text('COLLECTED')),
-              ],
-              rows: agents
-                  .map(
-                    (a) => DataRow(
-                      cells: [
-                        DataCell(Text(a.name,
-                            style:
-                                const TextStyle(fontWeight: FontWeight.w600))),
-                        DataCell(Text('${a.assigned}')),
-                        DataCell(Text(
-                            '${a.collectedCount} / ${formatIndianCurrency(a.collectedAmount)}')),
-                      ],
+          child: agents.isEmpty
+              ? const _EmptyMini(
+                  icon: Icons.people_alt_outlined,
+                  title: 'No agent data',
+                  message: 'Agent performance will appear here once agents are active.',
+                )
+              : SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: DataTable(
+                    headingRowHeight: 36,
+                    dataRowMinHeight: 44,
+                    dataRowMaxHeight: 52,
+                    columnSpacing: 28,
+                    headingTextStyle: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.kTextMuted,
+                      letterSpacing: 0.3,
                     ),
-                  )
-                  .toList(),
-            ),
-          ),
+                    dataTextStyle: const TextStyle(
+                        fontSize: 14, color: AppColors.kTextDark),
+                    columns: const [
+                      DataColumn(label: Text('AGENT')),
+                      DataColumn(label: Text('ASSIGNED')),
+                      DataColumn(label: Text('COLLECTED')),
+                      DataColumn(label: Text('EFFICIENCY')),
+                    ],
+                    rows: agents
+                        .map(
+                          (a) => DataRow(
+                            cells: [
+                              DataCell(Text(a.name,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600))),
+                              DataCell(Text('${a.assigned}')),
+                              DataCell(Text(
+                                  '${a.collCount} / ${formatIndianCurrency(a.collSum)}')),
+                              DataCell(Text('${a.efficiency}%')),
+                            ],
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
         ),
         const SizedBox(height: 16),
         _ChartCard(
           title: 'Collections by Agent',
           subtitle: 'Total amount collected',
           child: _SimpleBarChart(
-              points: collectionsByAgent, valueFormatter: formatCompact),
+              points: report.chart, valueFormatter: formatCompact),
         ),
       ],
     );
@@ -909,8 +975,8 @@ class _LineChartPainter extends CustomPainter {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          AppColors.kInfo.withOpacity(0.25),
-          AppColors.kInfo.withOpacity(0.0)
+          AppColors.kInfo.withValues(alpha: 0.25),
+          AppColors.kInfo.withValues(alpha: 0.0)
         ],
       ).createShader(Rect.fromLTWH(0, 0, size.width, chartHeight));
     canvas.drawPath(fillPath, fillPaint);
