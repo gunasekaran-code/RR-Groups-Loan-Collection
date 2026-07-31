@@ -24,6 +24,9 @@ class NotificationService {
     final user = SessionService.instance.currentUser;
     if (user == null) return null;
 
+    final customerId = (user.customerId ?? '').trim();
+    if (customerId.isNotEmpty) return customerId;
+
     final userId = user.userId.trim();
     if (userId.isNotEmpty) return userId;
 
@@ -79,7 +82,6 @@ class NotificationService {
     final list = _decodeList(res);
     return list
         .map((e) => AppNotification.fromJson(e as Map<String, dynamic>))
-        .where((n) => n.userId == currentUserId)
         .toList();
   }
 
