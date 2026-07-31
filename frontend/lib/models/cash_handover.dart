@@ -32,6 +32,7 @@ class HandoverRecord {
   final double cashAmount;
   final double upiAmount;
   final bool verified;
+  final String? notes;
   final String? receivedBy;
 
   HandoverRecord({
@@ -42,6 +43,7 @@ class HandoverRecord {
     required this.cashAmount,
     required this.upiAmount,
     required this.verified,
+    this.notes,
     this.receivedBy,
   });
 
@@ -57,6 +59,7 @@ class HandoverRecord {
       cashAmount: _toDouble(json['cash_amount']),
       upiAmount: _toDouble(json['upi_amount']),
       verified: (json['status']?.toString() ?? '') == 'verified',
+      notes: json['notes']?.toString(),
       receivedBy: json['received_by']?.toString(),
     );
   }
@@ -64,11 +67,55 @@ class HandoverRecord {
   Map<String, dynamic> toCreateJson() {
     return {
       'agent_id': agentId,
+      'agent_name': agentName,
       'handover_date':
           '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}',
       'cash_amount': cashAmount,
       'upi_amount': upiAmount,
+      'total_amount': totalAmount,
+      'notes': notes,
+      'status': verified ? 'verified' : 'pending',
+      if (receivedBy != null && receivedBy!.isNotEmpty) 'received_by': receivedBy,
     };
+  }
+
+  Map<String, dynamic> toUpdateJson() {
+    return {
+      'agent_id': agentId,
+      'agent_name': agentName,
+      'handover_date':
+          '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}',
+      'cash_amount': cashAmount,
+      'upi_amount': upiAmount,
+      'total_amount': totalAmount,
+      'notes': notes,
+      'status': verified ? 'verified' : 'pending',
+      'received_by': receivedBy,
+    };
+  }
+
+  HandoverRecord copyWith({
+    String? id,
+    String? agentId,
+    String? agentName,
+    DateTime? date,
+    double? cashAmount,
+    double? upiAmount,
+    bool? verified,
+    String? notes,
+    String? receivedBy,
+  }) {
+    return HandoverRecord(
+      id: id ?? this.id,
+      agentId: agentId ?? this.agentId,
+      agentName: agentName ?? this.agentName,
+      date: date ?? this.date,
+      cashAmount: cashAmount ?? this.cashAmount,
+      upiAmount: upiAmount ?? this.upiAmount,
+      verified: verified ?? this.verified,
+      notes: notes ?? this.notes,
+      receivedBy: receivedBy ?? this.receivedBy,
+    );
   }
 }
 

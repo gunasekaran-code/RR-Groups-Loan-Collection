@@ -20,6 +20,9 @@ UserRole _roleFromString(String? raw) {
     case 'admin':
       return UserRole.admin;
     case 'agent':
+      return UserRole.agent;
+    case 'customer':
+      return UserRole.customer;
     default:
       return UserRole.agent;
   }
@@ -67,6 +70,7 @@ class _LoginScreenState extends State<LoginScreen> {
       SessionService.instance.login(
         AppUser(
           userId: (profile['id'] ?? '').toString(),
+          customerId: profile['customer_id']?.toString(),
           name: (profile['full_name'] as String?)?.trim().isNotEmpty == true
               ? profile['full_name'] as String
               : (profile['email'] ?? 'User').toString(),

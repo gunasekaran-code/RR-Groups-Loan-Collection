@@ -5,9 +5,9 @@ import '../../widgets/app_shell.dart';
 import '../../theme/confirm_dialog.dart';
 import '../../theme/glass_toast.dart';
 import '../../models/AppNotification.dart';
-import '../../models/app_user.dart';
+import '../../models/user_role.dart';
 import '../../services/NotificationService.dart';
-import '../../services/session_service.dart'; // adjust import to your actual SessionService location
+import '../../services/session_service.dart';
 import '../../services/customer_api_service.dart'; // adjust import to your actual CustomerApiService location
 import 'notification_state.dart';
 
@@ -59,45 +59,34 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     super.dispose();
   }
 
-Future<void> _loadNotifications() async {
-  setState(() {
-    _loading = true;
-    _error = null;
-  });
-  try {
-    final user = SessionService.instance.currentUser;
-    final candidateIds = <String>{
-      (user?.customerId ?? '').trim(),
-      (user?.userId ?? '').trim(),
-    }..removeWhere((e) => e.isEmpty);
-
-    if (candidateIds.isEmpty) {
-      setState(() {
-        _error = 'No logged-in user found';
-        _loading = false;
-      });
-      return;
-    }
-
-    final list = await NotificationService.fetchAllForUser(
-      candidateIds: candidateIds.toList(),
-    );
-    list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-    if (!mounted) return;
-    setState(() => _notifications = list);
-    NotificationState.instance.setCount(list.where((n) => !n.read).length);
-  } catch (e) {
-    if (!mounted) return;
-    setState(() => _error = 'Failed to load notifications');
-    ToastService.show(
-      title: 'Could not load notifications',
-      message: e.toString(),
-      type: ToastType.error,
-    );
-  } finally {
-    if (mounted) setState(() => _loading = false);
+  bool get _canSendNotifications {
+    final role = SessionService.instance.currentUser?.role;
+    return role == UserRole.admin || role == UserRole.agent;
   }
-}
+
+  Future<void> _loadNotifications() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final list = await NotificationService.fetchForCurrentUser();
+      list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      if (!mounted) return;
+      setState(() => _notifications = list);
+      NotificationState.instance.setCount(list.where((n) => !n.read).length);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = 'Failed to load notifications');
+      ToastService.show(
+        title: 'Could not load notifications',
+        message: e.toString(),
+        type: ToastType.error,
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   int get _totalCount => _notifications.length;
   int get _unreadCount => _notifications.where((n) => !n.read).length;
@@ -342,17 +331,19 @@ Future<void> _loadNotifications() async {
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _openSendDialog,
-                    icon: const Icon(Icons.send_rounded, size: 18),
-                    label: const Text('Send'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                if (_canSendNotifications) ...[
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _openSendDialog,
+                      icon: const Icon(Icons.send_rounded, size: 18),
+                      label: const Text('Send'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
             ),
             const SizedBox(height: 20),
@@ -580,7 +571,6 @@ class _NotificationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final n = notification;
-    final AppUser? user = SessionService.instance.currentUser;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(18),
@@ -659,7 +649,7 @@ class _NotificationCard extends StatelessWidget {
                           height: 1.4)),
                   const SizedBox(height: 6),
                   Text(
-                    'user_id: ${n.userId}  |  customer_id: ${user?.customerId ?? '-'}',
+                    'user_id: ${n.userId}',
                     style: const TextStyle(
                         color: AppColors.kTextMuted, fontSize: 11),
                   ),

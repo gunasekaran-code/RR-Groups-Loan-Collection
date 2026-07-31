@@ -66,7 +66,11 @@ UserRole _roleFromProfile(dynamic rawRole) {
       return UserRole.admin;
     case 'agent':
       return UserRole.agent;
+    case 'customer':
+      return UserRole.customer;
     default:
       return UserRole.agent;
   }
+
+  
 }

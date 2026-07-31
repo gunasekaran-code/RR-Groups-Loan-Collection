@@ -2,7 +2,20 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/cash_handover.dart';
+import '../models/user_role.dart';
 import 'session_service.dart';
+
+class HandoverAgentOption {
+  final String id;
+  final String name;
+  final bool active;
+
+  const HandoverAgentOption({
+    required this.id,
+    required this.name,
+    required this.active,
+  });
+}
 
 /// Talks to the existing PHP REST endpoint at /rest.php?table=handovers.
 /// The backend exposes generic CRUD for the handovers table, so this service
@@ -41,6 +54,22 @@ class CashHandoverApiService {
     throw Exception(message);
   }
 
+  static String? _currentUserId() {
+    final user = SessionService.instance.currentUser;
+    return user?.userId.trim().isNotEmpty == true ? user!.userId.trim() : null;
+  }
+
+  static bool get _isAdmin =>
+      SessionService.instance.currentUser?.role == UserRole.admin ||
+      SessionService.instance.currentUser?.role == UserRole.owner;
+
+  static Map<String, String>? _handoverScopeQuery() {
+    if (_isAdmin) return null;
+    final userId = _currentUserId();
+    if (userId == null) return {'agent_id': 'eq.__no_user__'};
+    return {'agent_id': 'eq.$userId'};
+  }
+
   static List<Map<String, dynamic>> _decodeRows(http.Response res) {
     if (res.statusCode < 200 || res.statusCode >= 300) {
       _throwFromResponse(res);
@@ -57,6 +86,32 @@ class CashHandoverApiService {
       return [body];
     }
     return [];
+  }
+
+  static Future<List<HandoverAgentOption>> fetchActiveAgents() async {
+    final res = await http.get(
+      _uri('profiles', {'role': 'eq.agent', 'status': 'eq.active'}),
+      headers: _headers,
+    );
+    if (res.statusCode != 200) _throwFromResponse(res);
+
+    final rows = _decodeRows(res);
+    final currentUserId = _currentUserId();
+    final agents = rows
+        .map(
+          (row) => HandoverAgentOption(
+            id: row['id']?.toString() ?? '',
+            name: row['full_name']?.toString() ??
+                row['name']?.toString() ??
+                'Unknown Agent',
+            active: (row['status']?.toString() ?? '').toLowerCase() == 'active',
+          ),
+        )
+        .where((a) => a.id.isNotEmpty)
+        .where((a) => _isAdmin || currentUserId == null || a.id == currentUserId)
+        .toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+    return agents;
   }
 
   static Future<HandoverSummary> fetchSummary() async {
@@ -139,7 +194,26 @@ class CashHandoverApiService {
     final res = await http.patch(
       _uri('handovers', {'id': id}),
       headers: _headers,
-      body: jsonEncode({'status': 'verified'}),
+      body: jsonEncode({
+        'status': 'verified',
+        if (SessionService.instance.currentUser?.userId.isNotEmpty == true)
+          'received_by': SessionService.instance.currentUser!.userId,
+      }),
+    );
+    if (res.statusCode != 200 && res.statusCode != 201) {
+      _throwFromResponse(res);
+    }
+
+    final rows = _decodeRows(res);
+    final row = rows.isNotEmpty ? rows.first : <String, dynamic>{};
+    return HandoverRecord.fromJson(row);
+  }
+
+  static Future<HandoverRecord> updateHandover(HandoverRecord record) async {
+    final res = await http.patch(
+      _uri('handovers', {'id': record.id}),
+      headers: _headers,
+      body: jsonEncode(record.toUpdateJson()),
     );
     if (res.statusCode != 200 && res.statusCode != 201) {
       _throwFromResponse(res);
@@ -161,7 +235,10 @@ class CashHandoverApiService {
   }
 
   static Future<List<Map<String, dynamic>>> _listRows() async {
-    final res = await http.get(_uri('handovers'), headers: _headers);
+    final res = await http.get(
+      _uri('handovers', _handoverScopeQuery()),
+      headers: _headers,
+    );
     if (res.statusCode != 200) _throwFromResponse(res);
     return _decodeRows(res);
   }

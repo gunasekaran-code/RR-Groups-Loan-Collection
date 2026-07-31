@@ -1,4 +1,4 @@
-enum UserRole { owner, admin, agent }
+enum UserRole { owner, admin, agent, customer }
 
 extension UserRoleX on UserRole {
   String get label {
@@ -9,6 +9,8 @@ extension UserRoleX on UserRole {
         return 'Admin';
       case UserRole.agent:
         return 'Collection Agent';
+      case UserRole.customer:
+        return 'Customer';
     }
   }
 
@@ -20,6 +22,8 @@ extension UserRoleX on UserRole {
         return 'Operations management';
       case UserRole.agent:
         return 'Field collections';
+      case UserRole.customer:
+        return 'Customer portal access';
     }
   }
 }

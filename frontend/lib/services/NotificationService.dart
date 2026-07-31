@@ -17,7 +17,18 @@ class NotificationService {
 
   static const String _baseUrl = ApiConfig.baseUrl;
   static const String _restEndpoint = '$_baseUrl/rest.php';
-  static const String _notifEndpoint = '$_baseUrl/notifications.php';
+  static final Uri _notifCreateUri = Uri.parse(_restEndpoint)
+      .replace(queryParameters: {'table': 'notifications'});
+
+  static String? currentUserNotificationId() {
+    final user = SessionService.instance.currentUser;
+    if (user == null) return null;
+
+    final userId = user.userId.trim();
+    if (userId.isNotEmpty) return userId;
+
+    return null;
+  }
 
   static Map<String, String> get _headers {
     final token = SessionService.instance.token;
@@ -41,7 +52,9 @@ class NotificationService {
     final data = _decodeBody(res);
     if (res.statusCode < 200 || res.statusCode >= 300) {
       final msg = data is Map<String, dynamic>
-          ? (data['message']?.toString() ?? data['error']?.toString() ?? 'Request failed')
+          ? (data['message']?.toString() ??
+              data['error']?.toString() ??
+              'Request failed')
           : 'Request failed (${res.statusCode})';
       throw NotificationApiException(msg, res.statusCode);
     }
@@ -53,22 +66,22 @@ class NotificationService {
     return [];
   }
 
-  /// Fetch notifications for a specific user_id (must match customers.id / login id)
-static Future<List<AppNotification>> fetchAllForUser({
-  required List<String> candidateIds,
-}) async {
-  final ids = candidateIds.map((e) => e.trim()).where((e) => e.isNotEmpty).toSet().toList();
-  if (ids.isEmpty) return [];
+  /// Fetch notifications for the currently logged-in account only.
+  static Future<List<AppNotification>> fetchForCurrentUser() async {
+    final currentUserId = currentUserNotificationId();
+    if (currentUserId == null) return [];
 
-  final idsParam = ids.join(',');
-  final uri = Uri.parse('$_restEndpoint?table=notifications&user_id=in.($idsParam)');
+    final uri = Uri.parse(
+      '$_restEndpoint?table=notifications&user_id=eq.$currentUserId&order=created_at.desc',
+    );
 
-  final res = await _client.get(uri, headers: _headers);
-  final list = _decodeList(res);
-  return list
-      .map((e) => AppNotification.fromJson(e as Map<String, dynamic>))
-      .toList();
-}
+    final res = await _client.get(uri, headers: _headers);
+    final list = _decodeList(res);
+    return list
+        .map((e) => AppNotification.fromJson(e as Map<String, dynamic>))
+        .where((n) => n.userId == currentUserId)
+        .toList();
+  }
 
   static Future<void> markRead(String id) async {
     final res = await _client.patch(
@@ -93,7 +106,8 @@ static Future<List<AppNotification>> fetchAllForUser({
       headers: _headers,
     );
     if (res.statusCode < 200 || res.statusCode >= 300) {
-      throw NotificationApiException('Failed to delete notification', res.statusCode);
+      throw NotificationApiException(
+          'Failed to delete notification', res.statusCode);
     }
   }
 
@@ -106,7 +120,7 @@ static Future<List<AppNotification>> fetchAllForUser({
   }) async {
     for (final uid in userIds) {
       final res = await _client.post(
-        Uri.parse(_notifEndpoint),
+        _notifCreateUri,
         headers: _headers,
         body: jsonEncode({
           'user_id': uid,
@@ -117,19 +131,22 @@ static Future<List<AppNotification>> fetchAllForUser({
         }),
       );
       if (res.statusCode < 200 || res.statusCode >= 300) {
-        throw NotificationApiException('Failed to send to $uid', res.statusCode);
+        throw NotificationApiException(
+            'Failed to send to $uid', res.statusCode);
       }
     }
   }
 
   /// Returns just the count of unread notifications for a user.
-static Future<int> fetchUnreadCount({String? userId}) async {
-  final uri = userId == null
-      ? Uri.parse('$_restEndpoint?table=notifications&read=eq.0')
-      : Uri.parse('$_restEndpoint?table=notifications&user_id=eq.$userId&read=eq.0');
+  static Future<int> fetchUnreadCount({String? userId}) async {
+    final effectiveUserId = userId ?? currentUserNotificationId();
+    final uri = effectiveUserId == null
+        ? Uri.parse('$_restEndpoint?table=notifications&read=eq.0')
+        : Uri.parse(
+            '$_restEndpoint?table=notifications&user_id=eq.$effectiveUserId&read=eq.0');
 
-  final res = await _client.get(uri, headers: _headers);
-  final list = _decodeList(res);
-  return list.length;
-}
+    final res = await _client.get(uri, headers: _headers);
+    final list = _decodeList(res);
+    return list.length;
+  }
 }
