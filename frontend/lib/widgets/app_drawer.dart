@@ -5,6 +5,7 @@ import '../routes/app_routes.dart';
 import '../services/privilege_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
+import 'user_avatar.dart';
 
 class _DrawerItem {
   final String label;
@@ -187,14 +188,15 @@ class AppDrawer extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  CircleAvatar(
+                  UserAvatar(
+                    user: user,
                     radius: 18,
                     backgroundColor: scheme.primary,
-                    child: Text(user.initials,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13)),
+                    textStyle: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(

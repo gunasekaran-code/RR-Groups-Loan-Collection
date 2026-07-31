@@ -71,6 +71,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ? profile['full_name'] as String
               : (profile['email'] ?? 'User').toString(),
           role: role,
+          avatarUrl: profile['avatar_url']?.toString(),
         ),
         token: data['token']?.toString(),
       );

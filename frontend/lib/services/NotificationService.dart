@@ -1,31 +1,135 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../config/api_config.dart';
 import '../models/AppNotification.dart';
-import 'api_service.dart';
+import 'session_service.dart';
+
+class NotificationApiException implements Exception {
+  final String message;
+  final int? statusCode;
+  NotificationApiException(this.message, [this.statusCode]);
+  @override
+  String toString() => message;
+}
 
 class NotificationService {
-  static const String _table = 'notifications';
+  static final http.Client _client = http.Client();
 
-  static Future<List<AppNotification>> fetchAll() async {
-    final res = await ApiService.get(_table);
-    final List data = res is List ? res : (res['data'] as List? ?? []);
-    return data
-        .map((e) => AppNotification.fromJson(Map<String, dynamic>.from(e)))
-        .toList();
+  static const String _baseUrl = ApiConfig.baseUrl;
+  static const String _restEndpoint = '$_baseUrl/rest.php';
+  static const String _notifEndpoint = '$_baseUrl/notifications.php';
+
+  static Map<String, String> get _headers {
+    final token = SessionService.instance.token;
+    return {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+    };
   }
 
+  static dynamic _decodeBody(http.Response res) {
+    if (res.body.isEmpty) return {};
+    try {
+      return jsonDecode(res.body);
+    } catch (_) {
+      throw NotificationApiException('Invalid server response', res.statusCode);
+    }
+  }
+
+  static List<dynamic> _decodeList(http.Response res) {
+    final data = _decodeBody(res);
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      final msg = data is Map<String, dynamic>
+          ? (data['message']?.toString() ?? data['error']?.toString() ?? 'Request failed')
+          : 'Request failed (${res.statusCode})';
+      throw NotificationApiException(msg, res.statusCode);
+    }
+    if (data is List) return data;
+    if (data is Map<String, dynamic>) {
+      final nested = data['data'];
+      if (nested is List) return nested;
+    }
+    return [];
+  }
+
+  /// Fetch notifications for a specific user_id (must match customers.id / login id)
+static Future<List<AppNotification>> fetchAllForUser({
+  required List<String> candidateIds,
+}) async {
+  final ids = candidateIds.map((e) => e.trim()).where((e) => e.isNotEmpty).toSet().toList();
+  if (ids.isEmpty) return [];
+
+  final idsParam = ids.join(',');
+  final uri = Uri.parse('$_restEndpoint?table=notifications&user_id=in.($idsParam)');
+
+  final res = await _client.get(uri, headers: _headers);
+  final list = _decodeList(res);
+  return list
+      .map((e) => AppNotification.fromJson(e as Map<String, dynamic>))
+      .toList();
+}
+
   static Future<void> markRead(String id) async {
-    await ApiService.put(_table, id: id, body: {'read': 1});
+    final res = await _client.patch(
+      Uri.parse('$_restEndpoint?table=notifications&id=eq.$id'),
+      headers: _headers,
+      body: jsonEncode({'read': 1}),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw NotificationApiException('Failed to mark as read', res.statusCode);
+    }
   }
 
   static Future<void> markAllRead(List<String> ids) async {
-    await Future.wait(ids.map((id) => markRead(id)));
+    for (final id in ids) {
+      await markRead(id);
+    }
   }
 
   static Future<void> delete(String id) async {
-    await ApiService.delete(_table, id: id);
+    final res = await _client.delete(
+      Uri.parse('$_restEndpoint?table=notifications&id=eq.$id'),
+      headers: _headers,
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw NotificationApiException('Failed to delete notification', res.statusCode);
+    }
   }
 
-  static Future<AppNotification> create(AppNotification n) async {
-    final res = await ApiService.post(_table, body: n.toCreateJson());
-    return AppNotification.fromJson(Map<String, dynamic>.from(res));
+  /// Send a notification to one or more user_ids
+  static Future<void> send({
+    required List<String> userIds,
+    required String type,
+    required String title,
+    required String message,
+  }) async {
+    for (final uid in userIds) {
+      final res = await _client.post(
+        Uri.parse(_notifEndpoint),
+        headers: _headers,
+        body: jsonEncode({
+          'user_id': uid,
+          'title': title,
+          'message': message,
+          'type': type,
+          'read': 0,
+        }),
+      );
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        throw NotificationApiException('Failed to send to $uid', res.statusCode);
+      }
+    }
   }
+
+  /// Returns just the count of unread notifications for a user.
+static Future<int> fetchUnreadCount({String? userId}) async {
+  final uri = userId == null
+      ? Uri.parse('$_restEndpoint?table=notifications&read=eq.0')
+      : Uri.parse('$_restEndpoint?table=notifications&user_id=eq.$userId&read=eq.0');
+
+  final res = await _client.get(uri, headers: _headers);
+  final list = _decodeList(res);
+  return list.length;
+}
 }

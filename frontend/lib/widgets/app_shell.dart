@@ -10,11 +10,9 @@ import '../screens/repayment/repayment_schedule_screen.dart';
 import '../screens/settings/profile_page.dart';
 import 'app_bottom_nav.dart';
 import 'app_drawer.dart';
+import 'user_avatar.dart';
 
-/// Shared scaffold used by every page: AppBar now carries the page title
-/// (updates live on bottom-nav taps) + role-based drawer + the fixed 5-tab
-/// bottom nav. Subtitle/actions still live in the body via PageHeader, so
-/// they can reflow responsively instead of being squeezed into the AppBar.
+
 class _AppShellContentOnly extends InheritedWidget {
   const _AppShellContentOnly({required super.child});
 
@@ -135,15 +133,14 @@ class _AppShellState extends State<AppShell> {
               child: InkWell(
                 customBorder: const CircleBorder(),
                 onTap: () => setState(() => _activeRoute = AppRoutes.profile),
-                child: CircleAvatar(
+                child: UserAvatar(
+                  user: user,
                   radius: 16,
                   backgroundColor: scheme.primary,
-                  child: Text(
-                    user?.initials ?? '?',
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12),
+                  textStyle: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
                   ),
                 ),
               ),

@@ -2,13 +2,17 @@ import 'user_role.dart';
 
 class AppUser {
   final String userId;
+  final String? customerId;
   final String name;
   final UserRole role;
+  final String? avatarUrl;
 
   const AppUser({
     required this.userId,
+    this.customerId,
     required this.name,
     required this.role,
+    this.avatarUrl,
   });
 
   String get initials {

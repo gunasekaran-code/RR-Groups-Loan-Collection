@@ -29,10 +29,12 @@ class SessionService {
       final profile = jsonDecode(rawProfile) as Map<String, dynamic>;
       currentUser = AppUser(
         userId: (profile['id'] ?? '').toString(),
+        customerId: profile['customer_id']?.toString(),
         name: (profile['full_name'] as String?)?.trim().isNotEmpty == true
             ? profile['full_name'] as String
             : (profile['email'] ?? 'User').toString(),
         role: _roleFromProfile(profile['role']),
+        avatarUrl: profile['avatar_url']?.toString(),
       );
     } catch (_) {
       currentUser = null;

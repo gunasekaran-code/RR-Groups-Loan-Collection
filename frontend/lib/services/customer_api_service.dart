@@ -153,4 +153,40 @@ class CustomerApiService {
             ))
         .toList();
   }
+
+  // Add this inside CustomerApiService
+  Future<List<Map<String, String>>> fetchAllLite() async {
+    final res = await _client.get(
+      // The select query ensures we only download the fields we need
+      Uri.parse('$_restEndpoint?table=customers&select=id,full_name,email'),
+      headers: _headers,
+    );
+    
+    final list = _decodeList(res);
+    
+    return list.map((e) {
+      final map = e as Map<String, dynamic>;
+      return {
+        'id': map['id']?.toString() ?? '',
+        // Fallback to 'name' if your DB uses 'name' instead of 'full_name'
+        'name': map['full_name']?.toString() ?? map['name']?.toString() ?? 'Unknown',
+        'email': map['email']?.toString() ?? '',
+      };
+    }).toList();
+  }
+
+  Future<List<Map<String, String>>> fetchCustomerLogins() async {
+    final res = await _client.get(
+      Uri.parse('$_restEndpoint?table=profiles&role=eq.customer&select=id,customer_id'),
+      headers: _headers,
+    );
+    final list = _decodeList(res);
+    return list.map((e) {
+      final map = e as Map<String, dynamic>;
+      return {
+        'id': map['id']?.toString() ?? '',
+        'customer_id': map['customer_id']?.toString() ?? '',
+      };
+    }).toList();
+  }
 }
