@@ -235,7 +235,8 @@ class RepaymentScheduleTable extends StatelessWidget {
               SizedBox(width: 28, child: Text('${e.index}', style: cellStyle)),
               Expanded(
                   flex: 2,
-                  child: Text(_formatScheduleDate(e.dueDate), style: cellStyle)),
+                  child:
+                      Text(_formatScheduleDate(e.dueDate), style: cellStyle)),
               Expanded(
                   child: Text(LoanRecord.formatRupees(e.amount),
                       style: cellStyle)),
@@ -251,8 +252,8 @@ class RepaymentScheduleTable extends StatelessWidget {
                   ),
                 ),
                 Expanded(
-                    child:
-                        Text(LoanRecord.formatRupees(e.balance), style: cellStyle)),
+                    child: Text(LoanRecord.formatRupees(e.balance),
+                        style: cellStyle)),
                 SizedBox(
                   width: 90,
                   child: StatusBadge(
@@ -424,14 +425,15 @@ class _LoansScreenState extends State<LoansScreen> {
           customers: _customers,
           agents: _agents,
           onSubmit: (data, {required approve}) async {
-            await _loanService.createLoan(data);
+            final loan = await _loanService.createLoan(data);
             await _loadAll();
-            if (!mounted) return;
+            if (!mounted) return loan;
             ToastService.show(
               title: 'Loan created',
-              message: data['loan_number']?.toString() ?? '',
+              message: loan.loanNumber,
               type: ToastType.success,
             );
+            return loan;
           },
         ),
       ),
@@ -450,14 +452,15 @@ class _LoansScreenState extends State<LoansScreen> {
           customers: _customers,
           agents: _agents,
           onSubmit: (data, {required approve}) async {
-            await _loanService.updateLoan(loan.id, data);
+            final updatedLoan = await _loanService.updateLoan(loan.id, data);
             await _loadAll();
-            if (!mounted) return;
+            if (!mounted) return updatedLoan;
             ToastService.show(
               title: 'Loan updated',
-              message: loan.loanNumber,
+              message: updatedLoan.loanNumber,
               type: ToastType.success,
             );
+            return updatedLoan;
           },
         ),
       ),
@@ -519,8 +522,6 @@ class _LoansScreenState extends State<LoansScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     return AppShell(
       currentRoute: '/loans',
       title: 'Loans',
@@ -895,8 +896,8 @@ class _LoanDetailDialogState extends State<LoanDetailDialog> {
               spacing: spacing,
               runSpacing: spacing,
               children: fields
-                  .map((f) => SizedBox(
-                      width: cellWidth, child: _field(f.key, f.value)))
+                  .map((f) =>
+                      SizedBox(width: cellWidth, child: _field(f.key, f.value)))
                   .toList(),
             );
           }),
@@ -993,9 +994,9 @@ class LoanFormDialog extends StatefulWidget {
   final List<Customer> customers;
   final List<Agent> agents;
 
-  /// Called with the payload to send to the backend. Throw to signal a
-  /// failure (the dialog shows an error toast and stays open).
-  final Future<void> Function(Map<String, dynamic> data,
+  /// Called with the payload to send to the backend. Returns the saved
+  /// loan record so the form can create repayment schedule rows afterward.
+  final Future<LoanRecord> Function(Map<String, dynamic> data,
       {required bool approve}) onSubmit;
 
   const LoanFormDialog({
@@ -1127,7 +1128,10 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
 
     setState(() => _saving = true);
     try {
-      await widget.onSubmit(payload, approve: approve);
+      final loan = await widget.onSubmit(payload, approve: approve);
+      if (!widget.isEdit) {
+        await _createRepaymentScheduleForLoan(loan);
+      }
       if (!mounted) return;
       Navigator.of(context).pop();
     } catch (e) {
@@ -1142,29 +1146,79 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
     }
   }
 
+  Future<void> _createRepaymentScheduleForLoan(LoanRecord loan) async {
+    final startDate = tryParseFlexibleDate(_startDateController.text);
+    if (startDate == null || _principal <= 0) return;
+
+    int periods;
+    double installment;
+    double totalAmount;
+
+    switch (_collectionType) {
+      case 'Weekly':
+        periods = _duration > 0 ? _duration : 10;
+        installment = _calcWeeklyInstallment();
+        totalAmount = _principal;
+        break;
+      case 'Daily':
+        periods = _getDailyDays();
+        installment = _calcDailyInstallment();
+        totalAmount = _principal;
+        break;
+      default:
+        periods = _duration;
+        installment = _calcMonthlyEmi();
+        totalAmount = installment * periods;
+    }
+
+    if (periods <= 0 || installment <= 0) return;
+
+    final entries = buildRepaymentSchedule(
+      collectionType: _collectionType,
+      startDate: startDate,
+      periods: periods,
+      installment: installment,
+      totalAmount: totalAmount,
+    );
+
+    for (final entry in entries) {
+      final row = {
+        'loan_id': loan.id,
+        'installment_no': entry.index,
+        'due_date': entry.dueDate.toIso8601String().split('T').first,
+        'emi_amount': entry.amount,
+        'paid_amount': 0,
+        'balance': entry.amount,
+        'status': 'pending',
+        'created_at': DateTime.now().toIso8601String(),
+      };
+      await ApiClient.instance.create('repayment_schedule', row);
+    }
+  }
+
   Map<String, dynamic> _buildPayload({required bool approve}) {
-
     /// Converts a 'DD/MM/YYYY' (or 'D/M/YYYY') string to 'YYYY-MM-DD' for the backend.
-/// Returns null if the input can't be parsed.
-String? toIsoDate(String input) {
-  final trimmed = input.trim();
-  if (trimmed.isEmpty) return null;
+    /// Returns null if the input can't be parsed.
+    String? toIsoDate(String input) {
+      final trimmed = input.trim();
+      if (trimmed.isEmpty) return null;
 
-  // Already ISO?
-  if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(trimmed)) return trimmed;
+      // Already ISO?
+      if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(trimmed)) return trimmed;
 
-  final parts = trimmed.split('/');
-  if (parts.length != 3) return null;
+      final parts = trimmed.split('/');
+      if (parts.length != 3) return null;
 
-  final day = int.tryParse(parts[0]);
-  final month = int.tryParse(parts[1]);
-  final year = int.tryParse(parts[2]);
-  if (day == null || month == null || year == null) return null;
+      final day = int.tryParse(parts[0]);
+      final month = int.tryParse(parts[1]);
+      final year = int.tryParse(parts[2]);
+      if (day == null || month == null || year == null) return null;
 
-  final mm = month.toString().padLeft(2, '0');
-  final dd = day.toString().padLeft(2, '0');
-  return '$year-$mm-$dd';
-}
+      final mm = month.toString().padLeft(2, '0');
+      final dd = day.toString().padLeft(2, '0');
+      return '$year-$mm-$dd';
+    }
+
     double interestRate;
     int durationUnits;
     switch (_collectionType) {
@@ -1186,18 +1240,22 @@ String? toIsoDate(String input) {
       // (see LoanController::fillLoanNumbers()).
       if (widget.isEdit) 'loan_number': _loanNumberController.text,
       'customer_id': _selectedCustomer?.id,
-      'agent_id': _selectedAgent?.id,
-      'principal_amount': _principal,
-      'interest_rate': interestRate,
-      'duration_months': durationUnits,
-      'collection_type': _collectionType,
-     'start_date':
+      if (_selectedCustomer?.name.isNotEmpty == true)
+        'customer_name': _selectedCustomer!.name,
+      'assigned_agent': _selectedAgent?.id,
+      if (_selectedAgent?.name.isNotEmpty == true)
+        'agent_name': _selectedAgent!.name,
+      'loan_amount': _principal,
+      'interest_percentage': interestRate,
+      'loan_duration': durationUnits,
+      'loan_type': _collectionType.toLowerCase(),
+      'start_date':
           toIsoDate(_startDateController.text) ?? _startDateController.text,
       'outstanding_balance': widget.loan?.outstandingBalance ?? _principal,
-      'emi_amount': _currentInstallment(),
+      'emi': _currentInstallment(),
       'processing_fee': double.tryParse(_feeController.text) ?? 0,
       'status':
-          approve ? 'Active' : (widget.loan?.status ?? 'Pending'),
+          approve ? 'active' : (widget.loan?.status.toLowerCase() ?? 'pending'),
       if (_notesController.text.isNotEmpty) 'notes': _notesController.text,
     };
   }
@@ -1780,8 +1838,7 @@ String? toIsoDate(String input) {
                 '₹${installment.toStringAsFixed(0)}',
                 const Color(0xFFF0F5FF),
                 AppColors.kInfo,
-                subtitle:
-                    '× $days days = ₹${_principal.toStringAsFixed(0)}'),
+                subtitle: '× $days days = ₹${_principal.toStringAsFixed(0)}'),
             _buildSummaryCard(
                 'Interest (deducted)',
                 '₹${deductedInterest.toStringAsFixed(0)}',

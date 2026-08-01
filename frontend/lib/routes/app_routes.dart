@@ -10,6 +10,7 @@ class AppRoutes {
   static const String collections = '/collections';
   static const String overdue = '/Overdue';
   static const String agent = '/agent';
+  static const String agentCollection = '/agent-collection';
   static const String routeMap = '/route-map';
   static const String chitGroups = '/chit-groups';
   static const String reports = '/reports';

@@ -20,6 +20,7 @@ import 'screens/notifications/notifications_screen.dart';
 import 'screens/user_management/user_management_screen.dart';
 import 'screens/handover/cash_handover.dart';
 import 'screens/funds/funds_screen.dart';
+import 'screens/agent_collection/agent_collection_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/settings/profile_page.dart';
 import 'widgets/app_shell.dart';
@@ -77,17 +78,26 @@ class FinCollectApp extends StatelessWidget {
         page = _guarded(const RepaymentScheduleScreen(), UserRole.values);
         break;
       case AppRoutes.collections:
-        page = _guarded(const CollectionsScreen(), UserRole.values);
+        page = _guarded(
+          SessionService.instance.currentUser?.role == UserRole.agent
+              ? const AgentCollectionScreen()
+              : const CollectionsScreen(),
+          const [UserRole.owner, UserRole.admin, UserRole.agent],
+        );
         break;
       case AppRoutes.overdue:
         page = _guarded(const OverdueScreen(), UserRole.values);
         break;
       case AppRoutes.agent:
-        page =
-            _guarded(const AgentManagementScreen(), const [UserRole.owner, UserRole.admin]);
+        page = _guarded(const AgentManagementScreen(),
+            const [UserRole.owner, UserRole.admin]);
+        break;
+      case AppRoutes.agentCollection:
+        page = _guarded(const AgentCollectionScreen(), const [UserRole.agent]);
         break;
       case AppRoutes.routeMap:
-        page = _guarded(const RouteMapScreen(), const [UserRole.owner, UserRole.admin, UserRole.agent]);
+        page = _guarded(const RouteMapScreen(),
+            const [UserRole.owner, UserRole.admin, UserRole.agent]);
         break;
       case AppRoutes.chitGroups:
         page = _guarded(
@@ -101,7 +111,8 @@ class FinCollectApp extends StatelessWidget {
         page = _guarded(const NotificationsScreen(), UserRole.values);
         break;
       case AppRoutes.userManagement:
-        page = _guarded(const UserManagementScreen(), const [UserRole.owner, UserRole.admin]);
+        page = _guarded(const UserManagementScreen(),
+            const [UserRole.owner, UserRole.admin]);
         break;
       case AppRoutes.settings:
         page = _guarded(

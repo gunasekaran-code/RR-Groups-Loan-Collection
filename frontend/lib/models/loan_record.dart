@@ -46,30 +46,47 @@ class LoanRecord {
   });
 
   factory LoanRecord.fromJson(Map<String, dynamic> j) {
-    double asDouble(dynamic v) =>
-        v == null ? 0.0 : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0.0);
-    int asInt(dynamic v) =>
-        v == null ? 0 : (v is num ? v.toInt() : int.tryParse(v.toString()) ?? 0);
+    double asDouble(dynamic v) => v == null
+        ? 0.0
+        : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0.0);
+    int asInt(dynamic v) => v == null
+        ? 0
+        : (v is num ? v.toInt() : int.tryParse(v.toString()) ?? 0);
 
     final customerId = (j['customer_id'] ?? j['customerId'])?.toString();
-    final agentId = (j['assigned_agent'] ?? j['agent_id'] ?? j['agentId'])?.toString();
-    final customerName = (j['customer_name'] ?? j['customerName'] ?? '').toString().trim();
-    final agentName = (j['agent_name'] ?? j['agentName'] ?? '').toString().trim();
+    final agentId =
+        (j['assigned_agent'] ?? j['agent_id'] ?? j['agentId'])?.toString();
+    final customerName =
+        (j['customer_name'] ?? j['customerName'] ?? '').toString().trim();
+    final agentName =
+        (j['agent_name'] ?? j['agentName'] ?? '').toString().trim();
+
+    final rawCollectionType =
+        (j['loan_type'] ?? j['collection_type'] ?? 'monthly').toString().trim();
+    final collectionType = rawCollectionType.isEmpty
+        ? 'Monthly'
+        : '${rawCollectionType[0].toUpperCase()}${rawCollectionType.substring(1).toLowerCase()}';
+
+    final rawStatus = (j['status'] ?? 'pending').toString().trim();
+    final status = rawStatus.isEmpty
+        ? 'Pending'
+        : '${rawStatus[0].toUpperCase()}${rawStatus.substring(1).toLowerCase()}';
 
     return LoanRecord(
       id: j['id'].toString(),
-      loanNumber: (j['loan_number'] ?? j['id']).toString(),
+      loanNumber: (j['loan_number'] ?? j['loanNumber'] ?? j['id']).toString(),
       customerId: customerId,
       agentId: agentId,
-      principalAmount: asDouble(j['principal_amount']),
-      interestRate: asDouble(j['interest_rate']),
-      durationUnits: asInt(j['duration_months'] ?? j['duration']),
-      collectionType: (j['collection_type'] ?? 'Monthly').toString(),
+      principalAmount: asDouble(j['loan_amount'] ?? j['principal_amount']),
+      interestRate: asDouble(j['interest_percentage'] ?? j['interest_rate']),
+      durationUnits:
+          asInt(j['loan_duration'] ?? j['duration_months'] ?? j['duration']),
+      collectionType: collectionType,
       startDate: j['start_date']?.toString(),
       outstandingBalance: asDouble(j['outstanding_balance']),
-      emiAmount: asDouble(j['emi_amount']),
+      emiAmount: asDouble(j['emi'] ?? j['emi_amount']),
       processingFee: asDouble(j['processing_fee']),
-      status: (j['status'] ?? 'Pending').toString(),
+      status: status,
       notes: j['notes']?.toString(),
       customerName: customerName.isNotEmpty ? customerName : 'Unknown',
       agentName: agentName.isNotEmpty ? agentName : 'Unassigned',
@@ -79,16 +96,18 @@ class LoanRecord {
   Map<String, dynamic> toJson() => {
         'loan_number': loanNumber,
         if (customerId != null) 'customer_id': customerId,
-        if (agentId != null) 'agent_id': agentId,
-        'principal_amount': principalAmount,
-        'interest_rate': interestRate,
-        'duration_months': durationUnits,
-        'collection_type': collectionType,
+        if (customerName.isNotEmpty) 'customer_name': customerName,
+        if (agentId != null) 'assigned_agent': agentId,
+        if (agentName.isNotEmpty) 'agent_name': agentName,
+        'loan_amount': principalAmount,
+        'interest_percentage': interestRate,
+        'loan_duration': durationUnits,
+        'loan_type': collectionType.toLowerCase(),
         if (startDate != null) 'start_date': startDate,
         'outstanding_balance': outstandingBalance,
-        'emi_amount': emiAmount,
+        'emi': emiAmount,
         'processing_fee': processingFee,
-        'status': status,
+        'status': status.toLowerCase(),
         if (notes != null) 'notes': notes,
       };
 

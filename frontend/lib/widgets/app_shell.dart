@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../models/app_user.dart';
+import '../models/user_role.dart';
 import '../routes/app_routes.dart';
 import '../services/session_service.dart';
+import '../screens/agent_collection/agent_collection_screen.dart';
 import '../screens/collections/collections_screen.dart';
 import '../screens/customers/customers_screen.dart';
 import '../screens/dashboard/dashboard_screen.dart';
@@ -168,13 +170,17 @@ class _AppShellState extends State<AppShell> {
   Widget _buildActiveBody() {
     if (_activeRoute == widget.currentRoute) return widget.body;
 
+    final user = SessionService.instance.currentUser;
     return _AppShellContentOnly(
       child: switch (_activeRoute) {
         AppRoutes.dashboard => const DashboardScreen(),
         AppRoutes.customers => const CustomersScreen(),
         AppRoutes.loans => const LoansScreen(),
         AppRoutes.repayment => const RepaymentScheduleScreen(),
-        AppRoutes.collections => const CollectionsScreen(),
+        AppRoutes.collections =>
+          user?.role == UserRole.agent
+              ? const AgentCollectionScreen()
+              : const CollectionsScreen(),
         AppRoutes.profile => const ProfilePage(showScaffold: false),
         _ => widget.body,
       },

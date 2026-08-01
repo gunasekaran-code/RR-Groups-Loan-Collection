@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import '../../routes/app_routes.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_shell.dart';
 import '../../widgets/page_header.dart';
@@ -7,8 +8,8 @@ import '../../widgets/status_badge.dart';
 import '../../theme/confirm_dialog.dart';
 import '../../theme/glass_toast.dart';
 import '../../services/photo_service.dart';
-import '../../services/agent_api_service.dart'; 
-import '../../services/auth_api_service.dart' show ApiException; 
+import '../../services/agent_api_service.dart';
+import '../../services/auth_api_service.dart' show ApiException;
 
 class AgentManagementScreen extends StatefulWidget {
   const AgentManagementScreen({super.key});
@@ -57,7 +58,7 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
       'occupation': row['occupation'] ?? '',
       'avatar_url': row['avatar_url'] ?? '',
       'customer_id': row['customer_id'],
-      'password': '', 
+      'password': '',
     };
   }
 
@@ -258,12 +259,12 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
   int get _activeAgents => _agents.where((a) => a['status'] == 'Active').length;
   int get _inactiveAgents =>
       _agents.where((a) => a['status'] != 'Active').length;
-  int get _addedThisMonth => _agents.length; 
+  int get _addedThisMonth => _agents.length;
 
   @override
   Widget build(BuildContext context) {
     return AppShell(
-      currentRoute: '/agents',
+      currentRoute: AppRoutes.agent,
       title: 'Agent Management',
       body: LayoutBuilder(
         builder: (context, constraints) {

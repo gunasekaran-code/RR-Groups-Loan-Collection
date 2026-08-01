@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../routes/app_routes.dart';
+import '../../models/user_role.dart';
 import '../../theme/app_theme.dart';
 import '../../services/session_service.dart';
 
@@ -106,9 +107,10 @@ class _SplashScreenState extends State<SplashScreen>
     await Future.delayed(const Duration(milliseconds: 420));
     if (!mounted) return;
 
-    final isLoggedIn = SessionService.instance.currentUser != null;
+    final user = SessionService.instance.currentUser;
+    final nextRoute = user == null ? AppRoutes.login : AppRoutes.dashboard;
     Navigator.of(context).pushReplacementNamed(
-      isLoggedIn ? AppRoutes.dashboard : AppRoutes.login,
+      nextRoute,
     );
   }
 
@@ -258,8 +260,10 @@ class _SplashScreenState extends State<SplashScreen>
                                 child: ClipOval(
                                   child: Image.asset(
                                     'assets/images/logo.png',
-                                    width:260, // Adjust this value to increase/decrease the logo size
-                                    height:260, // Keep width and height equal to maintain aspect ratio
+                                    width:
+                                        260, // Adjust this value to increase/decrease the logo size
+                                    height:
+                                        260, // Keep width and height equal to maintain aspect ratio
                                     fit: BoxFit.contain,
                                   ),
                                 ),

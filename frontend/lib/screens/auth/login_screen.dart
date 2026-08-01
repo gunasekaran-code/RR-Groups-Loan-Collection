@@ -8,7 +8,6 @@ import '../../services/auth_api_service.dart';
 import '../../services/api_client.dart' hide ApiException;
 import 'forgot_password_screen.dart';
 
-
 /// Maps the backend's `role` string (Profile.role column) onto the app's
 /// UserRole enum. Adjust the string values on the left if your DB stores
 /// the role differently (e.g. 'super_admin' instead of 'owner').
@@ -26,6 +25,10 @@ UserRole _roleFromString(String? raw) {
     default:
       return UserRole.agent;
   }
+}
+
+String _homeRouteForRole(UserRole role) {
+  return AppRoutes.dashboard;
 }
 
 class LoginScreen extends StatefulWidget {
@@ -82,8 +85,11 @@ class _LoginScreenState extends State<LoginScreen> {
       ApiClient.instance.authToken = data['token']?.toString();
       if (!mounted) return;
       // main.dart's onGenerateRoute -> _guarded() decides what's actually
-      // shown based on this role, so we always push AppRoutes.dashboard here.
-      Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.dashboard, (route) => false);
+      // shown based on this role. Everyone lands on the dashboard first.
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        _homeRouteForRole(role),
+        (route) => false,
+      );
     } on ApiException catch (e) {
       setState(() => _error = e.message);
     } catch (_) {
@@ -113,43 +119,56 @@ class _LoginScreenState extends State<LoginScreen> {
                         width: 64,
                         height: 64,
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(colors: [AppColors.kGold, AppColors.kGoldDark]),
+                          gradient: const LinearGradient(
+                              colors: [AppColors.kGold, AppColors.kGoldDark]),
                           borderRadius: BorderRadius.circular(18),
                         ),
-                        child: const Icon(Icons.account_balance, color: Colors.white, size: 32),
+                        child: const Icon(Icons.account_balance,
+                            color: Colors.white, size: 32),
                       ),
                     ),
                     const SizedBox(height: 16),
                     const Text('FinCollect',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.kTextDark)),
+                        style: TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.kTextDark)),
                     const SizedBox(height: 4),
                     const Text('Loan & Collection Management',
-                        textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: AppColors.kTextMuted)),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontSize: 13, color: AppColors.kTextMuted)),
                     const SizedBox(height: 32),
-
                     if (_error != null) ...[
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           color: Colors.red.withOpacity(0.08),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.red.withOpacity(0.3)),
+                          border:
+                              Border.all(color: Colors.red.withOpacity(0.3)),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.error_outline, color: Colors.red, size: 18),
+                            const Icon(Icons.error_outline,
+                                color: Colors.red, size: 18),
                             const SizedBox(width: 8),
                             Expanded(
-                              child: Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 13)),
+                              child: Text(_error!,
+                                  style: const TextStyle(
+                                      color: Colors.red, fontSize: 13)),
                             ),
                           ],
                         ),
                       ),
                       const SizedBox(height: 16),
                     ],
-
-                    const Text('Email', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.kTextDark)),
+                    const Text('Email',
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.kTextDark)),
                     const SizedBox(height: 6),
                     TextFormField(
                       controller: _emailController,
@@ -160,14 +179,18 @@ class _LoginScreenState extends State<LoginScreen> {
                         prefixIcon: Icon(Icons.mail_outline, size: 20),
                       ),
                       validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Email is required';
+                        if (v == null || v.trim().isEmpty)
+                          return 'Email is required';
                         if (!v.contains('@')) return 'Enter a valid email';
                         return null;
                       },
                     ),
                     const SizedBox(height: 16),
-
-                    const Text('Password', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.kTextDark)),
+                    const Text('Password',
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.kTextDark)),
                     const SizedBox(height: 6),
                     TextFormField(
                       controller: _passwordController,
@@ -177,28 +200,34 @@ class _LoginScreenState extends State<LoginScreen> {
                         hintText: 'Enter your password',
                         prefixIcon: const Icon(Icons.lock_outline, size: 20),
                         suffixIcon: IconButton(
-                          icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 20),
+                          icon: Icon(
+                              _obscure
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                              size: 20),
                           onPressed: () => setState(() => _obscure = !_obscure),
                         ),
                       ),
-                      validator: (v) => (v == null || v.isEmpty) ? 'Password is required' : null,
+                      validator: (v) => (v == null || v.isEmpty)
+                          ? 'Password is required'
+                          : null,
                       onFieldSubmitted: (_) => _loading ? null : _submit(),
                     ),
                     const SizedBox(height: 8),
-
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
                         onPressed: _loading
                             ? null
                             : () => Navigator.of(context).push(
-                                  MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
+                                  MaterialPageRoute(
+                                      builder: (_) =>
+                                          const ForgotPasswordScreen()),
                                 ),
                         child: const Text('Forgot password?'),
                       ),
                     ),
                     const SizedBox(height: 8),
-
                     SizedBox(
                       height: 48,
                       child: ElevatedButton(
@@ -206,15 +235,18 @@ class _LoginScreenState extends State<LoginScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.kGoldDark,
                           foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
                         ),
                         child: _loading
                             ? const SizedBox(
                                 height: 20,
                                 width: 20,
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2),
                               )
-                            : const Text('Sign in', style: TextStyle(fontWeight: FontWeight.w600)),
+                            : const Text('Sign in',
+                                style: TextStyle(fontWeight: FontWeight.w600)),
                       ),
                     ),
                   ],
