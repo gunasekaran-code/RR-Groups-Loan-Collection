@@ -55,6 +55,8 @@ class SessionService {
     ApiClient.instance.authToken = null;
   }
 
+  UserRole? get role => currentUser?.role;
+
   bool get isLoggedIn => currentUser != null;
 }
 

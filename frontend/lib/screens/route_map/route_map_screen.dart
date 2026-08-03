@@ -11,7 +11,6 @@ import '../../widgets/app_shell.dart';
 import '../../widgets/empty_state.dart';
 import '../../models/collection_point.dart';
 import '../../services/field_map_api_service.dart';
-import '../chit_groups/chit_groups_screen.dart' show formatIndianCurrency;
 
 class RouteMapScreen extends StatefulWidget {
   const RouteMapScreen({super.key});
@@ -25,11 +24,11 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
 
   bool _isLoading = true;
   String? _loadError;
+  String _searchQuery = '';
+  String _selectedCustomerId = 'all';
 
   List<CollectionPoint> _points = [];
-  List<AgentOption> _agents = [];
   FieldMapSummary? _summary;
-  String _selectedAgentId = 'all';
 
   @override
   void initState() {
@@ -43,18 +42,16 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       _loadError = null;
     });
     try {
-      final agents = await FieldMapApiService.fetchAgents();
-      final points =
-          await FieldMapApiService.fetchPoints(agentId: _selectedAgentId);
-      final summary =
-          await FieldMapApiService.fetchSummary(agentId: _selectedAgentId);
+      final points = await FieldMapApiService.fetchPoints();
+      final summary = await FieldMapApiService.fetchSummary();
+
       if (!mounted) return;
       setState(() {
-        _agents = agents;
         _points = points;
         _summary = summary;
         _isLoading = false;
       });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _fitMapToPoints());
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -62,17 +59,11 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
         _isLoading = false;
       });
       ToastService.show(
-        title: 'Failed to load field map',
+        title: 'Failed to load map data',
         message: e.toString(),
         type: ToastType.error,
       );
     }
-  }
-
-  Future<void> _onAgentChanged(String? value) async {
-    if (value == null) return;
-    setState(() => _selectedAgentId = value);
-    _loadData();
   }
 
   LatLng get _mapCenter {
@@ -87,11 +78,59 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     return LatLng(avgLat, avgLng);
   }
 
+  List<CollectionPoint> get _filteredPoints {
+    return _points.where((point) {
+      final matchesCustomer = _selectedCustomerId == 'all' ||
+          point.customerName == _selectedCustomerId;
+      final query = _searchQuery.trim().toLowerCase();
+      final matchesSearch = query.isEmpty ||
+          point.customerName.toLowerCase().contains(query) ||
+          point.agentName.toLowerCase().contains(query);
+      return matchesCustomer && matchesSearch;
+    }).toList();
+  }
+
+  List<String> get _customerNames {
+    final names = _points.map((p) => p.customerName).where((n) => n.isNotEmpty);
+    return names.toSet().toList()..sort();
+  }
+
+  void _fitMapToPoints() {
+    final points = _filteredPoints;
+    if (!mounted || points.isEmpty) return;
+    if (points.length == 1) {
+      _mapController.move(
+        LatLng(points.first.latitude, points.first.longitude),
+        15,
+      );
+      return;
+    }
+
+    final bounds = LatLngBounds.fromPoints(
+      points.map((p) => LatLng(p.latitude, p.longitude)).toList(),
+    );
+    _mapController.fitCamera(
+      CameraFit.bounds(
+        bounds: bounds,
+        padding: const EdgeInsets.all(48),
+      ),
+    );
+  }
+
+  void _applyFilterState({String? customerId, String? searchQuery}) {
+    setState(() {
+      if (customerId != null) _selectedCustomerId = customerId;
+      if (searchQuery != null) _searchQuery = searchQuery;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _fitMapToPoints());
+  }
+
   @override
   Widget build(BuildContext context) {
+    final points = _filteredPoints;
     return AppShell(
       currentRoute: AppRoutes.routeMap,
-      title: 'Field Map',
+      title: 'Customer Map',
       body: RefreshIndicator(
         onRefresh: _loadData,
         child: _isLoading
@@ -113,48 +152,47 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
                     children: [
                       const SizedBox(height: 6),
-                      const Text(
-                        'Where each agent has collected — live',
-                        style: TextStyle(
-                            color: AppColors.kTextMuted, fontSize: 14),
-                      ),
-                      const SizedBox(height: 16),
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Expanded(
-                            child: Container(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 16),
-                              decoration: BoxDecoration(
-                                color: AppColors.kSurface,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppColors.kBorder),
-                              ),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<String>(
-                                  value: _selectedAgentId,
-                                  isExpanded: true,
-                                  icon: const Icon(Icons.unfold_more_rounded,
-                                      color: AppColors.kTextMuted),
-                                  style: const TextStyle(
-                                      color: AppColors.kTextDark, fontSize: 15),
-                                  items: [
-                                    const DropdownMenuItem(
-                                        value: 'all',
-                                        child: Text('All agents')),
-                                    ..._agents.map(
-                                      (a) => DropdownMenuItem(
-                                          value: a.id, child: Text(a.name)),
-                                    ),
-                                  ],
-                                  onChanged: _onAgentChanged,
-                                ),
-                              ),
-                            ),
+                          const Text(
+                            'All customer locations',
+                            style: TextStyle(
+                                color: AppColors.kTextMuted, fontSize: 14),
                           ),
-                          const SizedBox(width: 12),
                           _RefreshButton(onTap: _loadData),
                         ],
+                      ),
+                      const SizedBox(height: 20),
+                      TextField(
+                        decoration: const InputDecoration(
+                          hintText: 'Search customer, loan or agent...',
+                          prefixIcon: Icon(Icons.search),
+                        ),
+                        onChanged: (value) =>
+                            _applyFilterState(searchQuery: value),
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        initialValue: _selectedCustomerId,
+                        decoration: const InputDecoration(
+                          labelText: 'Customer',
+                          prefixIcon: Icon(Icons.person_search_outlined),
+                        ),
+                        items: [
+                          const DropdownMenuItem(
+                            value: 'all',
+                            child: Text('All customers'),
+                          ),
+                          ..._customerNames.map(
+                            (name) => DropdownMenuItem(
+                              value: name,
+                              child: Text(name),
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) =>
+                            _applyFilterState(customerId: value ?? 'all'),
                       ),
                       const SizedBox(height: 20),
                       GridView.count(
@@ -169,39 +207,23 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                             icon: Icons.people_alt_rounded,
                             iconBg: const Color(0xFFFEF3C7),
                             iconColor: AppColors.kWarning,
-                            label: 'On Map',
-                            value: '${_summary?.onMap ?? _points.length}',
+                            label: 'Total Mapped',
+                            value: '${_summary?.onMap ?? points.length}',
                           ),
                           _StatCard(
                             icon: Icons.check_circle_outline_rounded,
                             iconBg: const Color(0xFFDCFCE7),
                             iconColor: AppColors.kSuccess,
-                            label: 'Collected',
+                            label: 'Active Customers',
                             value:
-                                '${_summary?.collectedCount ?? _points.where((p) => p.collected).length}',
-                          ),
-                          _StatCard(
-                            icon: Icons.person_pin_circle_outlined,
-                            iconBg: const Color(0xFFEDE9FE),
-                            iconColor: const Color(0xFF7C3AED),
-                            label: 'Active Agents',
-                            value: '${_summary?.activeAgents ?? 0}',
-                          ),
-                          _StatCard(
-                            icon: Icons.account_balance_wallet_outlined,
-                            iconBg: const Color(0xFFFEF3C7),
-                            iconColor: AppColors.kGold,
-                            label: 'Total Collected',
-                            value: formatIndianCurrency(
-                                _summary?.totalCollected ??
-                                    _points.fold(0.0, (s, p) => s + p.amount)),
+                                '${_summary?.collectedCount ?? points.where((p) => p.collected).length}',
                           ),
                         ],
                       ),
                       const SizedBox(height: 20),
-                      if (_points.isEmpty)
+                      if (points.isEmpty)
                         Container(
-                          height: 40,
+                          height: 200,
                           decoration: BoxDecoration(
                             color: AppColors.kSurface,
                             borderRadius: BorderRadius.circular(20),
@@ -209,9 +231,9 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                           ),
                           child: const EmptyState(
                             icon: Icons.map_outlined,
-                            title: 'No collection points yet',
+                            title: 'No locations found',
                             message:
-                                "Once agents start collecting, their stops will be plotted here.",
+                                "Customers with valid coordinates will appear here.",
                           ),
                         )
                       else
@@ -223,14 +245,15 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: SizedBox(
-                              height: 200,
+                              height:
+                                  350, // Increased map height for better visibility
                               child: Stack(
                                 children: [
                                   FlutterMap(
                                     mapController: _mapController,
                                     options: MapOptions(
                                       initialCenter: _mapCenter,
-                                      initialZoom: 15,
+                                      initialZoom: 10,
                                     ),
                                     children: [
                                       TileLayer(
@@ -241,7 +264,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                                             'com.nexora.fincollect',
                                       ),
                                       MarkerLayer(
-                                        markers: _points
+                                        markers: points
                                             .asMap()
                                             .entries
                                             .map(
@@ -253,8 +276,8 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                                                 height: 40,
                                                 child: _MapPin(
                                                   index: entry.key + 1,
-                                                  collected:
-                                                      entry.value.collected,
+                                                  active: entry.value
+                                                      .collected, // Reusing 'collected' for status
                                                   onTap: () => _showPointInfo(
                                                       entry.value),
                                                 ),
@@ -310,13 +333,13 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                           children: [
                             _LegendDot(color: AppColors.kSuccess),
                             SizedBox(width: 6),
-                            Text('Collected',
+                            Text('Active',
                                 style: TextStyle(
                                     color: AppColors.kTextDark, fontSize: 13)),
                             SizedBox(width: 20),
                             _LegendDot(color: AppColors.kDanger),
                             SizedBox(width: 6),
-                            Text('Not collected',
+                            Text('Inactive',
                                 style: TextStyle(
                                     color: AppColors.kTextDark, fontSize: 13)),
                           ],
@@ -343,15 +366,69 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(point.customerName,
-                style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.kTextDark)),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(point.customerName,
+                      style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.kTextDark)),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: point.collected
+                        ? AppColors.kSuccess.withOpacity(0.1)
+                        : AppColors.kDanger.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    point.collected ? 'Active' : 'Inactive',
+                    style: TextStyle(
+                      color: point.collected
+                          ? AppColors.kSuccess
+                          : AppColors.kDanger,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                )
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.location_on_outlined,
+                    size: 16, color: AppColors.kTextMuted),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    point
+                        .agentName, // We temporarily stored the address here in the API service
+                    style: const TextStyle(
+                        color: AppColors.kTextMuted, fontSize: 14),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 6),
-            Text(
-              '${point.agentName} · ${formatIndianCurrency(point.amount)} · ${_formatTime(point.collectedAt)}',
-              style: const TextStyle(color: AppColors.kTextMuted, fontSize: 13),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.calendar_today_outlined,
+                    size: 16, color: AppColors.kTextMuted),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Joined: ${_formatDate(point.collectedAt)}',
+                    style: const TextStyle(
+                        color: AppColors.kTextMuted, fontSize: 14),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -359,7 +436,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     );
   }
 
-  String _formatTime(DateTime d) {
+  String _formatDate(DateTime d) {
     const months = [
       'Jan',
       'Feb',
@@ -375,11 +452,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       'Dec',
     ];
     final dd = d.day.toString().padLeft(2, '0');
-    int hour12 = d.hour % 12;
-    if (hour12 == 0) hour12 = 12;
-    final minute = d.minute.toString().padLeft(2, '0');
-    final ampm = d.hour >= 12 ? 'PM' : 'AM';
-    return '$dd ${months[d.month - 1]} ${d.year} ${hour12.toString().padLeft(2, '0')}:$minute $ampm';
+    return '$dd ${months[d.month - 1]} ${d.year}';
   }
 }
 
@@ -413,12 +486,10 @@ class _StatCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Top Section: Number (Start) and Icon (End)
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Value / Number -> Starting, Top
               Expanded(
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
@@ -434,7 +505,6 @@ class _StatCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              // Icon -> End, Top
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
@@ -445,10 +515,7 @@ class _StatCard extends StatelessWidget {
               ),
             ],
           ),
-
-          const Spacer(), // Pushes the label text to the bottom
-
-          // Bottom Section: Label Text -> Starting, Down
+          const Spacer(),
           Text(
             label,
             maxLines: 1,
@@ -470,14 +537,14 @@ class _StatCard extends StatelessWidget {
 /// -----------------------------------------------------------------------
 class _MapPin extends StatelessWidget {
   const _MapPin(
-      {required this.index, required this.collected, required this.onTap});
+      {required this.index, required this.active, required this.onTap});
   final int index;
-  final bool collected;
+  final bool active;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final color = collected ? AppColors.kSuccess : AppColors.kDanger;
+    final color = active ? AppColors.kSuccess : AppColors.kDanger;
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -523,14 +590,11 @@ class _PinTailPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = color;
-
-    // Explicitly use the UI path
     final path = ui.Path()
       ..moveTo(0, 0)
       ..lineTo(size.width, 0)
       ..lineTo(size.width / 2, size.height)
       ..close();
-
     canvas.drawPath(path, paint);
   }
 
@@ -541,7 +605,6 @@ class _PinTailPainter extends CustomPainter {
 class _LegendDot extends StatelessWidget {
   const _LegendDot({required this.color});
   final Color color;
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -555,7 +618,6 @@ class _LegendDot extends StatelessWidget {
 class _RefreshButton extends StatelessWidget {
   const _RefreshButton({required this.onTap});
   final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
     return InkWell(
@@ -580,7 +642,6 @@ class _MapZoomButton extends StatelessWidget {
   const _MapZoomButton({required this.icon, required this.onTap});
   final IconData icon;
   final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
     return Material(

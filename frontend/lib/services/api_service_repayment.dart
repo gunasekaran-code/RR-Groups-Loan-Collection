@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/repayment_installment.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/api_config.dart';
 
 /// Talks to the `ScheduleController` endpoint backing `repayment_schedule`.
 ///
@@ -14,7 +15,7 @@ class ApiServiceRepayment {
   ApiServiceRepayment._();
   static final ApiServiceRepayment instance = ApiServiceRepayment._();
 
-  static const String _baseUrl = 'http://localhost:8889/rest.php';
+  static String get _baseUrl => '${ApiConfig.baseUrl}rest.php';
 
   Future<Map<String, String>> _headers() async {
     final prefs = await SharedPreferences.getInstance();
@@ -37,7 +38,8 @@ class ApiServiceRepayment {
     final res = await http.get(uri, headers: await _headers());
 
     if (res.statusCode != 200) {
-      throw ApiException('Failed to load repayment schedule', res.statusCode, res.body);
+      throw ApiException(
+          'Failed to load repayment schedule', res.statusCode, res.body);
     }
 
     final decoded = jsonDecode(res.body);
@@ -62,7 +64,8 @@ class ApiServiceRepayment {
     );
 
     if (res.statusCode != 200 && res.statusCode != 201) {
-      throw ApiException('Failed to create installment', res.statusCode, res.body);
+      throw ApiException(
+          'Failed to create installment', res.statusCode, res.body);
     }
     return RepaymentInstallment.fromJson(jsonDecode(res.body));
   }
@@ -79,7 +82,8 @@ class ApiServiceRepayment {
     );
 
     if (res.statusCode != 200) {
-      throw ApiException('Failed to update installment', res.statusCode, res.body);
+      throw ApiException(
+          'Failed to update installment', res.statusCode, res.body);
     }
     return RepaymentInstallment.fromJson(jsonDecode(res.body));
   }
@@ -92,7 +96,8 @@ class ApiServiceRepayment {
     );
 
     if (res.statusCode != 200 && res.statusCode != 204) {
-      throw ApiException('Failed to delete installment', res.statusCode, res.body);
+      throw ApiException(
+          'Failed to delete installment', res.statusCode, res.body);
     }
   }
 }

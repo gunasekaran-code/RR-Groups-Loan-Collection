@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/collection_point.dart';
+import 'customer_api_service.dart';
 import 'session_service.dart';
 
 class FieldMapApiService {
@@ -27,7 +28,8 @@ class FieldMapApiService {
     String message = 'Request failed (${res.statusCode})';
     try {
       final body = jsonDecode(res.body);
-      if (body is Map && body['error'] != null) message = body['error'].toString();
+      if (body is Map && body['error'] != null)
+        message = body['error'].toString();
     } catch (_) {}
     throw Exception(message);
   }
@@ -36,81 +38,59 @@ class FieldMapApiService {
     return row['latitude'] != null && row['longitude'] != null;
   }
 
-  static String _agentNameFor(Map<String, dynamic> row, Map<String, String> agentNames) {
-    final agentId = (row['assigned_agent'] ?? row['agent_id'])?.toString() ?? '';
-    if (agentId.isEmpty) return (row['assigned_agent_name'] ?? row['agent_name'])?.toString() ?? 'Unknown Agent';
-    return agentNames[agentId] ?? (row['assigned_agent_name'] ?? row['agent_name'])?.toString() ?? 'Unknown Agent';
-  }
-
-  static Future<List<Map<String, dynamic>>> _fetchCustomerRows({String? agentId}) async {
-    final query = <String, String>{
-      'latitude': 'is.not.null',
-      'longitude': 'is.not.null',
-    };
-    if (agentId != null && agentId != 'all') {
-      query['assigned_agent'] = 'eq.$agentId';
-    }
-    final res = await http.get(
-      _uri('customers', query),
-      headers: _headers,
-    );
-    if (res.statusCode != 200) _throwFromResponse(res);
-    final data = jsonDecode(res.body);
-    final list = (data is Map && data['data'] is List) ? data['data'] as List : data as List;
-    return list
-        .whereType<Map>()
-        .map((e) => Map<String, dynamic>.from(e as Map))
+  static Future<List<Map<String, dynamic>>> _fetchCustomerRows() async {
+    final service = CustomerApiService();
+    final customers = await service.fetchAll();
+    return customers
+        .map((c) => <String, dynamic>{
+              'id': c.id,
+              'customer_id': c.customerId,
+              'full_name': c.fullName,
+              'mobile': c.mobile,
+              'address': c.address,
+              'aadhaar': c.aadhaar,
+              'pan': c.pan,
+              'occupation': c.occupation,
+              'photo_url': c.photoUrl,
+              'assigned_agent': c.assignedAgent,
+              'assigned_agent_name': c.assignedAgentName,
+              'latitude': c.latitude,
+              'longitude': c.longitude,
+              'loan_status': c.loanStatus,
+              'created_at': c.createdAt?.toIso8601String(),
+            })
         .where(_hasCoords)
         .toList();
   }
 
-  /// GET customer locations with lat/lng and map them onto the existing field
-  /// map marker model.
-  static Future<List<CollectionPoint>> fetchPoints({String? agentId}) async {
-    final rows = await _fetchCustomerRows(agentId: agentId);
-    final agents = await fetchAgents();
-    final agentNames = {for (final a in agents) a.id: a.name};
+  static Future<List<CollectionPoint>> fetchPoints() async {
+    final rows = await _fetchCustomerRows();
 
     return rows.map((row) {
       return CollectionPoint.fromJson({
         ...row,
-        'customer_name': row['customer_name'] ?? row['full_name'],
-        'agent_id': row['assigned_agent'],
-        'agent_name': _agentNameFor(row, agentNames),
+        'customer_name': row['full_name'] ?? 'Unknown',
+        'agent_id': '', // Unused
+        // We safely map the customer address into agent_name so it displays on the map UI
+        // without needing to modify your CollectionPoint model right away
+        'agent_name': row['address'] ?? 'No address provided',
         'amount': 0,
         'collected_at': row['created_at'],
-        'collected': (row['loan_status']?.toString() ?? '') == 'active',
+        'collected': (row['status']?.toString() ?? '') == 'active',
       });
     }).toList();
   }
 
-  static Future<FieldMapSummary> fetchSummary({String? agentId}) async {
-    final points = await _fetchCustomerRows(agentId: agentId);
-    final activeAgents = points
-        .map((p) => (p['assigned_agent'] ?? p['agent_id'])?.toString() ?? '')
-        .where((id) => id.isNotEmpty)
-        .toSet()
-        .length;
-    final collectedCount = points
-        .where((p) => (p['loan_status']?.toString() ?? '') == 'active')
-        .length;
+  static Future<FieldMapSummary> fetchSummary() async {
+    final points = await _fetchCustomerRows();
+    final activeCustomers =
+        points.where((p) => (p['status']?.toString() ?? '') == 'active').length;
+
     return FieldMapSummary(
       onMap: points.length,
-      collectedCount: collectedCount,
-      activeAgents: activeAgents,
-      totalCollected: 0,
+      collectedCount: activeCustomers,
+      activeAgents: 0, // Unused
+      totalCollected: 0, // Unused
     );
-  }
-
-  static Future<List<AgentOption>> fetchAgents() async {
-    final res = await http.get(
-      _uri('profiles', {'role': 'eq.agent'}),
-      headers: _headers,
-    );
-    if (res.statusCode != 200) _throwFromResponse(res);
-    final data = jsonDecode(res.body);
-    final list =
-        (data is Map && data['data'] is List) ? data['data'] as List : data as List;
-    return list.map((e) => AgentOption.fromJson(e as Map<String, dynamic>)).toList();
   }
 }

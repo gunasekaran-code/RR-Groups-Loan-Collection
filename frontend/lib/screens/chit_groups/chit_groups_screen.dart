@@ -7,7 +7,9 @@ import '../../routes/app_routes.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_shell.dart';
 import '../../models/chit_group.dart';
-import '../../services/chit_group_api_service.dart'; 
+import '../../models/user_role.dart';
+import '../../services/chit_group_api_service.dart';
+import '../../services/session_service.dart';
 
 /// -----------------------------------------------------------------------
 /// MODEL HELPERS
@@ -117,6 +119,12 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
   bool _isLoading = true;
   String? _loadError;
 
+  /// True when the logged-in user's role is 'customer'.
+  /// Customers get a read-only view scoped to their own group(s):
+  /// no create button, no stats/search/filter, no edit/delete/dashboard
+  /// actions on the card.
+  bool get _isCustomer => SessionService.instance.role == UserRole.customer;
+
   @override
   void initState() {
     super.initState();
@@ -206,6 +214,7 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
   }
 
   Future<void> _openCreateDialog() async {
+    if (_isCustomer) return; // safety guard, customers can't create
     final result = await showModalBottomSheet<ChitGroup>(
       context: context,
       isScrollControlled: true,
@@ -235,6 +244,7 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
   }
 
   Future<void> _openEditDialog(ChitGroup group) async {
+    if (_isCustomer) return; // safety guard, customers can't edit
     final result = await showModalBottomSheet<ChitGroup>(
       context: context,
       isScrollControlled: true,
@@ -267,6 +277,7 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
   }
 
   Future<void> _confirmDelete(ChitGroup group) async {
+    if (_isCustomer) return; // safety guard, customers can't delete
     final confirmed = await AppConfirmDialog.show(
       context: context,
       title: 'Delete Group',
@@ -304,6 +315,7 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
   @override
   Widget build(BuildContext context) {
     final filtered = _filteredGroups;
+    final isCustomer = _isCustomer;
 
     return AppShell(
       currentRoute: AppRoutes.chitGroups,
@@ -330,118 +342,142 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
                     children: [
                       const SizedBox(height: 6),
-                      const Text(
-                        'Manage chit fund groups and member contributions',
-                        style: TextStyle(
+                      Text(
+                        isCustomer
+                            ? 'Your chit fund group details'
+                            : 'Manage chit fund groups and member contributions',
+                        style: const TextStyle(
                             color: AppColors.kTextMuted, fontSize: 14),
                       ),
                       const SizedBox(height: 16),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: SizedBox(
-                          width: 150,
-                          child: ElevatedButton.icon(
-                            onPressed: _openCreateDialog,
-                            icon: const Icon(Icons.add),
-                            label: const Text('Create Group',
-                                style: TextStyle(fontWeight: FontWeight.w600)),
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
+
+                      // ---- Create button: admin/agent only ----
+                      if (!isCustomer) ...[
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: SizedBox(
+                            width: 150,
+                            child: ElevatedButton.icon(
+                              onPressed: _openCreateDialog,
+                              icon: const Icon(Icons.add),
+                              label: const Text('Create Group',
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.w600)),
+                              style: ElevatedButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 20),
-                      GridView.count(
-                        crossAxisCount: 2,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        mainAxisSpacing: 12,
-                        crossAxisSpacing: 12,
-                        childAspectRatio: 1.5,
-                        children: [
-                          _StatCard(
-                            icon: Icons.qr_code_2_rounded,
-                            iconBg: const Color(0xFFEDE9FE),
-                            iconColor: const Color(0xFF7C3AED),
-                            label: 'Total Groups',
-                            value: '${_groups.length}',
-                          ),
-                          _StatCard(
-                            icon: Icons.trending_up_rounded,
-                            iconBg: const Color(0xFFFEF3C7),
-                            iconColor: AppColors.kWarning,
-                            label: 'Active Groups',
-                            value: '$_activeCount',
-                          ),
-                          _StatCard(
-                            icon: Icons.currency_rupee_rounded,
-                            iconBg: const Color(0xFFDCFCE7),
-                            iconColor: AppColors.kSuccess,
-                            label: 'Collected',
-                            value: formatIndianCurrency(_totalCollected),
-                          ),
-                          _StatCard(
-                            icon: Icons.currency_rupee_rounded,
-                            iconBg: const Color(0xFFFEE2E2),
-                            iconColor: AppColors.kDanger,
-                            label: 'Pending',
-                            value: formatIndianCurrency(_totalPending),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      TextField(
-                        controller: _searchController,
-                        onChanged: (_) => setState(() {}),
-                        decoration: const InputDecoration(
-                          hintText: 'Search groups...',
-                          prefixIcon: Icon(Icons.search,
-                              color: AppColors.kTextMuted),
-                          filled: true,
-                          fillColor: AppColors.kSurface,
+                        const SizedBox(height: 20),
+                      ],
+
+                      // ---- Stats grid: admin/agent only ----
+                      if (!isCustomer) ...[
+                        GridView.count(
+                          crossAxisCount: 2,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 1.5,
+                          children: [
+                            _StatCard(
+                              icon: Icons.qr_code_2_rounded,
+                              iconBg: const Color(0xFFEDE9FE),
+                              iconColor: const Color(0xFF7C3AED),
+                              label: 'Total Groups',
+                              value: '${_groups.length}',
+                            ),
+                            _StatCard(
+                              icon: Icons.trending_up_rounded,
+                              iconBg: const Color(0xFFFEF3C7),
+                              iconColor: AppColors.kWarning,
+                              label: 'Active Groups',
+                              value: '$_activeCount',
+                            ),
+                            _StatCard(
+                              icon: Icons.currency_rupee_rounded,
+                              iconBg: const Color(0xFFDCFCE7),
+                              iconColor: AppColors.kSuccess,
+                              label: 'Collected',
+                              value: formatIndianCurrency(_totalCollected),
+                            ),
+                            _StatCard(
+                              icon: Icons.currency_rupee_rounded,
+                              iconBg: const Color(0xFFFEE2E2),
+                              iconColor: AppColors.kDanger,
+                              label: 'Pending',
+                              value: formatIndianCurrency(_totalPending),
+                            ),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        decoration: BoxDecoration(
-                          color: AppColors.kSurface,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.kBorder),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _statusFilter,
-                            isExpanded: true,
-                            icon: const Icon(Icons.unfold_more_rounded,
+                        const SizedBox(height: 20),
+                      ],
+
+                      // ---- Search + filter: admin/agent only ----
+                      if (!isCustomer) ...[
+                        TextField(
+                          controller: _searchController,
+                          onChanged: (_) => setState(() {}),
+                          decoration: const InputDecoration(
+                            hintText: 'Search groups...',
+                            prefixIcon: Icon(Icons.search,
                                 color: AppColors.kTextMuted),
-                            style: const TextStyle(
-                                color: AppColors.kTextDark, fontSize: 15),
-                            items: const [
-                              DropdownMenuItem(
-                                  value: 'All Status',
-                                  child: Text('All Status')),
-                              DropdownMenuItem(
-                                  value: 'Active', child: Text('Active')),
-                              DropdownMenuItem(
-                                  value: 'Completed', child: Text('Completed')),
-                              DropdownMenuItem(
-                                  value: 'Upcoming', child: Text('Upcoming')),
-                            ],
-                            onChanged: (v) => setState(
-                                () => _statusFilter = v ?? 'All Status'),
+                            filled: true,
+                            fillColor: AppColors.kSurface,
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 20),
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          decoration: BoxDecoration(
+                            color: AppColors.kSurface,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.kBorder),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: _statusFilter,
+                              isExpanded: true,
+                              icon: const Icon(Icons.unfold_more_rounded,
+                                  color: AppColors.kTextMuted),
+                              style: const TextStyle(
+                                  color: AppColors.kTextDark, fontSize: 15),
+                              items: const [
+                                DropdownMenuItem(
+                                    value: 'All Status',
+                                    child: Text('All Status')),
+                                DropdownMenuItem(
+                                    value: 'Active', child: Text('Active')),
+                                DropdownMenuItem(
+                                    value: 'Completed',
+                                    child: Text('Completed')),
+                                DropdownMenuItem(
+                                    value: 'Upcoming',
+                                    child: Text('Upcoming')),
+                              ],
+                              onChanged: (v) => setState(
+                                  () => _statusFilter = v ?? 'All Status'),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+
+                      // ---- Group list: visible to everyone ----
                       if (filtered.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 40),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 40),
                           child: Center(
                             child: Text(
-                              'No groups match your search.',
-                              style: TextStyle(color: AppColors.kTextMuted),
+                              isCustomer
+                                  ? 'No chit group assigned to your account yet.'
+                                  : 'No groups match your search.',
+                              style: const TextStyle(
+                                  color: AppColors.kTextMuted),
+                              textAlign: TextAlign.center,
                             ),
                           ),
                         )
@@ -451,11 +487,16 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
                             padding: const EdgeInsets.only(bottom: 16),
                             child: _GroupCard(
                               group: g,
-                              onEdit: () => _openEditDialog(g),
-                              onDelete: () => _confirmDelete(g),
-                              onViewDashboard: () {
-                                // TODO: navigate to group Dashboard Route
-                              },
+                              readOnly: isCustomer,
+                              onEdit:
+                                  isCustomer ? null : () => _openEditDialog(g),
+                              onDelete:
+                                  isCustomer ? null : () => _confirmDelete(g),
+                              onViewDashboard: isCustomer
+                                  ? null
+                                  : () {
+                                      // TODO: navigate to group Dashboard Route
+                                    },
                             ),
                           ),
                         ),
@@ -534,15 +575,22 @@ class _StatCard extends StatelessWidget {
 class _GroupCard extends StatelessWidget {
   const _GroupCard({
     required this.group,
-    required this.onEdit,
-    required this.onDelete,
-    required this.onViewDashboard,
+    this.readOnly = false,
+    this.onEdit,
+    this.onDelete,
+    this.onViewDashboard,
   });
 
   final ChitGroup group;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-  final VoidCallback onViewDashboard;
+
+  /// When true, hides the entire action row (View Dashboard / Edit / Delete)
+  /// so the card renders as a plain view-only summary — used for the
+  /// 'customer' role.
+  final bool readOnly;
+
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+  final VoidCallback? onViewDashboard;
 
   @override
   Widget build(BuildContext context) {
@@ -677,29 +725,36 @@ class _GroupCard extends StatelessWidget {
               valueColor: const AlwaysStoppedAnimation(AppColors.kGold),
             ),
           ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: onViewDashboard,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+
+          // ---- Action row: hidden entirely for read-only (customer) ----
+          if (!readOnly) ...[
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: onViewDashboard,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: const Text('View Dashboard',
+                        style: TextStyle(fontWeight: FontWeight.w600)),
                   ),
-                  child: const Text('View Dashboard',
-                      style: TextStyle(fontWeight: FontWeight.w600)),
                 ),
-              ),
-              const SizedBox(width: 10),
-              _IconButtonSquare(icon: Icons.edit_outlined, onTap: onEdit),
-              const SizedBox(width: 8),
-              _IconButtonSquare(
-                icon: Icons.delete_outline_rounded,
-                color: AppColors.kDanger,
-                onTap: onDelete,
-              ),
-            ],
-          ),
+                const SizedBox(width: 10),
+                _IconButtonSquare(
+                  icon: Icons.edit_outlined,
+                  onTap: onEdit ?? () {},
+                ),
+                const SizedBox(width: 8),
+                _IconButtonSquare(
+                  icon: Icons.delete_outline_rounded,
+                  color: AppColors.kDanger,
+                  onTap: onDelete ?? () {},
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -764,6 +819,7 @@ class _IconButtonSquare extends StatelessWidget {
 /// (LoanFormDialog) and the header/close-button treatment from
 /// AppEditDialog — rounded top sheet, title + close icon row, labeled
 /// fields, and an outlined Cancel / filled Save button pair.
+/// Only ever opened for admin/agent roles (customers never reach this).
 /// -----------------------------------------------------------------------
 class _GroupFormDialog extends StatefulWidget {
   const _GroupFormDialog({this.existing});
@@ -997,7 +1053,8 @@ class _GroupFormDialogState extends State<_GroupFormDialog> {
       ),
     );
   }
-    Widget _responsiveRow(bool isNarrow, Widget a, Widget b) {
+
+  Widget _responsiveRow(bool isNarrow, Widget a, Widget b) {
     if (isNarrow) {
       return Column(
         children: [a, const SizedBox(height: 16), b],

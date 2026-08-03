@@ -7,7 +7,9 @@ import '../../routes/app_routes.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_shell.dart';
 import '../../models/fund.dart';
+import '../../models/user_role.dart';
 import '../../services/fund_api_service.dart';
+import '../../services/session_service.dart';
 import '../chit_groups/chit_groups_screen.dart' show formatIndianCurrency, formatDate;
 
 class FundsScreen extends StatefulWidget {
@@ -24,6 +26,9 @@ class _FundsScreenState extends State<FundsScreen> {
   List<Fund> _funds = [];
   FundsSummary? _summary;
 
+  // Customers only ever see their own fund(s), read-only — no create/edit/delete/settle.
+  bool get _isCustomerView => SessionService.instance.role == UserRole.customer;
+
   @override
   void initState() {
     super.initState();
@@ -37,10 +42,24 @@ class _FundsScreenState extends State<FundsScreen> {
     });
     try {
       final funds = await FundApiService.fetchAll();
-      final summary = await FundApiService.fetchSummary();
+
+      List<Fund> visibleFunds = funds;
+      FundsSummary? summary;
+
+      if (_isCustomerView) {
+        final myCustomerId = SessionService.instance.currentUser?.customerId;
+        visibleFunds = funds.where((f) => f.customerId == myCustomerId).toList();
+        // Stat cards fall back to computing from the (already filtered) fund
+        // list below, so we deliberately skip the global summary endpoint
+        // for customers — it would otherwise show totals across all customers.
+        summary = null;
+      } else {
+        summary = await FundApiService.fetchSummary();
+      }
+
       if (!mounted) return;
       setState(() {
-        _funds = funds;
+        _funds = visibleFunds;
         _summary = summary;
         _isLoading = false;
       });
@@ -177,22 +196,25 @@ class _FundsScreenState extends State<FundsScreen> {
                         style: TextStyle(color: AppColors.kTextMuted, fontSize: 14),
                       ),
                       const SizedBox(height: 16),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: SizedBox(
-                          width: 150,
-                          child: ElevatedButton.icon(
-                            onPressed: _openCreateDialog,
-                            icon: const Icon(Icons.add),
-                            label: const Text('Add Fund',
-                                style: TextStyle(fontWeight: FontWeight.w600)),
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
+                      // Creating funds is an admin/agent action — customers only view.
+                      if (!_isCustomerView) ...[
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: SizedBox(
+                            width: 150,
+                            child: ElevatedButton.icon(
+                              onPressed: _openCreateDialog,
+                              icon: const Icon(Icons.add),
+                              label: const Text('Add Fund',
+                                  style: TextStyle(fontWeight: FontWeight.w600)),
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 20),
+                        const SizedBox(height: 20),
+                      ],
                       GridView.count(
                         crossAxisCount: 2,
                         shrinkWrap: true,
@@ -235,11 +257,13 @@ class _FundsScreenState extends State<FundsScreen> {
                       ),
                       const SizedBox(height: 20),
                       if (_funds.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 40),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 40),
                           child: Center(
-                            child: Text('No funds yet.',
-                                style: TextStyle(color: AppColors.kTextMuted)),
+                            child: Text(
+                              _isCustomerView ? 'You have no funds yet.' : 'No funds yet.',
+                              style: const TextStyle(color: AppColors.kTextMuted),
+                            ),
                           ),
                         )
                       else
@@ -248,6 +272,7 @@ class _FundsScreenState extends State<FundsScreen> {
                             padding: const EdgeInsets.only(bottom: 16),
                             child: _FundCard(
                               fund: f,
+                              readOnly: _isCustomerView,
                               onPassbook: () => _openPassbook(f),
                               onDelete: () => _confirmDelete(f),
                               onSettle: () => _openSettleDialog(f),
@@ -352,12 +377,14 @@ class _FundCard extends StatelessWidget {
     required this.onPassbook,
     required this.onDelete,
     required this.onSettle,
+    this.readOnly = false,
   });
 
   final Fund fund;
   final VoidCallback onPassbook;
   final VoidCallback onDelete;
   final VoidCallback onSettle;
+  final bool readOnly;
 
   Color get _statusBg {
     switch (fund.status) {
@@ -507,54 +534,69 @@ class _FundCard extends StatelessWidget {
             ],
           ),
           const Divider(height: 28, color: AppColors.kBorder),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onPassbook,
-                  icon: const Icon(Icons.menu_book_outlined, size: 18),
-                  label: const Text('Passbook'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+          // Customers get a read-only view: Passbook only, no edit/delete/settle.
+          if (readOnly)
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onPassbook,
+                icon: const Icon(Icons.menu_book_outlined, size: 18),
+                label: const Text('Passbook'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+              ),
+            )
+          else ...[
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onPassbook,
+                    icon: const Icon(Icons.menu_book_outlined, size: 18),
+                    label: const Text('Passbook'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                _IconButtonSquare(icon: Icons.edit_outlined, onTap: () {}),
+                const SizedBox(width: 8),
+                _IconButtonSquare(
+                  icon: Icons.delete_outline_rounded,
+                  color: AppColors.kDanger,
+                  onTap: onDelete,
+                ),
+              ],
+            ),
+            if (fund.status == FundStatus.active) ...[
+              const SizedBox(height: 10),
+              InkWell(
+                onTap: onSettle,
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFDCFCE7),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.check_circle_outline, size: 18, color: AppColors.kSuccess),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Settle in full · ${formatIndianCurrency(fund.remainingToSettle)} left',
+                        style: const TextStyle(
+                            color: AppColors.kSuccess, fontWeight: FontWeight.w600, fontSize: 14),
+                      ),
+                    ],
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
-              _IconButtonSquare(icon: Icons.edit_outlined, onTap: () {}),
-              const SizedBox(width: 8),
-              _IconButtonSquare(
-                icon: Icons.delete_outline_rounded,
-                color: AppColors.kDanger,
-                onTap: onDelete,
-              ),
             ],
-          ),
-          if (fund.status == FundStatus.active) ...[
-            const SizedBox(height: 10),
-            InkWell(
-              onTap: onSettle,
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFDCFCE7),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.check_circle_outline, size: 18, color: AppColors.kSuccess),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Settle in full · ${formatIndianCurrency(fund.remainingToSettle)} left',
-                      style: const TextStyle(
-                          color: AppColors.kSuccess, fontWeight: FontWeight.w600, fontSize: 14),
-                    ),
-                  ],
-                ),
-              ),
-            ),
           ],
         ],
       ),

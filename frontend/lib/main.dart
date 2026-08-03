@@ -101,7 +101,8 @@ class FinCollectApp extends StatelessWidget {
         break;
       case AppRoutes.chitGroups:
         page = _guarded(
-            const ChitGroupsScreen(), const [UserRole.owner, UserRole.admin]);
+            const ChitGroupsScreen(),
+            const [UserRole.owner, UserRole.admin, UserRole.customer]);
         break;
       case AppRoutes.reports:
         page = _guarded(

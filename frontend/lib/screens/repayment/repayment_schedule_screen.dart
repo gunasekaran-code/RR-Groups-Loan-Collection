@@ -8,6 +8,8 @@ import '../../models/loan_record.dart';
 import '../../models/repayment_installment.dart';
 import '../../services/api_service_repayment.dart';
 import '../../services/loan_service.dart';
+import '../../services/session_service.dart';
+import '../../models/user_role.dart';
 
 class RepaymentScheduleScreen extends StatefulWidget {
   const RepaymentScheduleScreen({super.key});
@@ -20,6 +22,12 @@ class RepaymentScheduleScreen extends StatefulWidget {
 class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
   bool _loading = true;
   String? _error;
+
+  bool get _isCustomer =>
+      SessionService.instance.currentUser?.role == UserRole.customer;
+
+  String? get _customerId =>
+      SessionService.instance.currentUser?.customerId?.toString();
 
   List<LoanRecord> _loanOptions = [];
   LoanRecord? _selectedLoan;
@@ -47,10 +55,13 @@ class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
         customers: customers,
         agents: agents,
       );
+      final filteredLoans = _isCustomer && _customerId != null
+          ? loans.where((loan) => loan.customerId == _customerId).toList()
+          : loans;
       if (!mounted) return;
       setState(() {
-        _loanOptions = loans;
-        _selectedLoan = loans.isNotEmpty ? loans.first : null;
+        _loanOptions = filteredLoans;
+        _selectedLoan = filteredLoans.isNotEmpty ? filteredLoans.first : null;
       });
       if (_selectedLoan != null) {
         await _loadSchedule();
@@ -138,8 +149,10 @@ class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
                 children: [
                   _buildHeader(context, isNarrow),
                   const SizedBox(height: 24),
-                  _buildLoanSelector(),
-                  const SizedBox(height: 20),
+                  if (!_isCustomer) ...[
+                    _buildLoanSelector(),
+                    const SizedBox(height: 20),
+                  ],
                   if (_loading)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 60),
@@ -148,10 +161,12 @@ class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
                   else if (_error != null)
                     _buildErrorState()
                   else ...[
-                    _buildSummaryGrid(isNarrow),
-                    const SizedBox(height: 24),
-                    _buildSectionLabel('INSTALLMENT BREAKDOWN'),
-                    const SizedBox(height: 12),
+                    if (!_isCustomer) ...[
+                      _buildSummaryGrid(isNarrow),
+                      const SizedBox(height: 24),
+                      _buildSectionLabel('INSTALLMENT BREAKDOWN'),
+                      const SizedBox(height: 12),
+                    ],
                     _buildInstallmentsTable(isNarrow),
                   ],
                   const SizedBox(height: 24),

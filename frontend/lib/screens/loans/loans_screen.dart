@@ -9,8 +9,10 @@ import '../../theme/glass_toast.dart';
 import '../../models/loan_record.dart';
 import '../../models/customer.dart';
 import '../../models/agent.dart';
+import '../../models/user_role.dart';
 import '../../services/loan_service.dart';
 import '../../services/api_client.dart';
+import '../../services/session_service.dart';
 
 // ==========================================
 // REPAYMENT SCHEDULE — shared helpers/widget
@@ -320,6 +322,12 @@ class _LoansScreenState extends State<LoansScreen> {
 
   final LoanService _loanService = LoanService.instance;
 
+  bool get _isCustomer =>
+      SessionService.instance.currentUser?.role == UserRole.customer;
+
+  String? get _customerId =>
+      SessionService.instance.currentUser?.customerId?.toString();
+
   bool _loading = true;
   String? _error;
   List<LoanRecord> _loans = [];
@@ -344,11 +352,14 @@ class _LoansScreenState extends State<LoansScreen> {
         customers: customers,
         agents: agents,
       );
+      final filteredLoans = _isCustomer && _customerId != null
+          ? loans.where((loan) => loan.customerId == _customerId).toList()
+          : loans;
       if (!mounted) return;
       setState(() {
         _customers = customers;
         _agents = agents;
-        _loans = loans;
+        _loans = filteredLoans;
         _loading = false;
       });
     } on ApiException catch (e) {
@@ -536,20 +547,21 @@ class _LoansScreenState extends State<LoansScreen> {
                 title: 'Loans',
                 subtitle: 'Manage loan accounts, schedules, and repayments',
                 actions: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: SizedBox(
-                      width: 150,
-                      child: ElevatedButton.icon(
-                        onPressed: _showCreateLoanDialog,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Create Loan'),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.all(16),
+                  if (!_isCustomer)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: SizedBox(
+                        width: 150,
+                        child: ElevatedButton.icon(
+                          onPressed: _showCreateLoanDialog,
+                          icon: const Icon(Icons.add),
+                          label: const Text('Create Loan'),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.all(16),
+                          ),
                         ),
                       ),
                     ),
-                  ),
                 ],
               ),
               _buildSearchAndFilters(isNarrow),
@@ -694,18 +706,20 @@ class _LoansScreenState extends State<LoansScreen> {
                 onPressed: () => _showViewLoanDialog(loan),
                 tooltip: 'View',
               ),
-              IconButton(
-                icon: const Icon(Icons.edit_outlined, size: 20),
-                color: AppColors.kTextMuted,
-                onPressed: () => _showEditLoanDialog(loan),
-                tooltip: 'Edit',
-              ),
-              IconButton(
-                icon: const Icon(Icons.block_outlined, size: 20),
-                color: AppColors.kDanger,
-                onPressed: () => _showCloseLoanDialog(loan),
-                tooltip: 'Block/Delete',
-              ),
+              if (!_isCustomer) ...[
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined, size: 20),
+                  color: AppColors.kTextMuted,
+                  onPressed: () => _showEditLoanDialog(loan),
+                  tooltip: 'Edit',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.block_outlined, size: 20),
+                  color: AppColors.kDanger,
+                  onPressed: () => _showCloseLoanDialog(loan),
+                  tooltip: 'Block/Delete',
+                ),
+              ],
             ],
           )),
         ]);

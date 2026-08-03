@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../config/api_config.dart';
 import 'session_service.dart'; // adjust path — wherever SessionService lives
 
 class ApiService {
-  static const String _baseUrl = 'http://localhost:8889';
-  static const String _restEndpoint = '$_baseUrl/rest.php';
+  static String get _restEndpoint => '${ApiConfig.baseUrl}rest.php';
 
   static Map<String, String> get _headers => {
         'Content-Type': 'application/json',
@@ -25,7 +25,8 @@ class ApiService {
 
   static Future<dynamic> post(String table,
       {required Map<String, dynamic> body}) async {
-    final uri = Uri.parse(_restEndpoint).replace(queryParameters: {'table': table});
+    final uri =
+        Uri.parse(_restEndpoint).replace(queryParameters: {'table': table});
     final res = await http.post(uri, headers: _headers, body: jsonEncode(body));
     return _handle(res);
   }

@@ -7,17 +7,16 @@ import '../services/session_service.dart';
 import '../theme/app_theme.dart';
 import 'user_avatar.dart';
 
+
 class _DrawerItem {
   final String label;
   final IconData icon;
   final String route;
-  final List<UserRole> allowedRoles;
 
   const _DrawerItem({
     required this.label,
     required this.icon,
     required this.route,
-    required this.allowedRoles,
   });
 }
 
@@ -27,94 +26,81 @@ class _DrawerSection {
   const _DrawerSection({required this.title, required this.items});
 }
 
-// Sidebar structure. Owner sees everything. Admin sees everything except
-// User Management, plus whatever Owner has left enabled via Privilege
-// toggles. Agent sees only field-relevant pages (per the FinCollect design).
-const List<_DrawerSection> _sections = [
+// ---------------- OWNER / ADMIN ----------------
+// Admin sees everything except items disabled via PrivilegeService toggles.
+// Owner always sees all of these (privilege filtering is skipped for owner
+// in _buildSection below).
+const List<_DrawerSection> _ownerAdminSections = [
   _DrawerSection(title: 'OVERVIEW', items: [
-    _DrawerItem(
-        label: 'Dashboard',
-        icon: Icons.grid_view_rounded,
-        route: AppRoutes.dashboard,
-        allowedRoles: UserRole.values),
+    _DrawerItem(label: 'Dashboard', icon: Icons.grid_view_rounded, route: AppRoutes.dashboard),
   ]),
   _DrawerSection(title: 'MANAGE', items: [
-    _DrawerItem(
-        label: 'Customers',
-        icon: Icons.people_outline,
-        route: AppRoutes.customers,
-        allowedRoles: UserRole.values),
-    _DrawerItem(
-        label: 'Loans',
-        icon: Icons.account_balance_outlined,
-        route: AppRoutes.loans,
-        allowedRoles: UserRole.values),
-    _DrawerItem(
-        label: 'Repayment Schedule',
-        icon: Icons.event_note_outlined,
-        route: AppRoutes.repayment,
-        allowedRoles: UserRole.values),
-    _DrawerItem(
-        label: 'Collections',
-        icon: Icons.account_balance_wallet_outlined,
-        route: AppRoutes.collections,
-        allowedRoles: UserRole.values),
-    _DrawerItem(
-        label: 'Handover',
-        icon: Icons.handshake_outlined,
-        route: AppRoutes.handover,
-        allowedRoles: UserRole.values),
-    _DrawerItem(
-    label: 'Funds',
-    icon: Icons.account_balance_wallet_outlined, 
-    route: AppRoutes.funds,
-    allowedRoles: UserRole.values),
-    _DrawerItem(
-        label: 'Overdue',
-        icon: Icons.error_outline,
-        route: AppRoutes.overdue,
-        allowedRoles: UserRole.values),
-    _DrawerItem(
-        label: 'Chit Groups',
-        icon: Icons.groups_2_outlined,
-        route: AppRoutes.chitGroups,
-        allowedRoles: [UserRole.owner, UserRole.admin]),
+    _DrawerItem(label: 'Customers', icon: Icons.people_outline, route: AppRoutes.customers),
+    _DrawerItem(label: 'Loans', icon: Icons.account_balance_outlined, route: AppRoutes.loans),
+    _DrawerItem(label: 'Repayment Schedule', icon: Icons.event_note_outlined, route: AppRoutes.repayment),
+    _DrawerItem(label: 'Collections', icon: Icons.account_balance_wallet_outlined, route: AppRoutes.collections),
+    _DrawerItem(label: 'Handover', icon: Icons.handshake_outlined, route: AppRoutes.handover),
+    _DrawerItem(label: 'Funds', icon: Icons.account_balance_wallet_outlined, route: AppRoutes.funds),
+    _DrawerItem(label: 'Overdue', icon: Icons.error_outline, route: AppRoutes.overdue),
+    _DrawerItem(label: 'Chit Groups', icon: Icons.groups_2_outlined, route: AppRoutes.chitGroups),
   ]),
   _DrawerSection(title: 'AGENT', items: [
-    _DrawerItem(
-        label: 'Agent',
-        icon: Icons.support_agent_outlined,
-        route: AppRoutes.agent,
-        allowedRoles: [UserRole.owner, UserRole.admin]),
-    _DrawerItem(
-        label: 'Route Map',
-        icon: Icons.map_outlined,
-        route: AppRoutes.routeMap,
-        allowedRoles: [UserRole.agent, UserRole.owner, UserRole.admin]),
+    _DrawerItem(label: 'Agent', icon: Icons.support_agent_outlined, route: AppRoutes.agent),
+    _DrawerItem(label: 'Route Map', icon: Icons.map_outlined, route: AppRoutes.routeMap),
   ]),
   _DrawerSection(title: 'INSIGHTS', items: [
-    _DrawerItem(
-        label: 'Reports',
-        icon: Icons.bar_chart_outlined,
-        route: AppRoutes.reports,
-        allowedRoles: [UserRole.owner, UserRole.admin]),
-    _DrawerItem(
-        label: 'Notifications',
-        icon: Icons.notifications_none_rounded,
-        route: AppRoutes.notifications,
-        allowedRoles: UserRole.values),
+    _DrawerItem(label: 'Reports', icon: Icons.bar_chart_outlined, route: AppRoutes.reports),
+    _DrawerItem(label: 'Notifications', icon: Icons.notifications_none_rounded, route: AppRoutes.notifications),
   ]),
   _DrawerSection(title: 'SYSTEM', items: [
-    _DrawerItem(
-        label: 'User Management',
-        icon: Icons.manage_accounts_outlined,
-        route: AppRoutes.userManagement,
-        allowedRoles: [UserRole.owner, UserRole.admin]),
-    _DrawerItem(
-        label: 'Settings',
-        icon: Icons.settings_outlined,
-        route: AppRoutes.settings,
-        allowedRoles: [UserRole.owner, UserRole.admin]),
+    _DrawerItem(label: 'User Management', icon: Icons.manage_accounts_outlined, route: AppRoutes.userManagement),
+    _DrawerItem(label: 'Settings', icon: Icons.settings_outlined, route: AppRoutes.settings),
+  ]),
+];
+
+// ---------------- AGENT ----------------
+const List<_DrawerSection> _agentSections = [
+  _DrawerSection(title: 'OVERVIEW', items: [
+    _DrawerItem(label: 'Dashboard', icon: Icons.grid_view_rounded, route: AppRoutes.dashboard),
+  ]),
+  _DrawerSection(title: 'MANAGE', items: [
+    _DrawerItem(label: 'Customers', icon: Icons.people_outline, route: AppRoutes.customers),
+    _DrawerItem(label: 'Loans', icon: Icons.account_balance_outlined, route: AppRoutes.loans),
+    _DrawerItem(label: 'Repayment Schedule', icon: Icons.event_note_outlined, route: AppRoutes.repayment),
+    _DrawerItem(label: 'Collections', icon: Icons.account_balance_wallet_outlined, route: AppRoutes.collections),
+    _DrawerItem(label: 'Overdue', icon: Icons.error_outline, route: AppRoutes.overdue),
+    _DrawerItem(label: 'Chit Groups', icon: Icons.groups_2_outlined, route: AppRoutes.chitGroups),
+    _DrawerItem(label: 'Funds', icon: Icons.account_balance_wallet_outlined, route: AppRoutes.funds),
+    _DrawerItem(label: 'Cash Handover', icon: Icons.handshake_outlined, route: AppRoutes.handover),
+  ]),
+  _DrawerSection(title: 'AGENT', items: [
+    _DrawerItem(label: 'Route Map', icon: Icons.map_outlined, route: AppRoutes.routeMap),
+  ]),
+  _DrawerSection(title: 'INSIGHTS', items: [
+    _DrawerItem(label: 'Notifications', icon: Icons.notifications_none_rounded, route: AppRoutes.notifications),
+  ]),
+];
+
+// ---------------- CUSTOMER ----------------
+// NOTE: adjust route names below (myLoans, paymentHistory, myFunds, myChits)
+// to whatever actually exists in AppRoutes — I used the closest matching
+// names since I don't have your AppRoutes file in front of me. If customer
+// pages reuse the same underlying screens as loans/repayment/funds/chitGroups
+// just point these at AppRoutes.loans, AppRoutes.repayment, etc. instead.
+// ---------------- CUSTOMER ----------------
+const List<_DrawerSection> _customerSections = [
+  _DrawerSection(title: 'OVERVIEW', items: [
+    _DrawerItem(label: 'Dashboard', icon: Icons.grid_view_rounded, route: AppRoutes.dashboard),
+  ]),
+  _DrawerSection(title: 'MY ACCOUNT', items: [
+    _DrawerItem(label: 'My Loans', icon: Icons.account_balance_outlined, route: AppRoutes.loans),
+    _DrawerItem(label: 'Repayment Schedule', icon: Icons.event_note_outlined, route: AppRoutes.repayment),
+    _DrawerItem(label: 'Payment History', icon: Icons.history_rounded, route: AppRoutes.collections),
+    _DrawerItem(label: 'My Funds', icon: Icons.account_balance_wallet_outlined, route: AppRoutes.funds),
+    _DrawerItem(label: 'My Chits', icon: Icons.groups_2_outlined, route: AppRoutes.chitGroups), 
+  ]),
+  _DrawerSection(title: 'INSIGHTS', items: [
+    _DrawerItem(label: 'Notifications', icon: Icons.notifications_none_rounded, route: AppRoutes.notifications),
   ]),
 ];
 
@@ -122,11 +108,24 @@ class AppDrawer extends StatelessWidget {
   final String currentRoute;
   const AppDrawer({super.key, required this.currentRoute});
 
+  List<_DrawerSection> _sectionsForRole(UserRole role) {
+    switch (role) {
+      case UserRole.owner:
+      case UserRole.admin:
+        return _ownerAdminSections;
+      case UserRole.agent:
+        return _agentSections;
+      case UserRole.customer:
+        return _customerSections;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final AppUser user = SessionService.instance.currentUser!;
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final sections = _sectionsForRole(user.role);
 
     return Drawer(
       backgroundColor: scheme.surface.withValues(alpha: 0.98),
@@ -178,7 +177,7 @@ class AppDrawer extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 children: [
-                  for (final section in _sections)
+                  for (final section in sections)
                     _buildSection(context, section, user.role),
                 ],
               ),
@@ -236,14 +235,13 @@ class AppDrawer extends StatelessWidget {
 
   Widget _buildSection(
       BuildContext context, _DrawerSection section, UserRole role) {
-    final visibleItems = section.items.where((i) {
-      if (!i.allowedRoles.contains(role)) return false;
-      if (role == UserRole.admin &&
-          !PrivilegeService.instance.isEnabledForAdmin(i.route)) {
-        return false;
-      }
-      return true;
-    }).toList();
+    // Only admin goes through the privilege toggle filter — owner and
+    // everyone else's role-specific list is already scoped correctly above.
+    final visibleItems = role == UserRole.admin
+        ? section.items
+            .where((i) => PrivilegeService.instance.isEnabledForAdmin(i.route))
+            .toList()
+        : section.items;
 
     if (visibleItems.isEmpty) return const SizedBox.shrink();
 
