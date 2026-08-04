@@ -10,7 +10,7 @@ import '../screens/dashboard/dashboard_screen.dart';
 import '../screens/loans/loans_screen.dart';
 import '../screens/repayment/repayment_schedule_screen.dart';
 import '../screens/settings/profile_page.dart';
-import 'app_bottom_nav.dart';
+import 'app_navbar.dart';
 import 'app_drawer.dart';
 import 'user_avatar.dart';
 

@@ -42,13 +42,23 @@ class FundEntry {
   });
 
   factory FundEntry.fromJson(Map<String, dynamic> json) {
+    // Backend `fund_payments` table uses `week_no`, `payment_date`,
+    // `payment_method` and `amount`. Some older responses may vary,
+    // so fall back to alternative keys when present.
+    final weekVal = (json['week_no'] ?? json['week']) as dynamic;
+    final dateStr = (json['payment_date'] ?? json['due_date'] ?? json['payment_at'] ?? json['created_at'])?.toString();
+    final amt = _toDouble(json['amount'] ?? json['payment_amount']);
+    final methodVal = (json['payment_method'] ?? json['method'])?.toString();
+    final paidFlag = (json['paid'] == true || json['paid'] == 1 || json['paid'] == '1');
+
     return FundEntry(
-      week: (json['week'] as num?)?.toInt() ?? 0,
-      date: DateTime.tryParse(json['due_date']?.toString() ?? '') ??
-          DateTime.now(),
-      amount: _toDouble(json['amount']),
-      method: json['method']?.toString(),
-      paid: (json['paid'] == true || json['paid'] == 1 || json['paid'] == '1'),
+      week: (weekVal as num?)?.toInt() ?? 0,
+      date: DateTime.tryParse(dateStr ?? '') ?? DateTime.now(),
+      amount: amt,
+      method: methodVal,
+      // Treat an entry as paid when a payment_date exists, amount > 0,
+      // or an explicit paid flag is present.
+      paid: paidFlag || (amt > 0) || (dateStr != null && dateStr.isNotEmpty),
     );
   }
 }
@@ -64,6 +74,8 @@ class Fund {
   final double maturityBonus;
   final DateTime startDate;
   final DateTime maturityDate;
+
+  /// Amount actually collected so far (backend column: collected_amount).
   final double depositedAmount;
   final int entriesPaid;
 
@@ -88,35 +100,80 @@ class Fund {
   double get depositedPercent =>
       totalDeposit == 0 ? 0 : (depositedAmount / totalDeposit) * 100;
 
+  /// Maps directly onto the `funds` table:
+  /// id, fund_number, customer_id, customer_name, weekly_amount, weeks,
+  /// bonus, deposit_amount, total_amount, collected_amount, start_date,
+  /// maturity_date, status, created_at
   factory Fund.fromJson(Map<String, dynamic> json) {
     return Fund(
       id: json['id'].toString(),
-      code: json['code']?.toString() ?? '',
+      code: json['fund_number']?.toString() ?? json['code']?.toString() ?? '',
       customerId: json['customer_id']?.toString() ?? '',
       customerName: json['customer_name']?.toString() ?? 'Unknown Customer',
       status: FundStatusX.fromString(json['status']?.toString()),
       weeklyAmount: _toDouble(json['weekly_amount']),
-      numberOfWeeks: (json['number_of_weeks'] as num?)?.toInt() ?? 0,
-      maturityBonus: _toDouble(json['maturity_bonus']),
+      numberOfWeeks: (json['weeks'] as num?)?.toInt() ??
+          (json['number_of_weeks'] as num?)?.toInt() ??
+          0,
+      maturityBonus:
+          _toDouble(json['bonus'] ?? json['maturity_bonus']),
       startDate: DateTime.tryParse(json['start_date']?.toString() ?? '') ??
           DateTime.now(),
       maturityDate:
           DateTime.tryParse(json['maturity_date']?.toString() ?? '') ??
               DateTime.now(),
-      depositedAmount: _toDouble(json['deposited_amount']),
+      depositedAmount: _toDouble(
+          json['collected_amount'] ?? json['deposited_amount']),
       entriesPaid: (json['entries_paid'] as num?)?.toInt() ?? 0,
     );
   }
 
+  /// Used for both create and update payloads — matches backend column names.
   Map<String, dynamic> toCreateJson() {
     return {
+      'fund_number': code,
       'customer_id': customerId,
+      'customer_name': customerName,
       'weekly_amount': weeklyAmount,
-      'number_of_weeks': numberOfWeeks,
-      'maturity_bonus': maturityBonus,
+      'weeks': numberOfWeeks,
+      'bonus': maturityBonus,
+      'deposit_amount': totalDeposit,
+      'total_amount': maturityPayout,
       'start_date':
           '${startDate.year.toString().padLeft(4, '0')}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}',
+      'maturity_date':
+          '${maturityDate.year.toString().padLeft(4, '0')}-${maturityDate.month.toString().padLeft(2, '0')}-${maturityDate.day.toString().padLeft(2, '0')}',
     };
+  }
+
+  Fund copyWith({
+    String? id,
+    String? code,
+    String? customerId,
+    String? customerName,
+    FundStatus? status,
+    double? weeklyAmount,
+    int? numberOfWeeks,
+    double? maturityBonus,
+    DateTime? startDate,
+    DateTime? maturityDate,
+    double? depositedAmount,
+    int? entriesPaid,
+  }) {
+    return Fund(
+      id: id ?? this.id,
+      code: code ?? this.code,
+      customerId: customerId ?? this.customerId,
+      customerName: customerName ?? this.customerName,
+      status: status ?? this.status,
+      weeklyAmount: weeklyAmount ?? this.weeklyAmount,
+      numberOfWeeks: numberOfWeeks ?? this.numberOfWeeks,
+      maturityBonus: maturityBonus ?? this.maturityBonus,
+      startDate: startDate ?? this.startDate,
+      maturityDate: maturityDate ?? this.maturityDate,
+      depositedAmount: depositedAmount ?? this.depositedAmount,
+      entriesPaid: entriesPaid ?? this.entriesPaid,
+    );
   }
 }
 

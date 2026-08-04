@@ -8,6 +8,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/app_shell.dart';
 import '../../models/fund.dart';
 import '../../models/user_role.dart';
+import '../../services/customer_api_service.dart';
 import '../../services/fund_api_service.dart';
 import '../../services/session_service.dart';
 import '../chit_groups/chit_groups_screen.dart' show formatIndianCurrency, formatDate;
@@ -26,8 +27,13 @@ class _FundsScreenState extends State<FundsScreen> {
   List<Fund> _funds = [];
   FundsSummary? _summary;
 
-  // Customers only ever see their own fund(s), read-only — no create/edit/delete/settle.
+  // Role gates:
+  // - customer: read-only, sees only their own fund(s). No create/edit/delete/settle/collect.
+  // - agent: field collector. Sees Collect + Settle in full only. No create/edit/delete, no stat cards.
+  // - admin: full control. Create/edit/delete/settle. No Collect button (that's the agent's job).
   bool get _isCustomerView => SessionService.instance.role == UserRole.customer;
+  bool get _isAgentView => SessionService.instance.role == UserRole.agent;
+  bool get _isAdminView => SessionService.instance.role == UserRole.admin;
 
   @override
   void initState() {
@@ -53,9 +59,10 @@ class _FundsScreenState extends State<FundsScreen> {
         // list below, so we deliberately skip the global summary endpoint
         // for customers — it would otherwise show totals across all customers.
         summary = null;
-      } else {
+      } else if (_isAdminView) {
         summary = await FundApiService.fetchSummary();
       }
+      // Agents don't see stat cards at all, so we skip fetching a summary for them.
 
       if (!mounted) return;
       setState(() {
@@ -120,6 +127,34 @@ class _FundsScreenState extends State<FundsScreen> {
     }
   }
 
+  Future<void> _openEditDialog(Fund fund) async {
+    final result = await showModalBottomSheet<Fund>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withOpacity(0.4),
+      builder: (context) => _sheetFrame(child: _FundFormDialog(existing: fund)),
+    );
+    if (result == null) return;
+
+    try {
+      final updated = await FundApiService.update(fund.id, result);
+      if (!mounted) return;
+      setState(() {
+        final idx = _funds.indexWhere((f) => f.id == fund.id);
+        if (idx != -1) _funds[idx] = updated;
+      });
+      ToastService.show(
+        title: 'Fund updated',
+        message: updated.customerName,
+        type: ToastType.success,
+      );
+      _loadData();
+    } catch (e) {
+      ToastService.show(title: 'Update failed', message: e.toString(), type: ToastType.error);
+    }
+  }
+
   Future<void> _openSettleDialog(Fund fund) async {
     final result = await showModalBottomSheet<bool>(
       context: context,
@@ -135,6 +170,58 @@ class _FundsScreenState extends State<FundsScreen> {
       message: fund.customerName,
       type: ToastType.success,
     );
+  }
+
+  Future<void> _openCollectDialog(Fund fund) async {
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withOpacity(0.4),
+      builder: (context) => _sheetFrame(child: _CollectDialog(fund: fund)),
+    );
+    if (result != true) return;
+    _loadData();
+    ToastService.show(
+      title: 'Collection recorded',
+      message: fund.customerName,
+      type: ToastType.success,
+    );
+  }
+
+  /// Agent version of "settle in full". The admin _SettleFundDialog posts
+  /// action/payment_method/settlement_date, which the backend's FundController
+  /// rejects for agents (403 "Agents can only record fund collections"). Agents
+  /// are allow-listed to exactly `collected_amount` + `status`, so we settle
+  /// by collecting the full remaining balance and marking the fund matured —
+  /// the same shape as a normal Collect, just for the full amount.
+  Future<void> _openAgentSettleDialog(Fund fund) async {
+    final confirmed = await AppConfirmDialog.show(
+      context: context,
+      title: 'Settle Fund in Full',
+      message:
+          'Collect the remaining ${formatIndianCurrency(fund.remainingToSettle)} for "${fund.code}" (${fund.customerName}) now and mark it matured?',
+      confirmLabel: 'Settle Now',
+      confirmButtonColor: AppColors.kSuccess,
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await FundApiService.recordCollection(
+        fund.id,
+        collectedAmount: fund.totalDeposit,
+        status: FundStatus.matured.label,
+      );
+      if (!mounted) return;
+      _loadData();
+      ToastService.show(
+        title: 'Fund settled',
+        message: fund.customerName,
+        type: ToastType.success,
+      );
+    } catch (e) {
+      ToastService.show(title: 'Settlement failed', message: e.toString(), type: ToastType.error);
+    }
   }
 
   Future<void> _openPassbook(Fund fund) async {
@@ -196,8 +283,8 @@ class _FundsScreenState extends State<FundsScreen> {
                         style: TextStyle(color: AppColors.kTextMuted, fontSize: 14),
                       ),
                       const SizedBox(height: 16),
-                      // Creating funds is an admin/agent action — customers only view.
-                      if (!_isCustomerView) ...[
+                      // Creating funds is an admin-only action.
+                      if (_isAdminView) ...[
                         Align(
                           alignment: Alignment.centerLeft,
                           child: SizedBox(
@@ -215,47 +302,52 @@ class _FundsScreenState extends State<FundsScreen> {
                         ),
                         const SizedBox(height: 20),
                       ],
-                      GridView.count(
-                        crossAxisCount: 2,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        mainAxisSpacing: 12,
-                        crossAxisSpacing: 12,
-                        childAspectRatio: 1.5,
-                        children: [
-                          _StatCard(
-                            icon: Icons.savings_outlined,
-                            iconBg: const Color(0xFFFEF3C7),
-                            iconColor: AppColors.kWarning,
-                            label: 'Total Funds',
-                            value: '${_summary?.totalFunds ?? _funds.length}',
-                          ),
-                          _StatCard(
-                            icon: Icons.trending_up_rounded,
-                            iconBg: const Color(0xFFDCFCE7),
-                            iconColor: AppColors.kSuccess,
-                            label: 'Active',
-                            value: '${_summary?.activeFunds ?? _funds.where((f) => f.status == FundStatus.active).length}',
-                          ),
-                          _StatCard(
-                            icon: Icons.card_giftcard_rounded,
-                            iconBg: const Color(0xFFEDE9FE),
-                            iconColor: const Color(0xFF7C3AED),
-                            label: 'Maturity Payout',
-                            value: formatIndianCurrency(_summary?.maturityPayoutTotal ??
-                                _funds.fold(0.0, (s, f) => s + f.maturityPayout)),
-                          ),
-                          _StatCard(
-                            icon: Icons.account_balance_wallet_outlined,
-                            iconBg: const Color(0xFFFEF3C7),
-                            iconColor: AppColors.kGold,
-                            label: 'Collected',
-                            value: formatIndianCurrency(_summary?.collectedTotal ??
-                                _funds.fold(0.0, (s, f) => s + f.depositedAmount)),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
+                      // Stat cards are hidden for agents — they're out in the field
+                      // collecting, not reviewing portfolio-wide totals.
+                      if (!_isAgentView) ...[
+                        GridView.count(
+                          crossAxisCount: 2,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 1.5,
+                          children: [
+                            _StatCard(
+                              icon: Icons.savings_outlined,
+                              iconBg: const Color(0xFFFEF3C7),
+                              iconColor: AppColors.kWarning,
+                              label: 'Total Funds',
+                              value: '${_summary?.totalFunds ?? _funds.length}',
+                            ),
+                            _StatCard(
+                              icon: Icons.trending_up_rounded,
+                              iconBg: const Color(0xFFDCFCE7),
+                              iconColor: AppColors.kSuccess,
+                              label: 'Active',
+                              value:
+                                  '${_summary?.activeFunds ?? _funds.where((f) => f.status == FundStatus.active).length}',
+                            ),
+                            _StatCard(
+                              icon: Icons.card_giftcard_rounded,
+                              iconBg: const Color(0xFFEDE9FE),
+                              iconColor: const Color(0xFF7C3AED),
+                              label: 'Maturity Payout',
+                              value: formatIndianCurrency(_summary?.maturityPayoutTotal ??
+                                  _funds.fold(0.0, (s, f) => s + f.maturityPayout)),
+                            ),
+                            _StatCard(
+                              icon: Icons.account_balance_wallet_outlined,
+                              iconBg: const Color(0xFFFEF3C7),
+                              iconColor: AppColors.kGold,
+                              label: 'Collected',
+                              value: formatIndianCurrency(_summary?.collectedTotal ??
+                                  _funds.fold(0.0, (s, f) => s + f.depositedAmount)),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                      ],
                       if (_funds.isEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 40),
@@ -272,10 +364,15 @@ class _FundsScreenState extends State<FundsScreen> {
                             padding: const EdgeInsets.only(bottom: 16),
                             child: _FundCard(
                               fund: f,
-                              readOnly: _isCustomerView,
+                              isAdmin: _isAdminView,
+                              isAgent: _isAgentView,
+                              isCustomer: _isCustomerView,
                               onPassbook: () => _openPassbook(f),
                               onDelete: () => _confirmDelete(f),
                               onSettle: () => _openSettleDialog(f),
+                              onAgentSettle: () => _openAgentSettleDialog(f),
+                              onEdit: () => _openEditDialog(f),
+                              onCollect: () => _openCollectDialog(f),
                             ),
                           ),
                         ),
@@ -316,12 +413,10 @@ class _StatCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Top Row: Number (Starting) and Icon (End)
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Value / Number -> Starting, Top
               Expanded(
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
@@ -337,7 +432,6 @@ class _StatCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              // Icon -> End, Top
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
@@ -348,10 +442,7 @@ class _StatCard extends StatelessWidget {
               ),
             ],
           ),
-
-          const Spacer(), // Pushes text label to the bottom
-
-          // Bottom Section: Text Label -> Starting, Down
+          const Spacer(),
           Text(
             label,
             maxLines: 1,
@@ -377,14 +468,24 @@ class _FundCard extends StatelessWidget {
     required this.onPassbook,
     required this.onDelete,
     required this.onSettle,
-    this.readOnly = false,
+    required this.onAgentSettle,
+    required this.onEdit,
+    required this.onCollect,
+    this.isAdmin = false,
+    this.isAgent = false,
+    this.isCustomer = false,
   });
 
   final Fund fund;
   final VoidCallback onPassbook;
   final VoidCallback onDelete;
   final VoidCallback onSettle;
-  final bool readOnly;
+  final VoidCallback onAgentSettle;
+  final VoidCallback onEdit;
+  final VoidCallback onCollect;
+  final bool isAdmin;
+  final bool isAgent;
+  final bool isCustomer;
 
   Color get _statusBg {
     switch (fund.status) {
@@ -534,10 +635,80 @@ class _FundCard extends StatelessWidget {
             ],
           ),
           const Divider(height: 28, color: AppColors.kBorder),
-          // Customers get a read-only view: Passbook only, no edit/delete/settle.
-          if (readOnly)
-            SizedBox(
-              width: double.infinity,
+          _buildActions(),
+        ],
+      ),
+    );
+  }
+
+  /// Role-specific action row:
+  /// - customer: Passbook only (read-only).
+  /// - agent: Passbook + Collect, plus Settle in full when active. No edit/delete.
+  /// - admin: Passbook + Edit + Delete, plus Settle in full when active. No Collect.
+  Widget _buildActions() {
+    if (isCustomer) {
+      return SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: onPassbook,
+          icon: const Icon(Icons.menu_book_outlined, size: 18),
+          label: const Text('Passbook'),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+          ),
+        ),
+      );
+    }
+
+    if (isAgent) {
+      // Agents can settle in full — but via the same allow-listed
+      // (collected_amount + status) shape as Collect, not the admin dialog's
+      // action/payment_method/settlement_date payload, which 403s for this role.
+      return Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: onPassbook,
+                  icon: const Icon(Icons.menu_book_outlined, size: 18),
+                  label: const Text('Passbook'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+              if (fund.status == FundStatus.active) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: onCollect,
+                    icon: const Icon(Icons.payments_outlined, size: 18),
+                    label: const Text('Collect'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.kGold,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          if (fund.status == FundStatus.active) ...[
+            const SizedBox(height: 10),
+            _settleBanner(onAgentSettle),
+          ],
+        ],
+      );
+    }
+
+    // Admin
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
               child: OutlinedButton.icon(
                 onPressed: onPassbook,
                 icon: const Icon(Icons.menu_book_outlined, size: 18),
@@ -546,59 +717,48 @@ class _FundCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
               ),
-            )
-          else ...[
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: onPassbook,
-                    icon: const Icon(Icons.menu_book_outlined, size: 18),
-                    label: const Text('Passbook'),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                _IconButtonSquare(icon: Icons.edit_outlined, onTap: () {}),
-                const SizedBox(width: 8),
-                _IconButtonSquare(
-                  icon: Icons.delete_outline_rounded,
-                  color: AppColors.kDanger,
-                  onTap: onDelete,
-                ),
-              ],
             ),
-            if (fund.status == FundStatus.active) ...[
-              const SizedBox(height: 10),
-              InkWell(
-                onTap: onSettle,
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFDCFCE7),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.check_circle_outline, size: 18, color: AppColors.kSuccess),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Settle in full · ${formatIndianCurrency(fund.remainingToSettle)} left',
-                        style: const TextStyle(
-                            color: AppColors.kSuccess, fontWeight: FontWeight.w600, fontSize: 14),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+            const SizedBox(width: 10),
+            _IconButtonSquare(icon: Icons.edit_outlined, onTap: onEdit),
+            const SizedBox(width: 8),
+            _IconButtonSquare(
+              icon: Icons.delete_outline_rounded,
+              color: AppColors.kDanger,
+              onTap: onDelete,
+            ),
           ],
+        ),
+        if (fund.status == FundStatus.active) ...[
+          const SizedBox(height: 10),
+          _settleBanner(onSettle),
         ],
+      ],
+    );
+  }
+
+  Widget _settleBanner(VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFDCFCE7),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.check_circle_outline, size: 18, color: AppColors.kSuccess),
+            const SizedBox(width: 8),
+            Text(
+              'Settle in full · ${formatIndianCurrency(fund.remainingToSettle)} left',
+              style: const TextStyle(
+                  color: AppColors.kSuccess, fontWeight: FontWeight.w600, fontSize: 14),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -665,10 +825,13 @@ class _IconButtonSquare extends StatelessWidget {
 }
 
 /// -----------------------------------------------------------------------
-/// CREATE FUND FORM
+/// CREATE / EDIT FUND FORM
 /// -----------------------------------------------------------------------
 class _FundFormDialog extends StatefulWidget {
-  const _FundFormDialog();
+  const _FundFormDialog({this.existing});
+
+  /// When non-null, the dialog opens in edit mode, prefilled from this fund.
+  final Fund? existing;
 
   @override
   State<_FundFormDialog> createState() => _FundFormDialogState();
@@ -676,16 +839,33 @@ class _FundFormDialog extends StatefulWidget {
 
 class _FundFormDialogState extends State<_FundFormDialog> {
   final _formKey = GlobalKey<FormState>();
-  final _weeklyCtrl = TextEditingController(text: '100');
-  final _weeksCtrl = TextEditingController(text: '50');
-  final _bonusCtrl = TextEditingController(text: '1000');
-  DateTime _startDate = DateTime.now();
+  late final TextEditingController _weeklyCtrl;
+  late final TextEditingController _weeksCtrl;
+  late final TextEditingController _bonusCtrl;
+  late DateTime _startDate;
   String? _selectedCustomerId;
   String? _selectedCustomerName;
+  bool _isLoadingCustomers = true;
 
-  // TODO: replace with real customer list loaded from your CustomerApiService,
-  // matching the "Select a customer..." dropdown pattern used elsewhere in the app.
   final List<Map<String, String>> _customers = [];
+
+  bool get _isEditing => widget.existing != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final existing = widget.existing;
+    _weeklyCtrl = TextEditingController(
+        text: existing != null ? existing.weeklyAmount.round().toString() : '100');
+    _weeksCtrl = TextEditingController(
+        text: existing != null ? existing.numberOfWeeks.toString() : '50');
+    _bonusCtrl = TextEditingController(
+        text: existing != null ? existing.maturityBonus.round().toString() : '1000');
+    _startDate = existing?.startDate ?? DateTime.now();
+    _selectedCustomerId = existing?.customerId;
+    _selectedCustomerName = existing?.customerName;
+    _loadCustomers();
+  }
 
   @override
   void dispose() {
@@ -693,6 +873,29 @@ class _FundFormDialogState extends State<_FundFormDialog> {
     _weeksCtrl.dispose();
     _bonusCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadCustomers() async {
+    try {
+      final api = CustomerApiService();
+      final list = await api.fetchAllLite();
+      if (!mounted) return;
+      setState(() {
+        _customers.clear();
+        _customers.addAll(list);
+        _isLoadingCustomers = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingCustomers = false;
+      });
+      ToastService.show(
+        title: 'Could not load customers',
+        message: e.toString(),
+        type: ToastType.error,
+      );
+    }
   }
 
   double get _weekly => double.tryParse(_weeklyCtrl.text) ?? 0;
@@ -718,7 +921,7 @@ class _FundFormDialogState extends State<_FundFormDialog> {
     if (picked != null) setState(() => _startDate = picked);
   }
 
-  void _handleCreate() {
+  void _handleSubmit() {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedCustomerId == null) {
       ToastService.show(
@@ -726,19 +929,20 @@ class _FundFormDialogState extends State<_FundFormDialog> {
       return;
     }
 
+    final existing = widget.existing;
     final fund = Fund(
-      id: '',
-      code: '',
+      id: existing?.id ?? '',
+      code: existing?.code ?? 'FND-${DateTime.now().millisecondsSinceEpoch}',
       customerId: _selectedCustomerId!,
       customerName: _selectedCustomerName ?? '',
-      status: FundStatus.active,
+      status: existing?.status ?? FundStatus.active,
       weeklyAmount: _weekly,
       numberOfWeeks: _weeks,
       maturityBonus: _bonus,
       startDate: _startDate,
       maturityDate: _maturityDate,
-      depositedAmount: 0,
-      entriesPaid: 0,
+      depositedAmount: existing?.depositedAmount ?? 0,
+      entriesPaid: existing?.entriesPaid ?? 0,
     );
 
     Navigator.of(context).pop(fund);
@@ -761,9 +965,9 @@ class _FundFormDialogState extends State<_FundFormDialog> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Expanded(
-                  child: Text('Add Fund',
-                      style: TextStyle(
+                Expanded(
+                  child: Text(_isEditing ? 'Edit Fund' : 'Add Fund',
+                      style: const TextStyle(
                           fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.kTextDark)),
                 ),
                 IconButton(
@@ -778,18 +982,28 @@ class _FundFormDialogState extends State<_FundFormDialog> {
             const Text('CUSTOMER',
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.kTextMuted)),
             const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              initialValue: _selectedCustomerId,
-              isExpanded: true,
-              decoration: const InputDecoration(isDense: true, hintText: 'Select a customer...'),
-              items: _customers
-                  .map((c) => DropdownMenuItem(value: c['id'], child: Text(c['name'] ?? '')))
-                  .toList(),
-              onChanged: (v) => setState(() {
-                _selectedCustomerId = v;
-                _selectedCustomerName = _customers.firstWhere((c) => c['id'] == v)['name'];
-              }),
-            ),
+            _isLoadingCustomers
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                : DropdownButtonFormField<String>(
+                    value: _selectedCustomerId,
+                    isExpanded: true,
+                    decoration:
+                        const InputDecoration(isDense: true, hintText: 'Select a customer...'),
+                    items: _customers
+                        .map((c) => DropdownMenuItem(
+                              value: c['id'],
+                              child: Text(c['name'] ?? 'Unknown'),
+                            ))
+                        .toList(),
+                    onChanged: (v) => setState(() {
+                      _selectedCustomerId = v;
+                      _selectedCustomerName = _customers
+                          .firstWhere((c) => c['id'] == v)['name'];
+                    }),
+                  ),
             const SizedBox(height: 16),
             LayoutBuilder(builder: (context, constraints) {
               final isNarrow = constraints.maxWidth < 500;
@@ -867,9 +1081,9 @@ class _FundFormDialogState extends State<_FundFormDialog> {
                     onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
                 const SizedBox(width: 12),
                 ElevatedButton.icon(
-                  onPressed: _handleCreate,
-                  icon: const Icon(Icons.add_circle_outline),
-                  label: const Text('Create Fund'),
+                  onPressed: _handleSubmit,
+                  icon: Icon(_isEditing ? Icons.save_outlined : Icons.add_circle_outline),
+                  label: Text(_isEditing ? 'Save Changes' : 'Create Fund'),
                 ),
               ],
             ),
@@ -940,6 +1154,210 @@ class _SummaryRow extends StatelessWidget {
                 fontSize: bold ? 18 : 14,
                 fontWeight: bold ? FontWeight.w700 : FontWeight.w600)),
       ],
+    );
+  }
+}
+
+/// -----------------------------------------------------------------------
+/// RECORD COLLECTION (agent — partial/weekly payment)
+/// -----------------------------------------------------------------------
+class _CollectDialog extends StatefulWidget {
+  const _CollectDialog({required this.fund});
+  final Fund fund;
+
+  @override
+  State<_CollectDialog> createState() => _CollectDialogState();
+}
+
+class _CollectDialogState extends State<_CollectDialog> {
+  late final TextEditingController _amountCtrl;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final fund = widget.fund;
+    final suggested = fund.weeklyAmount > 0
+        ? fund.weeklyAmount.clamp(0, fund.remainingToSettle == 0 ? fund.weeklyAmount : fund.remainingToSettle)
+        : fund.remainingToSettle;
+    _amountCtrl = TextEditingController(text: suggested.round().toString());
+  }
+
+  @override
+  void dispose() {
+    _amountCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleRecord() async {
+    final amount = double.tryParse(_amountCtrl.text) ?? 0;
+    if (amount <= 0) {
+      ToastService.show(
+        title: 'Invalid amount',
+        message: 'Enter a collection amount greater than 0',
+        type: ToastType.error,
+      );
+      return;
+    }
+
+    final fund = widget.fund;
+    // Backend allow-lists agent PATCH bodies to exactly `collected_amount`
+    // and `status` — no `amount`/`payment_method`/`payment_date` fields are
+    // accepted, so we compute the new running total and status here and
+    // send only those two fields. Clamp so a stray over-payment can't push
+    // collected_amount past the fund's total deposit target.
+    final newCollected = (fund.depositedAmount + amount)
+        .clamp(0, fund.totalDeposit)
+        .toDouble();
+    final newStatus = newCollected >= fund.totalDeposit
+        ? FundStatus.matured.label
+        : fund.status.label;
+
+    setState(() => _isSubmitting = true);
+    try {
+      await FundApiService.recordCollection(
+        widget.fund.id,
+        collectedAmount: newCollected,
+        status: newStatus,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      ToastService.show(title: 'Collection failed', message: e.toString(), type: ToastType.error);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fund = widget.fund;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                    color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(12)),
+                child: const Icon(Icons.savings_outlined, color: AppColors.kGold, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Record Collection',
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.kTextDark)),
+                    const SizedBox(height: 2),
+                    Text('${fund.code} · ${fund.customerName}',
+                        style: const TextStyle(color: AppColors.kTextMuted, fontSize: 13)),
+                  ],
+                ),
+              ),
+              IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                icon: const Icon(Icons.close, color: AppColors.kTextMuted),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                      color: const Color(0xFFF3F4F6), borderRadius: BorderRadius.circular(12)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('COLLECTED',
+                          style: TextStyle(
+                              fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.kTextMuted)),
+                      const SizedBox(height: 4),
+                      Text(formatIndianCurrency(fund.depositedAmount),
+                          style: const TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.kTextDark)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                      color: const Color(0xFFDCFCE7), borderRadius: BorderRadius.circular(12)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('REMAINING',
+                          style: TextStyle(
+                              fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.kSuccess)),
+                      const SizedBox(height: 4),
+                      Text(formatIndianCurrency(fund.remainingToSettle),
+                          style: const TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.kSuccess)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          const Text('COLLECTION AMOUNT',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.kTextMuted)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _amountCtrl,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              isDense: true,
+              prefixIcon: Icon(Icons.currency_rupee, size: 18, color: AppColors.kTextMuted),
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            "Adds this amount to the fund's collected total. "
+            "Auto-marks the fund matured once the full deposit target is collected.",
+            style: TextStyle(color: AppColors.kTextMuted, fontSize: 13),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              OutlinedButton(
+                onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton.icon(
+                onPressed: _isSubmitting ? null : _handleRecord,
+                icon: _isSubmitting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.payments_outlined),
+                label: const Text('Record'),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1116,7 +1534,7 @@ class _SettleFundDialogState extends State<_SettleFundDialog> {
                   borderRadius: BorderRadius.circular(12),
                   child: InputDecorator(
                     decoration: const InputDecoration(isDense: true),
-                    child: Text('$dd/$mm/$yyyy'),
+                    child: Text('$dd-$mm-$yyyy'),
                   ),
                 ),
               ],
@@ -1205,7 +1623,11 @@ class _PassbookDialog extends StatefulWidget {
 class _PassbookDialogState extends State<_PassbookDialog> {
   bool _isLoading = true;
   String? _error;
-  List<FundEntry> _entries = [];
+
+  /// Raw rows returned by the backend — only itemized fund_payments rows.
+  List<FundEntry> _paidEntries = [];
+
+  List<FundEntry> _schedule = [];
 
   @override
   void initState() {
@@ -1218,7 +1640,8 @@ class _PassbookDialogState extends State<_PassbookDialog> {
       final entries = await FundApiService.fetchPassbook(widget.fund.id);
       if (!mounted) return;
       setState(() {
-        _entries = entries;
+        _paidEntries = entries;
+        _schedule = _buildSchedule(widget.fund, entries);
         _isLoading = false;
       });
     } catch (e) {
@@ -1230,8 +1653,69 @@ class _PassbookDialogState extends State<_PassbookDialog> {
     }
   }
 
+  static List<FundEntry> _buildSchedule(Fund fund, List<FundEntry> paidEntries) {
+    final byWeek = <int, FundEntry>{for (final e in paidEntries) e.week: e};
+    final totalWeeks = fund.numberOfWeeks > 0 ? fund.numberOfWeeks : paidEntries.length;
+
+    // Agent "Collect" / "Settle in full" only PATCH funds.collected_amount +
+    // funds.status — they never insert a fund_payments row, since the
+    // backend allow-lists agent PATCH bodies to those two fields only. So
+    // paidEntries (the real fund_payments rows) under-counts whenever an
+    // agent has collected anything. fund.depositedAmount is the source of
+    // truth (it's driven straight off funds.collected_amount), so we
+    // reconcile: any gap between the sum of real payment rows and
+    // depositedAmount is un-itemized agent collection, and we synthesize it
+    // as paid weeks (oldest un-recorded week first) so ENTRIES/DEPOSITED in
+    // the passbook always foot to the same total as the fund card.
+    final recordedSum = paidEntries.fold<double>(0, (s, e) => s + e.amount);
+    double unallocated = fund.depositedAmount - recordedSum;
+    if (unallocated < 0) unallocated = 0; // defensive; shouldn't happen
+
+    final schedule = <FundEntry>[];
+    for (int week = 1; week <= totalWeeks; week++) {
+      final existing = byWeek[week];
+      if (existing != null) {
+        schedule.add(existing);
+        continue;
+      }
+
+      if (unallocated > 0) {
+        final amt = unallocated >= fund.weeklyAmount ? fund.weeklyAmount : unallocated;
+        unallocated -= amt;
+        schedule.add(FundEntry(
+          week: week,
+          date: fund.startDate.add(Duration(days: 7 * (week - 1))),
+          amount: amt,
+          method: 'Collected', // itemized method/date unknown — recorded via agent Collect
+          paid: true,
+        ));
+      } else {
+        schedule.add(FundEntry(
+          week: week,
+          date: fund.startDate.add(Duration(days: 7 * (week - 1))),
+          amount: fund.weeklyAmount,
+          method: null,
+          paid: false,
+        ));
+      }
+    }
+    return schedule;
+  }
+
+  static const _weekdayAbbr = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  // ENTRIES now counts real + synthesized paid weeks, so a fund settled or
+  // partially collected by an agent still reads correctly (e.g. 12/50)
+  // instead of the stale 0/50 that fund_payments-only data gave.
+  int get _paidCount => _schedule.where((e) => e.paid).length;
+
+  // DEPOSITED reads straight off fund.depositedAmount — the real
+  // funds.collected_amount — rather than summing fund_payments rows, so it
+  // can never drift from the number shown on the fund card / stat cards.
+  double get _paidSum => widget.fund.depositedAmount;
+
   FundEntry? get _nextDue {
-    for (final e in _entries) {
+    for (final e in _schedule) {
       if (!e.paid) return e;
     }
     return null;
@@ -1301,26 +1785,32 @@ class _PassbookDialogState extends State<_PassbookDialog> {
           else ...[
             Row(
               children: [
-                Expanded(
+                    Expanded(
                   child: _PassbookStat(
                       label: 'DEPOSITED',
-                      value: formatIndianCurrency(fund.depositedAmount),
+                      // Use actual paid entries to compute deposited amount
+                      value: formatIndianCurrency(_paidSum),
                       bg: const Color(0xFFDCFCE7),
                       fg: AppColors.kSuccess),
-                ),
+                    ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: _PassbookStat(
                       label: 'TO DEPOSIT',
-                      value: formatIndianCurrency(fund.remainingToSettle),
+                      // Remaining based on total deposit minus actual paid sum
+                      value: formatIndianCurrency(fund.totalDeposit - _paidSum),
                       bg: const Color(0xFFF3F4F6),
                       fg: AppColors.kTextDark),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: _PassbookStat(
-                      label: 'ENTRIES',
-                      value: '${fund.entriesPaid} / ${fund.numberOfWeeks}',
+                      // Driven by actual backend fund_payments rows, not the
+                      // (often-unset) entriesPaid field on Fund — so a fund
+                      // settled in one shot still reads correctly, e.g. 50/50
+                      // rather than a stale 0/50.
+                          label: 'ENTRIES',
+                          value: '$_paidCount / ${fund.numberOfWeeks}',
                       bg: const Color(0xFFFEF3C7),
                       fg: AppColors.kWarning),
                 ),
@@ -1412,11 +1902,23 @@ class _PassbookDialogState extends State<_PassbookDialog> {
               constraints: const BoxConstraints(maxHeight: 320),
               child: ListView.separated(
                 shrinkWrap: true,
-                itemCount: _entries.length,
+                itemCount: _schedule.length,
                 separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.kBorder),
                 itemBuilder: (context, i) {
-                  final e = _entries[i];
+                  final e = _schedule[i];
                   final isNext = next != null && e.week == next.week;
+
+                  // Running balance = sum of amounts actually paid up to and
+                  // including this week (paid rows only — pending weeks don't
+                  // contribute, matching "Bal ₹x" only appearing on paid rows).
+                  double balance = 0;
+                  for (final row in _schedule.take(i + 1)) {
+                    if (row.paid) balance += row.amount;
+                  }
+
+                  final weekdayLabel = _weekdayAbbr[(e.date.weekday - 1).clamp(0, 6)];
+                  final dateLabel = e.paid ? formatDate(e.date) : '${formatDate(e.date)} ($weekdayLabel)';
+
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     child: Row(
@@ -1428,16 +1930,26 @@ class _PassbookDialogState extends State<_PassbookDialog> {
                             height: 28,
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
+                              color: e.paid ? const Color(0xFFFEF3C7) : null,
                               border: Border.all(
-                                  color: isNext ? const Color(0xFF2563EB) : AppColors.kBorder,
-                                  style: BorderStyle.solid),
+                                color: isNext
+                                    ? const Color(0xFF2563EB)
+                                    : e.paid
+                                        ? Colors.transparent
+                                        : AppColors.kBorder,
+                                width: isNext ? 1.5 : 1,
+                              ),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text('${e.week}',
                                 style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
-                                    color: isNext ? const Color(0xFF2563EB) : AppColors.kTextDark)),
+                                    color: isNext
+                                        ? const Color(0xFF2563EB)
+                                        : e.paid
+                                            ? AppColors.kGold
+                                            : AppColors.kTextMuted)),
                           ),
                         ),
                         Expanded(
@@ -1445,13 +1957,13 @@ class _PassbookDialogState extends State<_PassbookDialog> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(formatDate(e.date),
-                                  style: const TextStyle(
+                              Text(dateLabel,
+                                  style: TextStyle(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w600,
-                                      color: AppColors.kTextDark)),
+                                      color: isNext ? const Color(0xFF2563EB) : AppColors.kTextDark)),
                               Text(
-                                isNext ? 'Next due' : (e.paid ? (e.method ?? 'Paid') : 'Upcoming'),
+                                isNext ? 'Next due' : (e.paid ? (e.method ?? 'Paid') : ''),
                                 style: TextStyle(
                                     fontSize: 12,
                                     color: isNext ? const Color(0xFF2563EB) : AppColors.kTextMuted),
@@ -1464,15 +1976,19 @@ class _PassbookDialogState extends State<_PassbookDialog> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              Text(formatIndianCurrency(e.amount),
-                                  style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.kTextDark)),
-                              Text(e.paid ? 'Paid' : 'Pending',
-                                  style: TextStyle(
-                                      fontSize: 12,
-                                      color: e.paid ? AppColors.kSuccess : AppColors.kTextMuted)),
+                              Text(
+                                e.paid
+                                    ? '+ ${formatIndianCurrency(e.amount)}'
+                                    : formatIndianCurrency(e.amount),
+                                style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: e.paid ? AppColors.kSuccess : AppColors.kTextDark),
+                              ),
+                              Text(
+                                e.paid ? 'Bal ${formatIndianCurrency(balance)}' : 'Pending',
+                                style: const TextStyle(fontSize: 12, color: AppColors.kTextMuted),
+                              ),
                             ],
                           ),
                         ),
