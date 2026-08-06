@@ -3,66 +3,62 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/app_user.dart';
+import '../../models/report_model.dart';
 import '../../routes/app_routes.dart';
+import '../../services/report_service.dart';
 import '../../services/session_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_shell.dart';
 import '../../widgets/stat_card.dart';
 
+String formatIndianCurrency(double? amount) {
+  if (amount == null) return '₹0';
+  final format =
+      NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+  return format.format(amount);
+}
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
-  // ---- Mock data (TODO(backend): replace with real aggregates from API) ----
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
 
-  static const List<double> _collectionTrend = [
-    0.15, 0.22, 0.18, 0.35, 0.5, 1.0
-  ];
-  static const List<String> _collectionTrendLabels = [
-    'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'
-  ];
+class _DashboardScreenState extends State<DashboardScreen> {
+  late Future<_DashboardData> _future;
 
-  static const List<_DonutSlice> _loanStatusSlices = [
-    _DonutSlice('Active', 4, AppColors.kSuccess),
-    _DonutSlice('Overdue', 1, AppColors.kDanger),
-    _DonutSlice('Pending', 1, AppColors.kWarning),
-    _DonutSlice('Closed', 1, AppColors.kTextMuted),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
 
-  static const List<_BarDatum> _branchPerformance = [
-    _BarDatum('Main', 0.16, color: AppColors.kInfo),
-    _BarDatum('North', 0.3, color: AppColors.kSuccess),
-    _BarDatum('South', 0.40, color: AppColors.kWarning),
-  ];
+  Future<_DashboardData> _load() async {
+    final today = DateTime.now();
+    final monthStart = DateTime(today.year, today.month, 1);
+    final daily = await ReportService.instance.fetchDailyReport(date: today);
+    final monthly = await ReportService.instance.fetchMonthlyReport(
+      start: monthStart,
+      end: today,
+    );
+    final agent = await ReportService.instance.fetchAgentReport(
+      start: monthStart,
+      end: today,
+    );
+    return _DashboardData(daily: daily, monthly: monthly, agent: agent);
+  }
 
-  static const List<_BarDatum> _agentPerformance = [
-    _BarDatum('Arjun', 0.67, color: AppColors.kInfo),
-    _BarDatum('Sneha', 0.55, color: AppColors.kSuccess),
-    _BarDatum('Priya', 0.70, color: AppColors.kWarning),
-  ];
-
-  static const int _monthlyCollected = 340000;
-  static const int _monthlyTarget = 1550000;
-
-  static const List<_ActivityItem> _recentCollections = [
-    _ActivityItem(name: 'Lakshmi Iyer', sub: 'LN-627299 • Cash', amount: '₹4,349', date: '10 Jul 2026'),
-    _ActivityItem(name: 'Vikram Naidu', sub: 'LN-AB12C3 • Cash', amount: '₹5,000', date: '08 Jul 2026'),
-    _ActivityItem(name: 'Lakshmi Iyer', sub: 'LN-627299 • Cash', amount: '₹4,349', date: '22 Jun 2026'),
-    _ActivityItem(name: 'Anjali Singh', sub: 'LN-GH6718 • Bank Transfer', amount: '₹17,156', date: '01 Jul 2026'),
-  ];
-
-  static const List<_LoanItem> _recentLoans = [
-    _LoanItem(name: 'Lakshmi Iyer', sub: 'LN-232037 • Monthly', amount: '₹50,000', status: 'Active'),
-    _LoanItem(name: 'Lakshmi Iyer', sub: 'LN-627299 • Monthly', amount: '₹50,000', status: 'Active'),
-    _LoanItem(name: 'Vikram Naidu', sub: 'LN-AB12C3 • Monthly', amount: '₹5,00,000', status: 'Active'),
-    _LoanItem(name: 'Lakshmi Iyer', sub: 'LN-DE34F5 • Monthly', amount: '₹2,00,000', status: 'Overdue'),
-    _LoanItem(name: 'Anjali Singh', sub: 'LN-GH6718 • Monthly', amount: '₹1,00,000', status: 'Closed'),
-  ];
+  Future<void> _refresh() async {
+    setState(() {
+      _future = _load();
+    });
+    await _future;
+  }
 
   void _quickAction(BuildContext context, String label) {
-    // TODO(backend): wire these up to their real destinations/dialogs.
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$label — coming soon')),
+      SnackBar(content: Text('$label is not linked yet')),
     );
   }
 
@@ -70,70 +66,94 @@ class DashboardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final AppUser user = SessionService.instance.currentUser!;
     final theme = Theme.of(context);
-    final String today = DateFormat('EEEE, d MMMM y').format(DateTime.now());
-    final String firstName = user.name.split(' ').first;
+    final todayLabel = DateFormat('EEEE, d MMMM y').format(DateTime.now());
+    final firstName = user.name.split(' ').first;
 
     return AppShell(
       currentRoute: AppRoutes.dashboard,
       title: 'Dashboard',
-      body: Stack(
-        children: [
-          // ---- Glass background: base color + soft blurred color orbs ----
-          Positioned.fill(
-            child: Container(color: theme.scaffoldBackgroundColor),
-          ),
-          Positioned(
-            top: -60,
-            left: -40,
-            child: _blurOrb(220, AppColors.kGold.withOpacity(0.35)),
-          ),
-          Positioned(
-            top: 220,
-            right: -60,
-            child: _blurOrb(200, AppColors.kInfo.withOpacity(0.28)),
-          ),
-          Positioned(
-            bottom: 100,
-            left: -50,
-            child: _blurOrb(240, AppColors.kSuccess.withOpacity(0.22)),
-          ),
-          Positioned(
-            bottom: -40,
-            right: -30,
-            child: _blurOrb(180, const Color(0xFF7C3AED).withOpacity(0.22)),
-          ),
+      body: FutureBuilder<_DashboardData>(
+        future: _future,
+        builder: (context, snapshot) {
+          final data = snapshot.data;
+          final loading = snapshot.connectionState != ConnectionState.done;
+          final error = snapshot.hasError ? snapshot.error.toString() : null;
 
-          // ---- Foreground content ----
-          ListView(
-            padding: const EdgeInsets.all(16),
+          return Stack(
             children: [
-              _buildHeroBanner(context, today, firstName),
-              const SizedBox(height: 16),
-              _buildStatGrid(),
-              const SizedBox(height: 16),
-              _buildCollectionTrendCard(),
-              const SizedBox(height: 16),
-              _buildLoanStatusCard(),
-              const SizedBox(height: 16),
-              _buildBranchPerformanceCard(),
-              const SizedBox(height: 16),
-              _buildAgentPerformanceCard(),
-              const SizedBox(height: 16),
-              _buildMonthlyProgressCard(),
-              const SizedBox(height: 16),
-              _buildQuickActionsCard(context),
-              const SizedBox(height: 16),
-              _buildRecentCollectionsCard(context),
-              const SizedBox(height: 16),
-              _buildRecentLoansCard(context),
+              Positioned.fill(
+                  child: Container(color: theme.scaffoldBackgroundColor)),
+              Positioned(
+                  top: -60,
+                  left: -40,
+                  child: _blurOrb(220, AppColors.kGold.withOpacity(0.35))),
+              Positioned(
+                  top: 220,
+                  right: -60,
+                  child: _blurOrb(200, AppColors.kInfo.withOpacity(0.28))),
+              Positioned(
+                  bottom: 100,
+                  left: -50,
+                  child: _blurOrb(240, AppColors.kSuccess.withOpacity(0.22))),
+              Positioned(
+                  bottom: -40,
+                  right: -30,
+                  child:
+                      _blurOrb(180, const Color(0xFF7C3AED).withOpacity(0.22))),
+              RefreshIndicator(
+                onRefresh: _refresh,
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    _buildHeroBanner(context, todayLabel, firstName, data),
+                    const SizedBox(height: 16),
+                    if (loading)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 64),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else if (error != null)
+                      _errorCard(error)
+                    else if (data != null) ...[
+                      _buildStatGrid(data),
+                      const SizedBox(height: 16),
+                      _buildCollectionTrendCard(data.monthly.collectionTrend),
+                      const SizedBox(height: 16),
+                      _buildLoanStatusCard(data.monthly),
+                      const SizedBox(height: 16),
+                      _buildAgentPerformanceCard(data.agent),
+                      const SizedBox(height: 16),
+                      _buildMonthlyProgressCard(data.monthly),
+                      const SizedBox(height: 16),
+                      _buildQuickActionsCard(context),
+                      const SizedBox(height: 16),
+                      _buildRecentCollectionsCard(
+                          context, data.daily.collections),
+                      const SizedBox(height: 16),
+                      _buildRecentLoansCard(context, data.daily.newLoans),
+                    ],
+                  ],
+                ),
+              ),
             ],
-          ),
-        ],
+          );
+        },
       ),
     );
   }
 
-  // Decorative soft-focus color blob used behind the glass layers.
+  Widget _errorCard(String message) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.kDanger.withOpacity(0.25)),
+      ),
+      child: Text(message, style: const TextStyle(color: AppColors.kDanger)),
+    );
+  }
+
   Widget _blurOrb(double size, Color color) {
     return IgnorePointer(
       child: ClipRRect(
@@ -144,9 +164,7 @@ class DashboardScreen extends StatelessWidget {
             height: size,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [color, color.withOpacity(0.0)],
-              ),
+              gradient: RadialGradient(colors: [color, color.withOpacity(0.0)]),
             ),
           ),
         ),
@@ -154,9 +172,6 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  // ==========================================
-  // Core glass card wrapper
-  // ==========================================
   Widget _glassCard({
     required Widget child,
     EdgeInsetsGeometry padding = const EdgeInsets.all(16),
@@ -174,17 +189,8 @@ class DashboardScreen extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(opacity),
             borderRadius: BorderRadius.circular(radius),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.65),
-              width: 1.2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.06),
-                blurRadius: 24,
-                offset: const Offset(0, 10),
-              ),
-            ],
+            border:
+                Border.all(color: Colors.white.withOpacity(0.65), width: 1.2),
           ),
           child: child,
         ),
@@ -217,10 +223,12 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  // ---- Hero banner (glass over gold gradient) ----
-  Widget _buildHeroBanner(BuildContext context, String today, String firstName) {
+  Widget _buildHeroBanner(BuildContext context, String today, String firstName,
+      _DashboardData? data) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final collections = data?.daily.summary.totalCollected ?? 0;
+    final loans = data?.monthly.summary.activeLoans ?? 0;
     return ClipRRect(
       borderRadius: BorderRadius.circular(26),
       child: BackdropFilter(
@@ -231,20 +239,14 @@ class DashboardScreen extends StatelessWidget {
             gradient: LinearGradient(
               colors: [
                 scheme.primary.withValues(alpha: 0.92),
-                AppColors.kGoldDark.withValues(alpha: 0.92),
+                AppColors.kGoldDark.withValues(alpha: 0.92)
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(26),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 1.2),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.kGoldDark.withOpacity(0.25),
-                blurRadius: 24,
-                offset: const Offset(0, 12),
-              ),
-            ],
+            border: Border.all(
+                color: Colors.white.withValues(alpha: 0.35), width: 1.2),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -253,38 +255,18 @@ class DashboardScreen extends StatelessWidget {
                   style: const TextStyle(
                       color: Colors.white70,
                       fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.5)),
+                      fontWeight: FontWeight.w600)),
               const SizedBox(height: 6),
               Text('Good morning, $firstName',
                   style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 22,
+                      fontSize: 24,
                       fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              const Text(
-                'You have 1 pending approval and 1 overdue account requiring your attention.',
-                style: TextStyle(color: Colors.white, fontSize: 13, height: 1.4),
-              ),
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: _glassPillButton(
-                      label: 'View Approvals',
-                      filled: true,
-                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.loans),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _glassPillButton(
-                      label: 'Review Overdue',
-                      filled: false,
-                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.overdue),
-                    ),
-                  ),
-                ],
+              Text(
+                'Live figures from the database: ${formatIndianCurrency(collections)} collected today and $loans active loans.',
+                style: const TextStyle(
+                    color: Colors.white, fontSize: 13, height: 1.4),
               ),
             ],
           ),
@@ -293,145 +275,105 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _glassPillButton({
-    required String label,
-    required bool filled,
-    required VoidCallback onTap,
-  }) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Material(
-          color: filled ? Colors.white.withOpacity(0.92) : Colors.white.withOpacity(0.14),
-          borderRadius: BorderRadius.circular(14),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: onTap,
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: Colors.white.withOpacity(filled ? 0.0 : 0.5),
-                ),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                  color: filled ? AppColors.kGoldDark : Colors.white,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget _buildStatGrid(_DashboardData data) {
+    final daily = data.daily;
+    final monthly = data.monthly;
+    final activeLoans = monthly.summary.activeLoans;
+    final overdueLoans = monthly.summary.overdueLoans;
+    final totalLoans = activeLoans + overdueLoans;
 
-
-  // ---- Stat grid ----
-  Widget _buildStatGrid() {
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 12,
       crossAxisSpacing: 12,
-      childAspectRatio: 1.15, // Adjusted slightly to provide extra vertical safety for trends & currency text
-      children: const [
+      childAspectRatio: 1.15,
+      children: [
         StatCard(
           label: 'Active Loans',
-          value: '4',
-          trend: '+8%',
-          trendUp: true,
+          value: '$activeLoans',
           icon: Icons.account_balance_outlined,
-          iconColor: Colors.blue, // Replace with AppColors.kInfo if setup
-          iconBackground: Color(0xFFDCEAFE),
+          iconColor: Colors.blue,
+          iconBackground: const Color(0xFFDCEAFE),
         ),
         StatCard(
-          label: 'Total Customers',
-          value: '5',
-          trend: '+3',
-          trendUp: true,
+          label: 'New Customers',
+          value: '${monthly.summary.newCustomers}',
           icon: Icons.people_outline,
-          iconColor: Colors.blue, // Replace with AppColors.kInfo
-          iconBackground: Color(0xFFDCEAFE),
+          iconColor: Colors.blue,
+          iconBackground: const Color(0xFFDCEAFE),
         ),
         StatCard(
           label: "Today's Collections",
-          value: '₹0',
+          value: formatIndianCurrency(daily.summary.totalCollected),
           icon: Icons.currency_rupee,
-          iconColor: Colors.green, // Replace with AppColors.kSuccess
-          iconBackground: Color(0xFFDCFCE7),
+          iconColor: Colors.green,
+          iconBackground: const Color(0xFFDCFCE7),
         ),
         StatCard(
           label: 'Overdue Accounts',
-          value: '1',
-          trend: '+1',
-          trendUp: false,
+          value: '$overdueLoans',
           icon: Icons.warning_amber_rounded,
-          iconColor: Colors.red, // Replace with AppColors.kDanger
-          iconBackground: Color(0xFFFEE2E2),
+          iconColor: Colors.red,
+          iconBackground: const Color(0xFFFEE2E2),
         ),
         StatCard(
           label: 'Pending Approvals',
-          value: '1',
+          value: '$totalLoans',
           icon: Icons.access_time_rounded,
-          iconColor: Colors.orange, // Replace with AppColors.kWarning
-          iconBackground: Color(0xFFFEF3C7),
+          iconColor: Colors.orange,
+          iconBackground: const Color(0xFFFEF3C7),
         ),
         StatCard(
           label: 'Total Loan Amount',
-          value: '₹19,50,000',
+          value: formatIndianCurrency(monthly.summary.disbursement),
           icon: Icons.credit_card_outlined,
-          iconColor: Color(0xFF7C3AED),
-          iconBackground: Color(0xFFEDE9FE),
+          iconColor: const Color(0xFF7C3AED),
+          iconBackground: const Color(0xFFEDE9FE),
         ),
         StatCard(
           label: 'Interest Revenue',
-          value: '₹1,25,000',
-          trend: '+5%',
-          trendUp: true,
+          value: formatIndianCurrency(monthly.summary.interest),
           icon: Icons.trending_up_rounded,
-          iconColor: Colors.green, // Replace with AppColors.kSuccess
-          iconBackground: Color(0xFFDCFCE7),
+          iconColor: Colors.green,
+          iconBackground: const Color(0xFFDCFCE7),
         ),
         StatCard(
           label: 'Monthly Collection',
-          value: '₹3,40,000',
+          value: formatIndianCurrency(monthly.summary.collected),
           icon: Icons.calendar_month_outlined,
-          iconColor: Colors.blue, // Replace with AppColors.kInfo
-          iconBackground: Color(0xFFDCEAFE),
+          iconColor: Colors.blue,
+          iconBackground: const Color(0xFFDCEAFE),
         ),
       ],
     );
   }
 
-  // ---- Collection Trend (line chart) ----
-  Widget _buildCollectionTrendCard() {
+  Widget _buildCollectionTrendCard(List<MonthPoint> trend) {
+    final values = trend.map((e) => e.value).toList();
     return _glassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _sectionHeader('Collection Trend', 'Last 6 months'),
+          _sectionHeader('Collection Trend', 'Last months from reports table'),
           const SizedBox(height: 16),
           SizedBox(
             height: 140,
             width: double.infinity,
             child: CustomPaint(
-              painter: _LineChartPainter(values: _collectionTrend, color: AppColors.kInfo),
+              painter: _LineChartPainter(
+                  values: _normalize(values), color: AppColors.kInfo),
               size: Size.infinite,
             ),
           ),
           const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: _collectionTrendLabels
-                .map((m) => Text(m, style: const TextStyle(fontSize: 11, color: AppColors.kTextMuted)))
+            children: trend
+                .map((m) => Text(m.label,
+                    style: const TextStyle(
+                        fontSize: 11, color: AppColors.kTextMuted)))
                 .toList(),
           ),
         ],
@@ -439,14 +381,22 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  // ---- Loan Status (donut chart) ----
-  Widget _buildLoanStatusCard() {
-    final total = _loanStatusSlices.fold<double>(0, (sum, s) => sum + s.value);
+  Widget _buildLoanStatusCard(MonthlyReport monthly) {
+    final active = monthly.summary.activeLoans.toDouble();
+    final overdue = monthly.summary.overdueLoans.toDouble();
+    final closed =
+        (monthly.summary.collectionCount - overdue).clamp(0, 999999).toDouble();
+    final slices = [
+      _DonutSlice('Active', active, AppColors.kSuccess),
+      _DonutSlice('Overdue', overdue, AppColors.kDanger),
+      _DonutSlice('Closed/Other', closed, AppColors.kTextMuted),
+    ];
+    final total = slices.fold<double>(0, (sum, s) => sum + s.value);
     return _glassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _sectionHeader('Loan Status', 'Active vs Overdue vs Pending'),
+          _sectionHeader('Loan Status', 'Live database summary'),
           const SizedBox(height: 16),
           Row(
             children: [
@@ -457,7 +407,7 @@ class DashboardScreen extends StatelessWidget {
                   alignment: Alignment.center,
                   children: [
                     CustomPaint(
-                      painter: _DonutChartPainter(slices: _loanStatusSlices),
+                      painter: _DonutChartPainter(slices: slices),
                       size: const Size(120, 120),
                     ),
                     Column(
@@ -465,8 +415,12 @@ class DashboardScreen extends StatelessWidget {
                       children: [
                         Text('${total.toInt()}',
                             style: const TextStyle(
-                                fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.kTextDark)),
-                        const Text('Total', style: TextStyle(fontSize: 11, color: AppColors.kTextMuted)),
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.kTextDark)),
+                        const Text('Total',
+                            style: TextStyle(
+                                fontSize: 11, color: AppColors.kTextMuted)),
                       ],
                     ),
                   ],
@@ -476,7 +430,7 @@ class DashboardScreen extends StatelessWidget {
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: _loanStatusSlices
+                  children: slices
                       .map((s) => Padding(
                             padding: const EdgeInsets.symmetric(vertical: 4),
                             child: Row(
@@ -484,14 +438,20 @@ class DashboardScreen extends StatelessWidget {
                                 Container(
                                     width: 10,
                                     height: 10,
-                                    decoration: BoxDecoration(color: s.color, shape: BoxShape.circle)),
+                                    decoration: BoxDecoration(
+                                        color: s.color,
+                                        shape: BoxShape.circle)),
                                 const SizedBox(width: 8),
                                 Expanded(
                                     child: Text(s.label,
-                                        style: const TextStyle(fontSize: 13, color: AppColors.kTextDark))),
+                                        style: const TextStyle(
+                                            fontSize: 13,
+                                            color: AppColors.kTextDark))),
                                 Text('${s.value.toInt()}',
                                     style: const TextStyle(
-                                        fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.kTextDark)),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.kTextDark)),
                               ],
                             ),
                           ))
@@ -505,36 +465,21 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  // ---- Branch / Agent performance (bar charts) ----
-  Widget _buildBranchPerformanceCard() {
+  Widget _buildAgentPerformanceCard(AgentReport agentReport) {
+    final data = agentReport.chart
+        .map((e) =>
+            _BarDatum(e.label, _scaleValue(e.value), color: AppColors.kInfo))
+        .toList();
     return _glassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          _sectionHeader('Branch Performance', 'Collection by branch'),
+          _sectionHeader('Agent Performance', 'Top field agents from report'),
           const SizedBox(height: 20),
           SizedBox(
-            height: 200,
-            child: _buildBarChart(_branchPerformance, defaultColor: AppColors.kInfo),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAgentPerformanceCard() {
-    return _glassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _sectionHeader('Agent Performance', 'Top field agents'),
-          const SizedBox(height: 20),
-          SizedBox(
-            height: 200,
-            child: _buildBarChart(_agentPerformance, defaultColor: AppColors.kInfo),
-          ),
+              height: 200,
+              child: _buildBarChart(data, defaultColor: AppColors.kInfo)),
         ],
       ),
     );
@@ -556,14 +501,18 @@ class DashboardScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   Text('${(d.value * 100).round()}%',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: barColor)),
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: barColor)),
                   const SizedBox(height: 6),
                   SizedBox(
                     height: chartHeight,
                     child: Align(
                       alignment: Alignment.bottomCenter,
                       child: ClipRRect(
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                        borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(6)),
                         child: Container(
                           height: barHeight < 4 && d.value > 0 ? 4 : barHeight,
                           decoration: BoxDecoration(
@@ -572,7 +521,7 @@ class DashboardScreen extends StatelessWidget {
                               end: Alignment.bottomCenter,
                               colors: [
                                 barColor.withOpacity(d.value == 0 ? 0.3 : 0.85),
-                                barColor.withOpacity(d.value == 0 ? 0.15 : 0.55),
+                                barColor.withOpacity(d.value == 0 ? 0.15 : 0.55)
                               ],
                             ),
                           ),
@@ -581,7 +530,9 @@ class DashboardScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(d.label, style: const TextStyle(fontSize: 12, color: AppColors.kTextMuted)),
+                  Text(d.label,
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.kTextMuted)),
                 ],
               ),
             ),
@@ -591,44 +542,33 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  // ---- Monthly Collection Progress ----
-  Widget _buildMonthlyProgressCard() {
-    final progress = (_monthlyCollected / _monthlyTarget).clamp(0.0, 1.0);
+  Widget _buildMonthlyProgressCard(MonthlyReport monthly) {
+    final target =
+        monthly.summary.disbursement <= 0 ? 1.0 : monthly.summary.disbursement;
+    final progress = (monthly.summary.collected / target).clamp(0.0, 1.0);
     final percentLabel = (progress * 100).toStringAsFixed(1);
     final fmt = NumberFormat.decimalPattern('en_IN');
-
     return _glassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _sectionHeader(
-            'Monthly Collection Progress',
-            '₹${fmt.format(_monthlyCollected)} of ₹${fmt.format(_monthlyTarget)} target',
-            trailing: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: AppColors.kSuccess.withOpacity(0.16),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.kSuccess.withOpacity(0.3)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.trending_up_rounded, size: 14, color: AppColors.kSuccess),
-                      const SizedBox(width: 4),
-                      Text('$percentLabel%',
-                          style: const TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.kSuccess)),
-                    ],
-                  ),
+          _sectionHeader('Monthly Collection Progress',
+              '₹${fmt.format(monthly.summary.collected)} of ₹${fmt.format(target)} target',
+              trailing: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.kSuccess.withOpacity(0.16),
+                  borderRadius: BorderRadius.circular(20),
+                  border:
+                      Border.all(color: AppColors.kSuccess.withOpacity(0.3)),
                 ),
-              ),
-            ),
-          ),
+                child: Text('$percentLabel%',
+                    style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.kSuccess)),
+              )),
           const SizedBox(height: 16),
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
@@ -639,41 +579,36 @@ class DashboardScreen extends StatelessWidget {
               valueColor: const AlwaysStoppedAnimation(AppColors.kInfo),
             ),
           ),
-          const SizedBox(height: 8),
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('0%', style: TextStyle(fontSize: 11, color: AppColors.kTextMuted)),
-              Text('50%', style: TextStyle(fontSize: 11, color: AppColors.kTextMuted)),
-              Text('100%', style: TextStyle(fontSize: 11, color: AppColors.kTextMuted)),
-            ],
-          ),
         ],
       ),
     );
   }
 
-  // ---- Quick Actions ----
   Widget _buildQuickActionsCard(BuildContext context) {
     final actions = <_QuickAction>[
-      _QuickAction('Add Customer', Icons.person_add_alt_outlined, AppColors.kInfo,
-          () => _quickAction(context, 'Add Customer')),
-      _QuickAction('Create Loan', Icons.account_balance_outlined, AppColors.kSuccess,
+      _QuickAction('Add Customer', Icons.person_add_alt_outlined,
+          AppColors.kInfo, () => _quickAction(context, 'Add Customer')),
+      _QuickAction(
+          'Create Loan',
+          Icons.account_balance_outlined,
+          AppColors.kSuccess,
           () => Navigator.of(context).pushNamed(AppRoutes.loans)),
       _QuickAction('Chit Group', Icons.groups_outlined, const Color(0xFF7C3AED),
-          () => _quickAction(context, 'Chit Group')),
+          () => Navigator.of(context).pushNamed(AppRoutes.chitGroups)),
       _QuickAction('Add Agent', Icons.badge_outlined, AppColors.kWarning,
           () => _quickAction(context, 'Add Agent')),
       _QuickAction('Reports', Icons.description_outlined, AppColors.kInfo,
           () => _quickAction(context, 'Reports')),
     ];
-
     return _glassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text('Quick Actions',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.kTextDark)),
+              style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.kTextDark)),
           const SizedBox(height: 16),
           GridView.count(
             crossAxisCount: 2,
@@ -682,15 +617,16 @@ class DashboardScreen extends StatelessWidget {
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
             childAspectRatio: 1.8,
-            children: actions.map((a) => _QuickActionButton(action: a)).toList(),
+            children:
+                actions.map((a) => _QuickActionButton(action: a)).toList(),
           ),
         ],
       ),
     );
   }
 
-  // ---- Recent Collections ----
-  Widget _buildRecentCollectionsCard(BuildContext context) {
+  Widget _buildRecentCollectionsCard(
+      BuildContext context, List<CollectionEntry> items) {
     return _glassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -699,27 +635,35 @@ class DashboardScreen extends StatelessWidget {
             'Recent Collections',
             'Latest payments received',
             trailing: TextButton(
-              onPressed: () => Navigator.of(context).pushNamed(AppRoutes.collections),
-              child: const Text('View all'),
-            ),
+                onPressed: () =>
+                    Navigator.of(context).pushNamed(AppRoutes.collections),
+                child: const Text('View all')),
           ),
           Divider(height: 20, color: Colors.white.withOpacity(0.6)),
-          ..._recentCollections.map((item) => _glassListRow(
-                icon: Icons.call_received_rounded,
-                iconColor: AppColors.kSuccess,
-                iconBg: const Color(0xFFDCFCE7),
-                title: item.name,
-                subtitle: item.sub,
-                trailingTop: item.amount,
-                trailingBottom: item.date,
-              )),
+          if (items.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Text('No collections found for today.',
+                  style: TextStyle(color: AppColors.kTextMuted)),
+            )
+          else
+            ...items.take(5).map((item) => _glassListRow(
+                  icon: Icons.call_received_rounded,
+                  iconColor: AppColors.kSuccess,
+                  iconBg: const Color(0xFFDCFCE7),
+                  title: item.customerName,
+                  subtitle: '${item.loanNumber} • ${item.paymentMethod}',
+                  trailingTop: formatIndianCurrency(item.collectionAmount),
+                  trailingBottom: _prettyDate(item.collectionDate.isNotEmpty
+                      ? item.collectionDate
+                      : item.createdAt),
+                )),
         ],
       ),
     );
   }
 
-  // ---- Recent Loans ----
-  Widget _buildRecentLoansCard(BuildContext context) {
+  Widget _buildRecentLoansCard(BuildContext context, List<NewLoanEntry> items) {
     return _glassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -728,28 +672,35 @@ class DashboardScreen extends StatelessWidget {
             'Recent Loans',
             'Newly disbursed loans',
             trailing: TextButton(
-              onPressed: () => Navigator.of(context).pushNamed(AppRoutes.loans),
-              child: const Text('View all'),
-            ),
+                onPressed: () =>
+                    Navigator.of(context).pushNamed(AppRoutes.loans),
+                child: const Text('View all')),
           ),
           Divider(height: 20, color: Colors.white.withOpacity(0.6)),
-          ..._recentLoans.map((item) {
-            final statusColor = switch (item.status) {
-              'Active' => AppColors.kSuccess,
-              'Overdue' => AppColors.kDanger,
-              _ => AppColors.kTextMuted,
-            };
-            return _glassListRow(
-              icon: Icons.account_balance_outlined,
-              iconColor: AppColors.kInfo,
-              iconBg: const Color(0xFFDCEAFE),
-              title: item.name,
-              subtitle: item.sub,
-              trailingTop: item.amount,
-              trailingBottom: item.status,
-              trailingBottomColor: statusColor,
-            );
-          }),
+          if (items.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Text('No new loans found for today.',
+                  style: TextStyle(color: AppColors.kTextMuted)),
+            )
+          else
+            ...items.take(5).map((item) {
+              final statusColor = switch (item.status.toLowerCase()) {
+                'active' => AppColors.kSuccess,
+                'overdue' => AppColors.kDanger,
+                _ => AppColors.kTextMuted,
+              };
+              return _glassListRow(
+                icon: Icons.account_balance_outlined,
+                iconColor: AppColors.kInfo,
+                iconBg: const Color(0xFFDCEAFE),
+                title: item.customerName,
+                subtitle: '${item.loanNumber} • ${item.loanType}',
+                trailingTop: formatIndianCurrency(item.loanAmount),
+                trailingBottom: item.status,
+                trailingBottomColor: statusColor,
+              );
+            }),
         ],
       ),
     );
@@ -781,21 +732,24 @@ class DashboardScreen extends StatelessWidget {
             child: Row(
               children: [
                 Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(10)),
-                  child: Icon(icon, color: iconColor, size: 18),
-                ),
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                        color: iconBg, borderRadius: BorderRadius.circular(10)),
+                    child: Icon(icon, color: iconColor, size: 18)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(title,
-                          style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.kTextDark),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.kTextDark),
                           overflow: TextOverflow.ellipsis),
                       Text(subtitle,
-                          style: const TextStyle(fontSize: 12, color: AppColors.kTextMuted),
+                          style: const TextStyle(
+                              fontSize: 12, color: AppColors.kTextMuted),
                           overflow: TextOverflow.ellipsis),
                     ],
                   ),
@@ -804,12 +758,17 @@ class DashboardScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(trailingTop,
-                        style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.kTextDark)),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.kTextDark)),
                     Text(trailingBottom,
                         style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: trailingBottomColor != null ? FontWeight.w600 : FontWeight.normal,
-                            color: trailingBottomColor ?? AppColors.kTextMuted)),
+                          fontSize: 11,
+                          fontWeight: trailingBottomColor != null
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                          color: trailingBottomColor ?? AppColors.kTextMuted,
+                        )),
                   ],
                 ),
               ],
@@ -819,11 +778,38 @@ class DashboardScreen extends StatelessWidget {
       ),
     );
   }
+
+  List<double> _normalize(List<double> values) {
+    if (values.isEmpty) return const [];
+    final maxValue =
+        values.fold<double>(0, (max, value) => value > max ? value : max);
+    if (maxValue <= 0) return List<double>.filled(values.length, 0);
+    return values.map((v) => v / maxValue).toList();
+  }
+
+  double _scaleValue(double value) {
+    if (value <= 0) return 0;
+    return value;
+  }
+
+  String _prettyDate(String value) {
+    final parsed = DateTime.tryParse(value);
+    if (parsed == null) return value;
+    return DateFormat('dd MMM yyyy').format(parsed);
+  }
 }
 
-// ==========================================
-// Data holders
-// ==========================================
+class _DashboardData {
+  _DashboardData({
+    required this.daily,
+    required this.monthly,
+    required this.agent,
+  });
+
+  final DailyReport daily;
+  final MonthlyReport monthly;
+  final AgentReport agent;
+}
 
 class _DonutSlice {
   final String label;
@@ -839,22 +825,6 @@ class _BarDatum {
   const _BarDatum(this.label, this.value, {this.color});
 }
 
-class _ActivityItem {
-  final String name;
-  final String sub;
-  final String amount;
-  final String date;
-  const _ActivityItem({required this.name, required this.sub, required this.amount, required this.date});
-}
-
-class _LoanItem {
-  final String name;
-  final String sub;
-  final String amount;
-  final String status;
-  const _LoanItem({required this.name, required this.sub, required this.amount, required this.status});
-}
-
 class _QuickAction {
   final String label;
   final IconData icon;
@@ -862,10 +832,6 @@ class _QuickAction {
   final VoidCallback onTap;
   _QuickAction(this.label, this.icon, this.color, this.onTap);
 }
-
-// ==========================================
-// Small widgets
-// ==========================================
 
 class _QuickActionButton extends StatelessWidget {
   final _QuickAction action;
@@ -892,15 +858,19 @@ class _QuickActionButton extends StatelessWidget {
                 Container(
                   width: 34,
                   height: 34,
-                  decoration:
-                      BoxDecoration(color: action.color.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
+                  decoration: BoxDecoration(
+                      color: action.color.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10)),
                   child: Icon(action.icon, color: action.color, size: 18),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     action.label,
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.kTextDark),
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.kTextDark),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -913,10 +883,6 @@ class _QuickActionButton extends StatelessWidget {
   }
 }
 
-// ==========================================
-// Chart painters (unchanged logic)
-// ==========================================
-
 class _LineChartPainter extends CustomPainter {
   final List<double> values;
   final Color color;
@@ -926,13 +892,11 @@ class _LineChartPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (values.isEmpty) return;
-
     final dx = values.length > 1 ? size.width / (values.length - 1) : 0.0;
     final points = <Offset>[
       for (int i = 0; i < values.length; i++)
         Offset(dx * i, size.height - (values[i].clamp(0.0, 1.0) * size.height)),
     ];
-
     final linePath = Path()..moveTo(points.first.dx, points.first.dy);
     for (int i = 0; i < points.length - 1; i++) {
       final p0 = points[i];
@@ -941,27 +905,23 @@ class _LineChartPainter extends CustomPainter {
       linePath.quadraticBezierTo(p0.dx, p0.dy, mid.dx, mid.dy);
     }
     linePath.lineTo(points.last.dx, points.last.dy);
-
     final fillPath = Path.from(linePath)
       ..lineTo(points.last.dx, size.height)
       ..lineTo(points.first.dx, size.height)
       ..close();
-
     final fillPaint = Paint()
       ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [color.withOpacity(0.28), color.withOpacity(0.0)],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [color.withOpacity(0.28), color.withOpacity(0.0)])
+          .createShader(Rect.fromLTWH(0, 0, size.width, size.height));
     canvas.drawPath(fillPath, fillPaint);
-
     final linePaint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.5
       ..strokeCap = StrokeCap.round;
     canvas.drawPath(linePath, linePaint);
-
     final dotPaint = Paint()..color = color;
     for (final p in points) {
       canvas.drawCircle(p, 3, dotPaint);
@@ -975,31 +935,30 @@ class _LineChartPainter extends CustomPainter {
 
 class _DonutChartPainter extends CustomPainter {
   final List<_DonutSlice> slices;
-
   _DonutChartPainter({required this.slices});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final total = slices.fold<double>(0, (sum, s) => sum + s.value);
+    final total = slices.fold<double>(0, (s, e) => s + e.value);
     if (total <= 0) return;
-
-    const strokeWidth = 16.0;
-    final rect = Rect.fromLTWH(strokeWidth / 2, strokeWidth / 2, size.width - strokeWidth, size.height - strokeWidth);
-
-    double startAngle = -math.pi / 2;
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = math.min(size.width, size.height) / 2 - 8;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+    double start = -math.pi / 2;
     for (final slice in slices) {
-      final sweep = (slice.value / total) * 2 * math.pi;
+      if (slice.value <= 0) continue;
+      final sweep = (slice.value / total) * math.pi * 2;
       final paint = Paint()
         ..color = slice.color
         ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth
-        ..strokeCap = StrokeCap.butt;
-      final gap = slices.length > 1 ? 0.04 : 0.0;
-      canvas.drawArc(rect, startAngle + gap / 2, sweep - gap, false, paint);
-      startAngle += sweep;
+        ..strokeWidth = 18
+        ..strokeCap = StrokeCap.round;
+      canvas.drawArc(rect, start, sweep, false, paint);
+      start += sweep;
     }
   }
 
   @override
-  bool shouldRepaint(covariant _DonutChartPainter oldDelegate) => oldDelegate.slices != slices;
+  bool shouldRepaint(covariant _DonutChartPainter oldDelegate) =>
+      oldDelegate.slices != slices;
 }

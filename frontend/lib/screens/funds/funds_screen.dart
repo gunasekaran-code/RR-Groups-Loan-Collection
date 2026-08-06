@@ -11,7 +11,21 @@ import '../../models/user_role.dart';
 import '../../services/customer_api_service.dart';
 import '../../services/fund_api_service.dart';
 import '../../services/session_service.dart';
+import 'package:intl/intl.dart';
 import '../chit_groups/chit_groups_screen.dart' show formatIndianCurrency, formatDate;
+
+
+String formatIndianCurrency(double? amount) {
+  if (amount == null) return '₹0';
+  final format = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+  return format.format(amount);
+}
+
+String formatDate(DateTime? date) {
+  if (date == null) return '';
+  return DateFormat('dd MMM yyyy').format(date);
+}
+
 
 class FundsScreen extends StatefulWidget {
   const FundsScreen({super.key});
@@ -334,7 +348,7 @@ class _FundsScreenState extends State<FundsScreen> {
                               iconColor: const Color(0xFF7C3AED),
                               label: 'Maturity Payout',
                               value: formatIndianCurrency(_summary?.maturityPayoutTotal ??
-                                  _funds.fold(0.0, (s, f) => s + f.maturityPayout)),
+                                  _funds.fold<double>(0.0, (double s, f) => s + (f.maturityPayout ?? 0.0))),
                             ),
                             _StatCard(
                               icon: Icons.account_balance_wallet_outlined,
@@ -342,7 +356,7 @@ class _FundsScreenState extends State<FundsScreen> {
                               iconColor: AppColors.kGold,
                               label: 'Collected',
                               value: formatIndianCurrency(_summary?.collectedTotal ??
-                                  _funds.fold(0.0, (s, f) => s + f.depositedAmount)),
+                                    _funds.fold<double>(0.0, (double s, f) => s + (f.depositedAmount ?? 0.0))),
                             ),
                           ],
                         ),

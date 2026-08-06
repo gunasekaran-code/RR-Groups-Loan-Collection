@@ -89,35 +89,28 @@ class FinCollectApp extends StatelessWidget {
         page = _guarded(const OverdueScreen(), UserRole.values);
         break;
       case AppRoutes.agent:
-        page = _guarded(const AgentManagementScreen(),
-            const [UserRole.owner, UserRole.admin]);
+        page = _guarded(const AgentManagementScreen(), const [UserRole.owner, UserRole.admin]);
         break;
       case AppRoutes.agentCollection:
         page = _guarded(const AgentCollectionScreen(), const [UserRole.agent]);
         break;
       case AppRoutes.routeMap:
-        page = _guarded(const RouteMapScreen(),
-            const [UserRole.owner, UserRole.admin, UserRole.agent]);
+        page = _guarded(const RouteMapScreen(), const [UserRole.owner, UserRole.admin, UserRole.agent]);
         break;
       case AppRoutes.chitGroups:
-        page = _guarded(
-            const ChitGroupsScreen(),
-            const [UserRole.owner, UserRole.admin, UserRole.customer]);
+        page = _guarded(const ChitGroupsScreen(), const [UserRole.owner, UserRole.admin, UserRole.agent, UserRole.customer]);
         break;
       case AppRoutes.reports:
-        page = _guarded(
-            const ReportsScreen(), const [UserRole.owner, UserRole.admin]);
+        page = _guarded(const ReportsScreen(), const [UserRole.owner, UserRole.admin]);
         break;
       case AppRoutes.notifications:
         page = _guarded(const NotificationsScreen(), UserRole.values);
         break;
       case AppRoutes.userManagement:
-        page = _guarded(const UserManagementScreen(),
-            const [UserRole.owner, UserRole.admin]);
+        page = _guarded(const UserManagementScreen(), const [UserRole.owner, UserRole.admin]);
         break;
       case AppRoutes.settings:
-        page = _guarded(
-            const SettingsScreen(), const [UserRole.owner, UserRole.admin]);
+        page = _guarded(const SettingsScreen(), const [UserRole.owner, UserRole.admin]);
         break;
       case AppRoutes.profile:
         page = _guarded(

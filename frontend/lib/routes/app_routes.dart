@@ -16,6 +16,7 @@ class AppRoutes {
   static const String reports = '/reports';
   static const String notifications = '/notifications';
   static const String userManagement = '/user-management';
+  static const String ChitGroupsScreen = '/chit-group-details';
   static const String settings = '/settings';
   static const String profile = '/profile';
   static const String handover = '/handover';

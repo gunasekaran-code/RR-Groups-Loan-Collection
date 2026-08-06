@@ -1,108 +1,30 @@
-import 'dart:math';
-import '../../theme/confirm_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../theme/glass_toast.dart';
 import '../../routes/app_routes.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/glass_toast.dart';
+import '../../theme/confirm_dialog.dart';
 import '../../widgets/app_shell.dart';
+import '../../widgets/page_header.dart';
 import '../../models/chit_group.dart';
+import '../../models/chit_member.dart';
 import '../../models/user_role.dart';
 import '../../services/chit_group_api_service.dart';
 import '../../services/session_service.dart';
+import 'package:intl/intl.dart';
 
-/// -----------------------------------------------------------------------
-/// MODEL HELPERS
-/// -----------------------------------------------------------------------
-extension ChitGroupStatusX on ChitGroupStatus {
-  String get label {
-    switch (this) {
-      case ChitGroupStatus.active:
-        return 'Active';
-      case ChitGroupStatus.completed:
-        return 'Completed';
-      case ChitGroupStatus.upcoming:
-        return 'Upcoming';
-    }
-  }
-
-  Color get bg {
-    switch (this) {
-      case ChitGroupStatus.active:
-        return const Color(0xFFDCFCE7);
-      case ChitGroupStatus.completed:
-        return const Color(0xFFE5E7EB);
-      case ChitGroupStatus.upcoming:
-        return const Color(0xFFFEF3C7);
-    }
-  }
-
-  Color get fg {
-    switch (this) {
-      case ChitGroupStatus.active:
-        return AppColors.kSuccess;
-      case ChitGroupStatus.completed:
-        return AppColors.kTextMuted;
-      case ChitGroupStatus.upcoming:
-        return AppColors.kWarning;
-    }
-  }
+String formatIndianCurrency(double? amount) {
+  if (amount == null) return '₹0';
+  final format =
+      NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+  return format.format(amount);
 }
 
-/// Formats a number in the Indian numbering system, e.g. 500000 -> "5,00,000".
-String formatIndianCurrency(num value, {bool withSymbol = true}) {
-  final isNegative = value < 0;
-  final intVal = value.abs().round();
-  final str = intVal.toString();
-
-  String formatted;
-  if (str.length <= 3) {
-    formatted = str;
-  } else {
-    final lastThree = str.substring(str.length - 3);
-    final rest = str.substring(0, str.length - 3);
-    final buffer = StringBuffer();
-    for (int i = 0; i < rest.length; i++) {
-      final posFromEnd = rest.length - i;
-      buffer.write(rest[i]);
-      if (posFromEnd > 1 && posFromEnd % 2 == 1) {
-        buffer.write(',');
-      }
-    }
-    formatted = '${buffer.toString()},$lastThree';
-  }
-
-  return '${withSymbol ? '₹' : ''}${isNegative ? '-' : ''}$formatted';
+String formatDate(DateTime? date) {
+  if (date == null) return '';
+  return DateFormat('dd MMM yyyy').format(date);
 }
 
-String formatDate(DateTime d) {
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-  final dd = d.day.toString().padLeft(2, '0');
-  return '$dd ${months[d.month - 1]} ${d.year}';
-}
-
-String _randomCode() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  final rnd = Random();
-  return 'GRP-${List.generate(6, (_) => chars[rnd.nextInt(chars.length)]).join()}';
-}
-
-/// -----------------------------------------------------------------------
-/// SCREEN
-/// -----------------------------------------------------------------------
 class ChitGroupsScreen extends StatefulWidget {
   const ChitGroupsScreen({super.key});
 
@@ -111,24 +33,25 @@ class ChitGroupsScreen extends StatefulWidget {
 }
 
 class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
-  final TextEditingController _searchController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
-  String _statusFilter = 'All Status';
-
-  List<ChitGroup> _groups = [];
   bool _isLoading = true;
   String? _loadError;
+  List<ChitGroup> _groups = [];
 
-  /// True when the logged-in user's role is 'customer'.
-  /// Customers get a read-only view scoped to their own group(s):
-  /// no create button, no stats/search/filter, no edit/delete/dashboard
-  /// actions on the card.
-  bool get _isCustomer => SessionService.instance.role == UserRole.customer;
+  UserRole? get _role => SessionService.instance.role;
+  bool get _isAdmin => _role == UserRole.admin || _role == UserRole.owner;
+  bool get _isAgent => _role == UserRole.agent;
 
   @override
   void initState() {
     super.initState();
     _loadGroups();
+  }
+
+  Future<void> _openGroupDetails(ChitGroup group) async {
+    final updated = await showChitGroupDetailsSheet(context, group);
+    if (updated != null && mounted) {
+      await _loadGroups();
+    }
   }
 
   Future<void> _loadGroups() async {
@@ -150,150 +73,53 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
         _isLoading = false;
       });
       ToastService.show(
-        title: 'Failed to load groups',
+        title: 'Failed to load chit groups',
         message: e.toString(),
         type: ToastType.error,
       );
     }
   }
 
-  List<ChitGroup> get _filteredGroups {
-    final query = _searchController.text.trim().toLowerCase();
-    return _groups.where((g) {
-      final matchesQuery =
-          query.isEmpty || g.name.toLowerCase().contains(query);
-      final matchesStatus =
-          _statusFilter == 'All Status' || g.status.label == _statusFilter;
-      return matchesQuery && matchesStatus;
-    }).toList();
-  }
-
-  double get _totalCollected => _groups.fold(
-        0,
-        (sum, g) => sum + (g.groupValue * g.collectedPercent / 100),
-      );
-
-  double get _totalPending => _groups.fold(
-        0,
-        (sum, g) =>
-            sum + (g.groupValue - (g.groupValue * g.collectedPercent / 100)),
-      );
-
-  int get _activeCount =>
-      _groups.where((g) => g.status == ChitGroupStatus.active).length;
-
-  /// Helper to wrap form or view content inside the identical 75% max height
-  /// bottom-sheet layout frame used across the app (see LoansScreen).
-  Widget _buildGlobalSheetFrame({required Widget child}) {
-    final double keyboardPadding = MediaQuery.of(context).viewInsets.bottom;
-    final double maxSheetHeight = MediaQuery.of(context).size.height * 0.75;
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: keyboardPadding),
-      child: Container(
-        constraints: BoxConstraints(maxHeight: maxSheetHeight),
-        decoration: const BoxDecoration(
-          color: AppColors.kSurface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 20,
-              offset: Offset(0, -4),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            child: child,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _openCreateDialog() async {
-    if (_isCustomer) return; // safety guard, customers can't create
-    final result = await showModalBottomSheet<ChitGroup>(
+  Future<void> _showCreateGroupModal() async {
+    final created = await showModalBottomSheet<ChitGroup>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withOpacity(0.4),
-      builder: (context) => _buildGlobalSheetFrame(
-        child: const _GroupFormDialog(),
-      ),
+      builder: (context) => const _GroupFormSheet(),
     );
-    if (result == null) return;
-
-    try {
-      final created = await ChitGroupApiService.create(result);
-      setState(() => _groups.insert(0, created));
-      ToastService.show(
-        title: 'Group created',
-        message: created.name,
-        type: ToastType.success,
-      );
-    } catch (e) {
-      ToastService.show(
-        title: 'Create failed',
-        message: e.toString(),
-        type: ToastType.error,
-      );
-    }
+    if (created == null || !mounted) return;
+    await _loadGroups();
   }
 
-  Future<void> _openEditDialog(ChitGroup group) async {
-    if (_isCustomer) return; // safety guard, customers can't edit
-    final result = await showModalBottomSheet<ChitGroup>(
+  Future<void> _showEditGroupModal(ChitGroup group) async {
+    final updated = await showModalBottomSheet<ChitGroup>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withOpacity(0.4),
-      builder: (context) => _buildGlobalSheetFrame(
-        child: _GroupFormDialog(existing: group),
-      ),
+      builder: (context) => _GroupFormSheet(group: group),
     );
-    if (result == null) return;
-
-    try {
-      final updated = await ChitGroupApiService.update(result);
-      setState(() {
-        final idx = _groups.indexWhere((g) => g.id == group.id);
-        if (idx != -1) _groups[idx] = updated;
-      });
-      ToastService.show(
-        title: 'Group updated',
-        message: updated.name,
-        type: ToastType.success,
-      );
-    } catch (e) {
-      ToastService.show(
-        title: 'Update failed',
-        message: e.toString(),
-        type: ToastType.error,
-      );
-    }
+    if (updated == null || !mounted) return;
+    await _loadGroups();
   }
 
-  Future<void> _confirmDelete(ChitGroup group) async {
-    if (_isCustomer) return; // safety guard, customers can't delete
+  Future<void> _confirmDeleteGroup(ChitGroup group) async {
     final confirmed = await AppConfirmDialog.show(
       context: context,
-      title: 'Delete Group',
-      message:
-          'Are you sure you want to delete "${group.name}"? This cannot be undone.',
+      title: 'Delete Chit Group',
+      message: 'Delete "${group.name}"? This cannot be undone.',
       confirmLabel: 'Delete',
       confirmButtonColor: AppColors.kDanger,
     );
     if (confirmed != true || !mounted) return;
-
     try {
       await ChitGroupApiService.delete(group.id);
-      setState(() => _groups.removeWhere((g) => g.id == group.id));
+      if (!mounted) return;
+      await _loadGroups();
       ToastService.show(
         title: 'Group deleted',
-        message: group.name,
+        message: '${group.name} was removed',
         type: ToastType.warning,
       );
     } catch (e) {
@@ -306,798 +132,1247 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
   }
 
   @override
-  void dispose() {
-    _searchController.dispose();
-    _scrollController.dispose(); // Properly dispose the scroll controller
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final filtered = _filteredGroups;
-    final isCustomer = _isCustomer;
-
     return AppShell(
       currentRoute: AppRoutes.chitGroups,
       title: 'Chit Groups',
-      body: RefreshIndicator(
-        onRefresh: _loadGroups,
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _loadError != null
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(_loadError!,
-                            style: const TextStyle(color: AppColors.kDanger)),
-                        const SizedBox(height: 12),
-                        ElevatedButton(
-                            onPressed: _loadGroups, child: const Text('Retry')),
-                      ],
+      body: Container(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        child: RefreshIndicator(
+          onRefresh: _loadGroups,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              PageHeader(
+                title: 'Chit Groups',
+                subtitle: 'View and manage chit group collections',
+                actions: [
+                  if (_isAdmin)
+                    ElevatedButton.icon(
+                      onPressed: _showCreateGroupModal,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Create Group'),
                     ),
-                  )
-                : ListView(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-                    children: [
-                      const SizedBox(height: 6),
-                      Text(
-                        isCustomer
-                            ? 'Your chit fund group details'
-                            : 'Manage chit fund groups and member contributions',
-                        style: const TextStyle(
-                            color: AppColors.kTextMuted, fontSize: 14),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // ---- Create button: admin/agent only ----
-                      if (!isCustomer) ...[
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: SizedBox(
-                            width: 150,
-                            child: ElevatedButton.icon(
-                              onPressed: _openCreateDialog,
-                              icon: const Icon(Icons.add),
-                              label: const Text('Create Group',
-                                  style:
-                                      TextStyle(fontWeight: FontWeight.w600)),
-                              style: ElevatedButton.styleFrom(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 16),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                      ],
-
-                      // ---- Stats grid: admin/agent only ----
-                      if (!isCustomer) ...[
-                        GridView.count(
-                          crossAxisCount: 2,
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          childAspectRatio: 1.5,
-                          children: [
-                            _StatCard(
-                              icon: Icons.qr_code_2_rounded,
-                              iconBg: const Color(0xFFEDE9FE),
-                              iconColor: const Color(0xFF7C3AED),
-                              label: 'Total Groups',
-                              value: '${_groups.length}',
-                            ),
-                            _StatCard(
-                              icon: Icons.trending_up_rounded,
-                              iconBg: const Color(0xFFFEF3C7),
-                              iconColor: AppColors.kWarning,
-                              label: 'Active Groups',
-                              value: '$_activeCount',
-                            ),
-                            _StatCard(
-                              icon: Icons.currency_rupee_rounded,
-                              iconBg: const Color(0xFFDCFCE7),
-                              iconColor: AppColors.kSuccess,
-                              label: 'Collected',
-                              value: formatIndianCurrency(_totalCollected),
-                            ),
-                            _StatCard(
-                              icon: Icons.currency_rupee_rounded,
-                              iconBg: const Color(0xFFFEE2E2),
-                              iconColor: AppColors.kDanger,
-                              label: 'Pending',
-                              value: formatIndianCurrency(_totalPending),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                      ],
-
-                      // ---- Search + filter: admin/agent only ----
-                      if (!isCustomer) ...[
-                        TextField(
-                          controller: _searchController,
-                          onChanged: (_) => setState(() {}),
-                          decoration: const InputDecoration(
-                            hintText: 'Search groups...',
-                            prefixIcon: Icon(Icons.search,
-                                color: AppColors.kTextMuted),
-                            filled: true,
-                            fillColor: AppColors.kSurface,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          decoration: BoxDecoration(
-                            color: AppColors.kSurface,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.kBorder),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: _statusFilter,
-                              isExpanded: true,
-                              icon: const Icon(Icons.unfold_more_rounded,
-                                  color: AppColors.kTextMuted),
-                              style: const TextStyle(
-                                  color: AppColors.kTextDark, fontSize: 15),
-                              items: const [
-                                DropdownMenuItem(
-                                    value: 'All Status',
-                                    child: Text('All Status')),
-                                DropdownMenuItem(
-                                    value: 'Active', child: Text('Active')),
-                                DropdownMenuItem(
-                                    value: 'Completed',
-                                    child: Text('Completed')),
-                                DropdownMenuItem(
-                                    value: 'Upcoming',
-                                    child: Text('Upcoming')),
-                              ],
-                              onChanged: (v) => setState(
-                                  () => _statusFilter = v ?? 'All Status'),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                      ],
-
-                      // ---- Group list: visible to everyone ----
-                      if (filtered.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 40),
-                          child: Center(
-                            child: Text(
-                              isCustomer
-                                  ? 'No chit group assigned to your account yet.'
-                                  : 'No groups match your search.',
-                              style: const TextStyle(
-                                  color: AppColors.kTextMuted),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        )
-                      else
-                        ...filtered.map(
-                          (g) => Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
-                            child: _GroupCard(
-                              group: g,
-                              readOnly: isCustomer,
-                              onEdit:
-                                  isCustomer ? null : () => _openEditDialog(g),
-                              onDelete:
-                                  isCustomer ? null : () => _confirmDelete(g),
-                              onViewDashboard: isCustomer
-                                  ? null
-                                  : () {
-                                      // TODO: navigate to group Dashboard Route
-                                    },
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (_isLoading)
+                const Center(child: CircularProgressIndicator())
+              else if (_loadError != null)
+                Column(
+                  children: [
+                    Text(_loadError!,
+                        style: const TextStyle(color: AppColors.kDanger)),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: _loadGroups,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                )
+              else if (_groups.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 40),
+                  child: Center(child: Text('No chit groups found.')),
+                )
+              else
+                ..._groups.map((group) => _buildGroupCard(group)).toList(),
+            ],
+          ),
+        ),
       ),
     );
   }
-}
 
-/// -----------------------------------------------------------------------
-/// STAT CARD
-/// -----------------------------------------------------------------------
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.icon,
-    required this.iconBg,
-    required this.iconColor,
-    required this.label,
-    required this.value,
-  });
-
-  final IconData icon;
-  final Color iconBg;
-  final Color iconColor;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.kSurface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.kBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: iconBg,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: iconColor, size: 20),
-          ),
-          const Spacer(),
-          Text(label,
-              style:
-                  const TextStyle(color: AppColors.kTextMuted, fontSize: 13)),
-          const SizedBox(height: 2),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              style: const TextStyle(
-                color: AppColors.kTextDark,
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// -----------------------------------------------------------------------
-/// GROUP CARD
-/// -----------------------------------------------------------------------
-class _GroupCard extends StatelessWidget {
-  const _GroupCard({
-    required this.group,
-    this.readOnly = false,
-    this.onEdit,
-    this.onDelete,
-    this.onViewDashboard,
-  });
-
-  final ChitGroup group;
-
-  /// When true, hides the entire action row (View Dashboard / Edit / Delete)
-  /// so the card renders as a plain view-only summary — used for the
-  /// 'customer' role.
-  final bool readOnly;
-
-  final VoidCallback? onEdit;
-  final VoidCallback? onDelete;
-  final VoidCallback? onViewDashboard;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.kSurface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.kBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: [
-                    Text(
-                      group.name,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.kTextDark,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: group.status.bg,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        group.status.label,
-                        style: TextStyle(
-                          color: group.status.fg,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEDE9FE),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.people_alt_rounded,
-                        size: 16, color: Color(0xFF7C3AED)),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${group.totalMembers}',
-                      style: const TextStyle(
-                        color: Color(0xFF7C3AED),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(group.code,
-              style:
-                  const TextStyle(color: AppColors.kTextMuted, fontSize: 13)),
-          const SizedBox(height: 16),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _InfoBlock(
-                    label: 'Group Value',
-                    value: formatIndianCurrency(group.groupValue)),
-              ),
-              Expanded(
-                child: _InfoBlock(
-                    label: 'Monthly',
-                    value: formatIndianCurrency(group.monthlyContribution)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _InfoBlock(
-                    label: 'Duration', value: '${group.durationMonths} months'),
-              ),
-              Expanded(
-                child: _InfoBlock(
-                    label: 'Starts', value: formatDate(group.startDate)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Collected',
-                  style: TextStyle(color: AppColors.kTextMuted, fontSize: 13)),
-              Text(
-                '${group.collectedPercent}%',
-                style: const TextStyle(
-                  color: AppColors.kTextDark,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: (group.collectedPercent / 100).clamp(0, 1).toDouble(),
-              minHeight: 8,
-              backgroundColor: const Color(0xFFF1EFE8),
-              valueColor: const AlwaysStoppedAnimation(AppColors.kGold),
-            ),
-          ),
-
-          // ---- Action row: hidden entirely for read-only (customer) ----
-          if (!readOnly) ...[
-            const SizedBox(height: 18),
+  Widget _buildGroupCard(ChitGroup group) {
+    return GestureDetector(
+      onTap: () => _openGroupDetails(group),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.kBorder),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Row(
               children: [
                 Expanded(
-                  child: ElevatedButton(
-                    onPressed: onViewDashboard,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    child: const Text('View Dashboard',
-                        style: TextStyle(fontWeight: FontWeight.w600)),
+                  child: Text(group.name,
+                      style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.kTextDark)),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: group.status == ChitGroupStatus.active
+                        ? AppColors.kSuccess.withOpacity(0.15)
+                        : AppColors.kTextMuted.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(999),
                   ),
-                ),
-                const SizedBox(width: 10),
-                _IconButtonSquare(
-                  icon: Icons.edit_outlined,
-                  onTap: onEdit ?? () {},
-                ),
-                const SizedBox(width: 8),
-                _IconButtonSquare(
-                  icon: Icons.delete_outline_rounded,
-                  color: AppColors.kDanger,
-                  onTap: onDelete ?? () {},
+                  child: Text(
+                    group.status.name.toUpperCase(),
+                    style: TextStyle(
+                      color: group.status == ChitGroupStatus.active
+                          ? AppColors.kSuccess
+                          : AppColors.kTextMuted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ],
             ),
+            const SizedBox(height: 10),
+            Text('Group No.: ${group.code}',
+                style: const TextStyle(color: AppColors.kTextMuted)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(child: Text('Members: ${group.totalMembers}')),
+                Expanded(child: Text('Duration: ${group.durationMonths} mo')),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                    child: Text(
+                        'Value: ${formatIndianCurrency(group.groupValue)}')),
+                Expanded(
+                    child: Text(
+                        'Collected: ${formatIndianCurrency(group.collectedAmount)}')),
+              ],
+            ),
+            const SizedBox(height: 10),
+            LinearProgressIndicator(
+              value: (group.collectedPercent / 100).clamp(0, 1).toDouble(),
+              backgroundColor: const Color(0xFFEEEDE9),
+              valueColor: const AlwaysStoppedAnimation(AppColors.kGold),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                if (_isAdmin || _isAgent)
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _openGroupDetails(group),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.kGold,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                      icon: const Icon(Icons.currency_rupee, size: 16),
+                      label: const Text('Collect'),
+                    ),
+                  ),
+                if (_isAdmin) ...[
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.edit, color: AppColors.kTextDark),
+                    onPressed: () => _showEditGroupModal(group),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: AppColors.kDanger),
+                    onPressed: () => _confirmDeleteGroup(group),
+                  ),
+                ],
+              ],
+            ),
           ],
-        ],
+        ),
       ),
     );
   }
 }
 
-class _InfoBlock extends StatelessWidget {
-  const _InfoBlock({required this.label, required this.value});
-  final String label;
-  final String value;
+class _GroupFormSheet extends StatefulWidget {
+  const _GroupFormSheet({this.group});
+
+  final ChitGroup? group;
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style: const TextStyle(color: AppColors.kTextMuted, fontSize: 13)),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: const TextStyle(
-            color: AppColors.kTextDark,
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-  }
+  State<_GroupFormSheet> createState() => _GroupFormSheetState();
 }
 
-class _IconButtonSquare extends StatelessWidget {
-  const _IconButtonSquare(
-      {required this.icon, required this.onTap, this.color});
-  final IconData icon;
-  final VoidCallback onTap;
-  final Color? color;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: 48,
-        height: 48,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          border: Border.all(color: AppColors.kBorder),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Icon(icon, size: 20, color: color ?? AppColors.kTextDark),
-      ),
-    );
-  }
-}
-
-/// -----------------------------------------------------------------------
-/// CREATE / EDIT GROUP SHEET
-/// Styled to match the bottom-sheet form pattern used in LoansScreen
-/// (LoanFormDialog) and the header/close-button treatment from
-/// AppEditDialog — rounded top sheet, title + close icon row, labeled
-/// fields, and an outlined Cancel / filled Save button pair.
-/// Only ever opened for admin/agent roles (customers never reach this).
-/// -----------------------------------------------------------------------
-class _GroupFormDialog extends StatefulWidget {
-  const _GroupFormDialog({this.existing});
-  final ChitGroup? existing;
-
-  bool get isEdit => existing != null;
-
-  @override
-  State<_GroupFormDialog> createState() => _GroupFormDialogState();
-}
-
-class _GroupFormDialogState extends State<_GroupFormDialog> {
+class _GroupFormSheetState extends State<_GroupFormSheet> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameCtrl;
+  late final TextEditingController _codeCtrl;
   late final TextEditingController _membersCtrl;
   late final TextEditingController _durationCtrl;
   late final TextEditingController _valueCtrl;
-  late final TextEditingController _monthlyCtrl;
-  late DateTime _startDate;
+  late final TextEditingController _contributionCtrl;
+  late final TextEditingController _startDateCtrl;
+  ChitGroupStatus _status = ChitGroupStatus.active;
+  DateTime? _startDate;
+  bool _saving = false;
 
   @override
   void initState() {
     super.initState();
-    final g = widget.existing;
-    _nameCtrl = TextEditingController(text: g?.name ?? '');
+    final group = widget.group;
+    _nameCtrl = TextEditingController(text: group?.name ?? '');
+    _codeCtrl = TextEditingController(text: group?.code ?? '');
     _membersCtrl =
-        TextEditingController(text: g != null ? '${g.totalMembers}' : '');
+        TextEditingController(text: group?.totalMembers.toString() ?? '');
     _durationCtrl =
-        TextEditingController(text: g != null ? '${g.durationMonths}' : '');
+        TextEditingController(text: group?.durationMonths.toString() ?? '');
     _valueCtrl =
-        TextEditingController(text: g != null ? '${g.groupValue.round()}' : '');
-    _monthlyCtrl = TextEditingController(
-        text: g != null ? '${g.monthlyContribution.round()}' : '');
-    _startDate = g?.startDate ?? DateTime.now();
+        TextEditingController(text: group?.groupValue.toStringAsFixed(0) ?? '');
+    _contributionCtrl = TextEditingController(
+        text: group?.monthlyContribution.toStringAsFixed(0) ?? '');
+    _startDate = group?.startDate ?? DateTime.now();
+    _startDateCtrl = TextEditingController(text: formatDate(_startDate));
+    if (group != null) _status = group.status;
   }
 
   @override
   void dispose() {
     _nameCtrl.dispose();
+    _codeCtrl.dispose();
     _membersCtrl.dispose();
     _durationCtrl.dispose();
     _valueCtrl.dispose();
-    _monthlyCtrl.dispose();
+    _contributionCtrl.dispose();
+    _startDateCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _pickDate() async {
+  Future<void> _pickStartDate() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: _startDate,
+      initialDate: _startDate ?? DateTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: Theme.of(context).colorScheme.copyWith(
-                primary: AppColors.kGold,
-              ),
-        ),
-        child: child!,
-      ),
     );
-    if (picked != null) setState(() => _startDate = picked);
+    if (picked == null) return;
+    setState(() {
+      _startDate = picked;
+      _startDateCtrl.text = formatDate(_startDate);
+    });
   }
 
-  String? _requiredNumber(String? v) {
-    if (v == null || v.trim().isEmpty) return 'Required';
-    if (num.tryParse(v) == null) return 'Enter a valid number';
-    return null;
-  }
-
-  void _handleSave() {
+  Future<void> _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_startDate == null) return;
 
-    final result = ChitGroup(
-      id: widget.existing?.id ??
-          DateTime.now().millisecondsSinceEpoch.toString(),
-      code: widget.existing?.code ?? _randomCode(),
+    setState(() => _saving = true);
+    final group = ChitGroup(
+      id: widget.group?.id ?? '',
+      code: _codeCtrl.text.trim(),
       name: _nameCtrl.text.trim(),
-      status: widget.existing?.status ?? ChitGroupStatus.active,
-      totalMembers: int.parse(_membersCtrl.text),
-      durationMonths: int.parse(_durationCtrl.text),
-      groupValue: double.parse(_valueCtrl.text),
-      monthlyContribution: double.parse(_monthlyCtrl.text),
-      startDate: _startDate,
-      collectedAmount: widget.existing?.collectedAmount ?? 0,
+      status: _status,
+      totalMembers: int.tryParse(_membersCtrl.text.trim()) ?? 0,
+      durationMonths: int.tryParse(_durationCtrl.text.trim()) ?? 0,
+      groupValue: double.tryParse(_valueCtrl.text.trim()) ?? 0,
+      monthlyContribution: double.tryParse(_contributionCtrl.text.trim()) ?? 0,
+      startDate: _startDate!,
+      collectedAmount: widget.group?.collectedAmount ?? 0,
     );
 
-    Navigator.of(context).pop(result);
+    try {
+      final result = widget.group == null
+          ? await ChitGroupApiService.create(group)
+          : await ChitGroupApiService.update(group);
+      if (!mounted) return;
+      Navigator.of(context).pop(result);
+      ToastService.show(
+        title: widget.group == null ? 'Group created' : 'Group updated',
+        message: group.name,
+        type: ToastType.success,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ToastService.show(
+        title: 'Save failed',
+        message: e.toString(),
+        type: ToastType.error,
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final dd = _startDate.day.toString().padLeft(2, '0');
-    final mm = _startDate.month.toString().padLeft(2, '0');
-    final yyyy = _startDate.year.toString();
+    final isEditing = widget.group != null;
+    final keyboardPadding = MediaQuery.of(context).viewInsets.bottom;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    widget.isEdit ? 'Edit Group' : 'Create Group',
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.kTextDark),
-                  ),
-                ),
-                IconButton(
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  icon: const Icon(Icons.close, color: AppColors.kTextMuted),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final isNarrow = constraints.maxWidth < 500;
-                return Column(
-                  children: [
-                    _buildTextField(
-                      'GROUP NAME *',
-                      'e.g. Lakshmi Chit Fund',
-                      controller: _nameCtrl,
-                      validator: (v) =>
-                          (v == null || v.trim().isEmpty) ? 'Required' : null,
-                    ),
-                    const SizedBox(height: 16),
-                    _responsiveRow(
-                      isNarrow,
-                      _buildTextField(
-                        'TOTAL MEMBERS *',
-                        '',
-                        controller: _membersCtrl,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly
-                        ],
-                        validator: _requiredNumber,
-                      ),
-                      _buildTextField(
-                        'DURATION (MONTHS) *',
-                        '',
-                        controller: _durationCtrl,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly
-                        ],
-                        validator: _requiredNumber,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _responsiveRow(
-                      isNarrow,
-                      _buildTextField(
-                        'GROUP VALUE *',
-                        '',
-                        controller: _valueCtrl,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly
-                        ],
-                        validator: _requiredNumber,
-                      ),
-                      _buildTextField(
-                        'MONTHLY CONTRIBUTION *',
-                        '',
-                        controller: _monthlyCtrl,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly
-                        ],
-                        validator: _requiredNumber,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('START DATE *',
-                            style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.kTextMuted)),
-                        const SizedBox(height: 8),
-                        InkWell(
-                          onTap: _pickDate,
-                          borderRadius: BorderRadius.circular(12),
-                          child: InputDecorator(
-                            decoration: const InputDecoration(isDense: true),
-                            child: Text('$dd/$mm/$yyyy'),
-                          ),
+      padding: EdgeInsets.only(bottom: keyboardPadding),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: AppColors.kSurface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black12, blurRadius: 20, offset: Offset(0, -4)),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        isEditing ? 'Edit Group' : 'Create Group',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.kTextDark,
                         ),
-                      ],
+                      ),
+                      IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        icon: const Icon(Icons.close,
+                            color: AppColors.kTextMuted),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  const Text('GROUP NAME *',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.kTextMuted)),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _nameCtrl,
+                    decoration: const InputDecoration(isDense: true),
+                    validator: (v) =>
+                        v == null || v.trim().isEmpty ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('GROUP NUMBER *',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.kTextMuted)),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _codeCtrl,
+                    decoration: const InputDecoration(isDense: true),
+                    validator: (v) =>
+                        v == null || v.trim().isEmpty ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('MEMBERS *',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.kTextMuted)),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _membersCtrl,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(isDense: true),
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty)
+                                  return 'Required';
+                                if (int.tryParse(v.trim()) == null)
+                                  return 'Enter a number';
+                                return null;
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('DURATION (mo) *',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.kTextMuted)),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _durationCtrl,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(isDense: true),
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty)
+                                  return 'Required';
+                                if (int.tryParse(v.trim()) == null)
+                                  return 'Enter a number';
+                                return null;
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('GROUP VALUE *',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.kTextMuted)),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _valueCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(isDense: true),
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return 'Required';
+                      if (double.tryParse(v.trim()) == null)
+                        return 'Enter a number';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('MONTHLY CONTRIBUTION *',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.kTextMuted)),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _contributionCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(isDense: true),
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return 'Required';
+                      if (double.tryParse(v.trim()) == null)
+                        return 'Enter a number';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('START DATE *',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.kTextMuted)),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _startDateCtrl,
+                    readOnly: true,
+                    decoration: const InputDecoration(isDense: true),
+                    onTap: _pickStartDate,
+                    validator: (v) =>
+                        v == null || v.trim().isEmpty ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('STATUS *',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.kTextMuted)),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<ChitGroupStatus>(
+                    value: _status,
+                    items: ChitGroupStatus.values
+                        .map((status) => DropdownMenuItem(
+                              value: status,
+                              child: Text(status.name.toUpperCase()),
+                            ))
+                        .toList(),
+                    onChanged: (value) => setState(() {
+                      if (value != null) _status = value;
+                    }),
+                    decoration: const InputDecoration(isDense: true),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton(
+                        onPressed: _saving ? null : _handleSave,
+                        child: _saving
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : Text(isEditing ? 'Save Changes' : 'Create Group'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Future<ChitGroup?> showChitGroupDetailsSheet(
+  BuildContext context,
+  ChitGroup group,
+) {
+  return showModalBottomSheet<ChitGroup>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    barrierColor: Colors.black.withOpacity(0.4),
+    builder: (context) => _GroupDetailsFrame(group: group),
+  );
+}
+
+class _GroupDetailsFrame extends StatefulWidget {
+  const _GroupDetailsFrame({required this.group});
+  final ChitGroup group;
+
+  @override
+  State<_GroupDetailsFrame> createState() => _GroupDetailsFrameState();
+}
+
+class _GroupDetailsFrameState extends State<_GroupDetailsFrame> {
+  late ChitGroup _group;
+  List<ChitMember> _members = [];
+  bool _isLoading = true;
+  String? _loadError;
+  bool _changed = false;
+
+  UserRole? get _role => SessionService.instance.role;
+
+  bool get _canAddOrDeleteMembers =>
+      _role == UserRole.admin || _role == UserRole.owner;
+
+  @override
+  void initState() {
+    super.initState();
+    _group = widget.group;
+    _loadMembers();
+  }
+
+  Future<void> _loadMembers() async {
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
+    try {
+      final members = await ChitGroupApiService.fetchMembers(_group.id);
+      if (!mounted) return;
+      setState(() {
+        _members = members;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _openAddMember() async {
+    final added = await showModalBottomSheet<ChitMember>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withOpacity(0.4),
+      builder: (context) => _AddMemberFrame(group: _group),
+    );
+    if (added == null || !mounted) return;
+    setState(() {
+      _members = [..._members, added];
+      _changed = true;
+    });
+    ToastService.show(
+      title: 'Member added',
+      message: added.memberName,
+      type: ToastType.success,
+    );
+  }
+
+  Future<void> _confirmDeleteMember(ChitMember member) async {
+    final confirmed = await AppConfirmDialog.show(
+      context: context,
+      title: 'Remove Member',
+      message: 'Remove "${member.memberName}" from this group?',
+      confirmLabel: 'Remove',
+      confirmButtonColor: AppColors.kDanger,
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await ChitGroupApiService.deleteMember(member.id);
+      if (!mounted) return;
+      setState(() {
+        _members.removeWhere((m) => m.id == member.id);
+        _changed = true;
+      });
+      ToastService.show(
+        title: 'Member removed',
+        message: member.memberName,
+        type: ToastType.warning,
+      );
+    } catch (e) {
+      ToastService.show(
+        title: 'Remove failed',
+        message: e.toString(),
+        type: ToastType.error,
+      );
+    }
+  }
+
+  Future<void> _collect(ChitMember member) async {
+    final amountCtrl = TextEditingController(
+        text: member.contributionAmount.round().toString());
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Record Collection'),
+        content: TextField(
+          controller: amountCtrl,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: const InputDecoration(labelText: 'Amount Collected'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final amount =
+        double.tryParse(amountCtrl.text) ?? member.contributionAmount;
+
+    try {
+      final updatedMember = await ChitGroupApiService.collectFromMember(
+        memberId: member.id,
+        status: ChitPaymentStatus.paid,
+      );
+
+      final newCollected = _group.collectedAmount + amount;
+      final newPending = (_group.groupValue - newCollected)
+          .clamp(0, _group.groupValue)
+          .toDouble();
+      final newStatus = newPending <= 0 ? 'closed' : 'active';
+
+      final updatedGroup = await ChitGroupApiService.recordCollection(
+        groupId: _group.id,
+        collectedAmount: newCollected,
+        pendingAmount: newPending,
+        status: newStatus,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        final idx = _members.indexWhere((m) => m.id == member.id);
+        if (idx != -1) _members[idx] = updatedMember;
+        _group = updatedGroup;
+        _changed = true;
+      });
+      ToastService.show(
+        title: 'Collection recorded',
+        message: '${member.memberName} · ${formatIndianCurrency(amount)}',
+        type: ToastType.success,
+      );
+    } catch (e) {
+      ToastService.show(
+        title: 'Collection failed',
+        message: e.toString(),
+        type: ToastType.error,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final keyboardPadding = MediaQuery.of(context).viewInsets.bottom;
+    final maxSheetHeight = MediaQuery.of(context).size.height * 0.85;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: keyboardPadding),
+      child: Container(
+        constraints: BoxConstraints(maxHeight: maxSheetHeight),
+        decoration: const BoxDecoration(
+          color: AppColors.kSurface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black12, blurRadius: 20, offset: Offset(0, -4)),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 16, 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _group.name,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.kTextDark),
+                      ),
+                    ),
+                    IconButton(
+                      icon:
+                          const Icon(Icons.close, color: AppColors.kTextMuted),
+                      onPressed: () =>
+                          Navigator.of(context).pop(_changed ? _group : null),
                     ),
                   ],
-                );
-              },
-            ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
                 ),
-                const SizedBox(width: 12),
-                ElevatedButton.icon(
-                  onPressed: _handleSave,
-                  icon: Icon(widget.isEdit
-                      ? Icons.check_circle_outline
-                      : Icons.add_circle_outline),
-                  label: Text(widget.isEdit ? 'Save Changes' : 'Create Group'),
+              ),
+              const Divider(height: 1),
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                  child: _isLoading
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 40),
+                          child: Center(child: CircularProgressIndicator()),
+                        )
+                      : _loadError != null
+                          ? Column(
+                              children: [
+                                Text(_loadError!,
+                                    style: const TextStyle(
+                                        color: AppColors.kDanger)),
+                                const SizedBox(height: 12),
+                                ElevatedButton(
+                                    onPressed: _loadMembers,
+                                    child: const Text('Retry')),
+                              ],
+                            )
+                          : _buildContent(),
                 ),
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _responsiveRow(bool isNarrow, Widget a, Widget b) {
-    if (isNarrow) {
-      return Column(
-        children: [a, const SizedBox(height: 16), b],
-      );
-    }
-    return Row(
+  Widget _buildContent() {
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(child: a),
-        const SizedBox(width: 16),
-        Expanded(child: b),
+        Row(
+          children: [
+            Expanded(
+                child: _DetailStat(label: 'Group No.', value: _group.code)),
+            Expanded(
+                child: _DetailStat(
+                    label: 'Members', value: '${_group.totalMembers}')),
+            Expanded(
+                child: _DetailStat(
+                    label: 'Value',
+                    value: formatIndianCurrency(_group.groupValue))),
+            Expanded(
+                child: _DetailStat(
+                    label: 'Duration', value: '${_group.durationMonths} mo')),
+          ],
+        ),
+        const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF9F8F4),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.kBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Collection Progress',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  Text(
+                    '${formatIndianCurrency(_group.collectedAmount)} / ${formatIndianCurrency(_group.groupValue)}',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.kTextMuted),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  value: (_group.collectedPercent / 100).clamp(0, 1).toDouble(),
+                  minHeight: 8,
+                  backgroundColor: const Color(0xFFF1EFE8),
+                  valueColor: const AlwaysStoppedAnimation(AppColors.kGold),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  _Dot(color: AppColors.kSuccess),
+                  const SizedBox(width: 6),
+                  Text(
+                      'Collected ${formatIndianCurrency(_group.collectedAmount)}',
+                      style: const TextStyle(
+                          color: AppColors.kSuccess, fontSize: 13)),
+                  const SizedBox(width: 16),
+                  _Dot(color: AppColors.kDanger),
+                  const SizedBox(width: 6),
+                  Text('Pending ${formatIndianCurrency(_group.pendingAmount)}',
+                      style: const TextStyle(
+                          color: AppColors.kDanger, fontSize: 13)),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Member Collection Tracking',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+            if (_canAddOrDeleteMembers)
+              TextButton.icon(
+                onPressed: _openAddMember,
+                icon: const Icon(Icons.person_add_alt_1, size: 18),
+                label: const Text('Add Member'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (_members.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(
+              child: Text('No members yet.',
+                  style: TextStyle(color: AppColors.kTextMuted)),
+            ),
+          )
+        else
+          ..._members.map((m) => _MemberRow(
+                member: m,
+                canDelete: _canAddOrDeleteMembers,
+                onCollect: m.status == ChitPaymentStatus.paid
+                    ? null
+                    : () => _collect(m),
+                onDelete: () => _confirmDeleteMember(m),
+              )),
       ],
     );
   }
+}
 
-  Widget _buildTextField(
-    String label,
-    String hint, {
-    TextEditingController? controller,
-    TextInputType? keyboardType,
-    List<TextInputFormatter>? inputFormatters,
-    String? Function(String?)? validator,
-  }) {
+class _DetailStat extends StatelessWidget {
+  const _DetailStat({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
+            style: const TextStyle(color: AppColors.kTextMuted, fontSize: 12)),
+        const SizedBox(height: 4),
+        Text(value,
             style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: AppColors.kTextMuted)),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: controller,
-          keyboardType: keyboardType,
-          inputFormatters: inputFormatters,
-          validator: validator,
-          decoration: InputDecoration(
-            hintText: hint,
-            isDense: true,
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+                color: AppColors.kTextDark)),
+      ],
+    );
+  }
+}
+
+class _Dot extends StatelessWidget {
+  const _Dot({required this.color});
+  final Color color;
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      );
+}
+
+class _MemberRow extends StatelessWidget {
+  const _MemberRow({
+    required this.member,
+    required this.canDelete,
+    required this.onCollect,
+    required this.onDelete,
+  });
+
+  final ChitMember member;
+  final bool canDelete;
+  final VoidCallback? onCollect;
+  final VoidCallback onDelete;
+
+  Color get _statusBg {
+    switch (member.status) {
+      case ChitPaymentStatus.paid:
+        return const Color(0xFFDCFCE7);
+      case ChitPaymentStatus.partial:
+        return const Color(0xFFDBEAFE);
+      case ChitPaymentStatus.overdue:
+        return const Color(0xFFFEE2E2);
+      case ChitPaymentStatus.pending:
+        return const Color(0xFFFEF3C7);
+    }
+  }
+
+  Color get _statusFg {
+    switch (member.status) {
+      case ChitPaymentStatus.paid:
+        return AppColors.kSuccess;
+      case ChitPaymentStatus.partial:
+        return const Color(0xFF2563EB);
+      case ChitPaymentStatus.overdue:
+        return AppColors.kDanger;
+      case ChitPaymentStatus.pending:
+        return AppColors.kWarning;
+    }
+  }
+
+  String get _statusLabel {
+    final s = member.status.name;
+    return s[0].toUpperCase() + s.substring(1);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.kBorder),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(member.memberName,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.kTextDark)),
+                if (member.phone != null) ...[
+                  const SizedBox(height: 2),
+                  Text(member.phone!,
+                      style: const TextStyle(
+                          color: AppColors.kTextMuted, fontSize: 12)),
+                ],
+                const SizedBox(height: 4),
+                Text(
+                  member.dueDate != null
+                      ? '${formatIndianCurrency(member.contributionAmount)} · Due ${formatDate(member.dueDate!)}'
+                      : formatIndianCurrency(member.contributionAmount),
+                  style: const TextStyle(
+                      color: AppColors.kTextMuted, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+                color: _statusBg, borderRadius: BorderRadius.circular(999)),
+            child: Text(
+              _statusLabel,
+              style: TextStyle(
+                  color: _statusFg, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ),
+          if (onCollect != null) ...[
+            const SizedBox(width: 4),
+            TextButton.icon(
+              onPressed: onCollect,
+              icon: const Icon(Icons.currency_rupee_rounded, size: 16),
+              label: const Text('Collect'),
+            ),
+          ],
+          if (canDelete) ...[
+            const SizedBox(width: 2),
+            IconButton(
+              icon: const Icon(Icons.person_remove_alt_1_outlined,
+                  color: AppColors.kDanger, size: 20),
+              onPressed: onDelete,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// -----------------------------------------------------------------------
+/// ADD MEMBER SHEET (image 1 mockup)
+/// -----------------------------------------------------------------------
+class _AddMemberFrame extends StatefulWidget {
+  const _AddMemberFrame({required this.group});
+  final ChitGroup group;
+
+  @override
+  State<_AddMemberFrame> createState() => _AddMemberFrameState();
+}
+
+class _AddMemberFrameState extends State<_AddMemberFrame> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _amountCtrl;
+  List<ChitCustomerOption> _customers = [];
+  ChitCustomerOption? _selectedCustomer;
+  bool _loadingCustomers = true;
+  bool _saving = false;
+  String? _loadError;
+
+  @override
+  void initState() {
+    super.initState();
+    _amountCtrl = TextEditingController(
+        text: widget.group.monthlyContribution.round().toString());
+    _loadCustomers();
+  }
+
+  Future<void> _loadCustomers() async {
+    setState(() {
+      _loadingCustomers = true;
+      _loadError = null;
+    });
+    try {
+      final customers = await ChitGroupApiService.fetchCustomers();
+      if (!mounted) return;
+      setState(() {
+        _customers = customers;
+        _loadingCustomers = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = e.toString();
+        _loadingCustomers = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _amountCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleSave() async {
+    if (_selectedCustomer == null) {
+      ToastService.show(
+        title: 'Select a customer',
+        message: 'Choose a customer to add to this group.',
+        type: ToastType.error,
+      );
+      return;
+    }
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _saving = true);
+    try {
+      final member = await ChitGroupApiService.addMember(
+        groupId: widget.group.id,
+        customerId: _selectedCustomer!.id,
+        memberName: _selectedCustomer!.name,
+        phone: _selectedCustomer!.phone,
+        contributionAmount: double.parse(_amountCtrl.text),
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(member);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ToastService.show(
+        title: 'Add member failed',
+        message: e.toString(),
+        type: ToastType.error,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final keyboardPadding = MediaQuery.of(context).viewInsets.bottom;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: keyboardPadding),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: AppColors.kSurface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black12, blurRadius: 20, offset: Offset(0, -4)),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Add Member',
+                          style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.kTextDark)),
+                      IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        icon: const Icon(Icons.close,
+                            color: AppColors.kTextMuted),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  const Text('CUSTOMER *',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.kTextMuted)),
+                  const SizedBox(height: 8),
+                  _loadingCustomers
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: LinearProgressIndicator(),
+                        )
+                      : _loadError != null
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(_loadError!,
+                                    style: const TextStyle(
+                                        color: AppColors.kDanger)),
+                                TextButton(
+                                    onPressed: _loadCustomers,
+                                    child: const Text('Retry')),
+                              ],
+                            )
+                          : DropdownButtonFormField<ChitCustomerOption>(
+                              value: _selectedCustomer,
+                              isExpanded: true,
+                              decoration: const InputDecoration(isDense: true),
+                              hint: const Text('Select a customer...'),
+                              items: _customers
+                                  .map((c) => DropdownMenuItem(
+                                        value: c,
+                                        child: Text(c.name,
+                                            overflow: TextOverflow.ellipsis),
+                                      ))
+                                  .toList(),
+                              onChanged: (v) =>
+                                  setState(() => _selectedCustomer = v),
+                              validator: (v) => v == null ? 'Required' : null,
+                            ),
+                  const SizedBox(height: 16),
+                  const Text('CONTRIBUTION AMOUNT',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.kTextMuted)),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _amountCtrl,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: const InputDecoration(isDense: true),
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return 'Required';
+                      if (num.tryParse(v) == null)
+                        return 'Enter a valid number';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Defaults to ${formatIndianCurrency(widget.group.monthlyContribution)}',
+                    style: const TextStyle(
+                        color: AppColors.kTextMuted, fontSize: 12),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        onPressed: _saving ? null : _handleSave,
+                        icon: _saving
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.person_add_alt_1),
+                        label: const Text('Add Member'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
-      ],
+      ),
     );
   }
 }
