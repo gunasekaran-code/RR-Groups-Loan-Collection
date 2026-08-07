@@ -20,7 +20,8 @@ class ReportService {
 
   static final ReportService instance = ReportService._();
 
-  static const String _reportsEndpoint = '${ApiConfig.baseUrl}reports.php';
+  static String get _reportsEndpoint =>
+      '${ApiConfig.normalizedBaseUrl}/reports.php';
 
   Future<DailyReport> fetchDailyReport({required DateTime date}) {
     return _getReport(

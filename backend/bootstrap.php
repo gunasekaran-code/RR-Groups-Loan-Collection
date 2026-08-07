@@ -47,13 +47,38 @@ function send_cors(): void
         header('Vary: Origin');
     }
     header('Access-Control-Allow-Methods: GET, POST, PATCH, PUT, DELETE, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type, Authorization');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-HTTP-Method-Override, X-Method-Override');
     header('Access-Control-Max-Age: 86400');
     if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
         http_response_code(204);
         exit;
     }
 }
+
+/**
+ * MilesWeb's WAF may block raw PATCH/PUT/DELETE before PHP runs.
+ * Support POST + method override so the app can still reach the backend.
+ */
+function normalize_request_method(): void
+{
+    $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+    if ($method !== 'POST') {
+        return;
+    }
+
+    $override = $_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE']
+        ?? $_SERVER['HTTP_X_METHOD_OVERRIDE']
+        ?? $_GET['_method']
+        ?? '';
+
+    $override = strtoupper(trim((string) $override));
+    if (in_array($override, ['PATCH', 'PUT', 'DELETE'], true)) {
+        $_SERVER['REQUEST_METHOD'] = $override;
+        unset($_GET['_method']);
+    }
+}
+
+normalize_request_method();
 
 function json_out($data, int $status = 200): void
 {

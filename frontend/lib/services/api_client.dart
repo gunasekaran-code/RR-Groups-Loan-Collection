@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
+import 'method_override_http.dart';
 
 /// Low-level REST client matching the PHP backend's generic resource
 /// endpoint (`Model::forTable()` / `ResourceController` / `rest.php?table=`).
@@ -28,7 +29,7 @@ class ApiClient {
   ApiClient._();
   static final ApiClient instance = ApiClient._();
 
-  static const String baseUrl = ApiConfig.baseUrl;
+  static String get baseUrl => ApiConfig.normalizedBaseUrl;
 
   /// Set after login, e.g. `ApiClient.instance.authToken = token;`
   String? authToken;
@@ -79,8 +80,12 @@ class ApiClient {
 
   Future<Map<String, dynamic>> update(
       String table, String id, Map<String, dynamic> row) async {
-    final res = await http.patch(_uri(table, {'id': id}),
-        headers: _headers, body: jsonEncode(row));
+    final res = await postWithMethodOverride(
+      _uri(table, {'id': id}),
+      method: 'PATCH',
+      headers: _headers,
+      body: jsonEncode(row),
+    );
     final data = _decode(res);
     if (data is List && data.isNotEmpty) {
       return data.first as Map<String, dynamic>;
@@ -90,7 +95,11 @@ class ApiClient {
   }
 
   Future<void> delete(String table, String id) async {
-    final res = await http.delete(_uri(table, {'id': id}), headers: _headers);
+    final res = await postWithMethodOverride(
+      _uri(table, {'id': id}),
+      method: 'DELETE',
+      headers: _headers,
+    );
     if (res.statusCode >= 300) {
       throw ApiException(res.statusCode, _errorMessage(res));
     }

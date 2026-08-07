@@ -16,9 +16,9 @@ class ApiException implements Exception {
 class AuthApiService {
   AuthApiService._();
   static final AuthApiService instance = AuthApiService._();
-  
-  static const String baseUrl = ApiConfig.baseUrl;
-  static const String authEndpoint = '$baseUrl/auth.php';
+
+  static String get baseUrl => ApiConfig.normalizedBaseUrl;
+  static final String authEndpoint = '$baseUrl/auth.php';
 
   static const _tokenKey = 'auth_token';
   static const _profileKey = 'auth_profile';
@@ -130,53 +130,50 @@ class AuthApiService {
 
   Future<bool> isLoggedIn() async => (await getToken()) != null;
 
-Future<Map<String, dynamic>> updateProfile({
-  required String fullName,
-  required String mobile,
-  String? occupation,
-  String? aadhaar,
-  String? pan,
-  String? address,
-  String? avatarBase64, // NEW: data URI, e.g. "data:image/jpeg;base64,...."
-}) async {
-  final token = await getToken();
-  if (token == null) {
-    throw ApiException('Not logged in.', 401);
-  }
+  Future<Map<String, dynamic>> updateProfile({
+    required String fullName,
+    required String mobile,
+    String? occupation,
+    String? aadhaar,
+    String? pan,
+    String? address,
+    String? avatarBase64, // NEW: data URI, e.g. "data:image/jpeg;base64,...."
+  }) async {
+    final token = await getToken();
+    if (token == null) {
+      throw ApiException('Not logged in.', 401);
+    }
 
-  final data = await _post('update_profile', {
-    'full_name': fullName,
-    'mobile': mobile,
-    'occupation': occupation,
-    'aadhaar': aadhaar,
-    'pan': pan,
-    'address': address,
-    if (avatarBase64 != null) 'avatar_url': avatarBase64, // NEW
-  });
+    final data = await _post('update_profile', {
+      'full_name': fullName,
+      'mobile': mobile,
+      'occupation': occupation,
+      'aadhaar': aadhaar,
+      'pan': pan,
+      'address': address,
+      if (avatarBase64 != null) 'avatar_url': avatarBase64, // NEW
+    });
 
-  final updatedProfile = data['profile'] as Map<String, dynamic>?;
-  if (updatedProfile != null) {
+    final updatedProfile = data['profile'] as Map<String, dynamic>?;
+    if (updatedProfile != null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_profileKey, jsonEncode(updatedProfile));
+      return updatedProfile;
+    }
+
+    final current = await getStoredProfile() ?? {};
+    final merged = {
+      ...current,
+      'full_name': fullName,
+      'mobile': mobile,
+      'occupation': occupation,
+      'aadhaar': aadhaar,
+      'pan': pan,
+      'address': address,
+      if (avatarBase64 != null) 'avatar_url': avatarBase64, // NEW
+    };
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_profileKey, jsonEncode(updatedProfile));
-    return updatedProfile;
+    await prefs.setString(_profileKey, jsonEncode(merged));
+    return merged;
   }
-
-  final current = await getStoredProfile() ?? {};
-  final merged = {
-    ...current,
-    'full_name': fullName,
-    'mobile': mobile,
-    'occupation': occupation,
-    'aadhaar': aadhaar,
-    'pan': pan,
-    'address': address,
-    if (avatarBase64 != null) 'avatar_url': avatarBase64, // NEW
-  };
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.setString(_profileKey, jsonEncode(merged));
-  return merged;
-}
-
-
-
 }

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/AppNotification.dart';
+import 'method_override_http.dart';
 import 'session_service.dart';
 
 class NotificationApiException implements Exception {
@@ -86,8 +87,9 @@ class NotificationService {
   }
 
   static Future<void> markRead(String id) async {
-    final res = await _client.patch(
+    final res = await postWithMethodOverride(
       Uri.parse('$_restEndpoint?table=notifications&id=eq.$id'),
+      method: 'PATCH',
       headers: _headers,
       body: jsonEncode({'read': 1}),
     );
@@ -103,8 +105,9 @@ class NotificationService {
   }
 
   static Future<void> delete(String id) async {
-    final res = await _client.delete(
+    final res = await postWithMethodOverride(
       Uri.parse('$_restEndpoint?table=notifications&id=eq.$id'),
+      method: 'DELETE',
       headers: _headers,
     );
     if (res.statusCode < 200 || res.statusCode >= 300) {

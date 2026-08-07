@@ -4,6 +4,7 @@ import '../config/api_config.dart';
 import 'auth_api_service.dart';
 import 'session_service.dart';
 import 'collection_api_service.dart';
+import 'method_override_http.dart';
 import '../models/agent_collection.dart';
 
 class AgentCollectionApiService {
@@ -135,8 +136,9 @@ class AgentCollectionApiService {
     await CollectionApiService.createCollection(payload);
 
     try {
-      await http.patch(
+      await postWithMethodOverride(
         _scheduleUri({'id': item.id}),
+        method: 'PATCH',
         headers: await _headers(),
         body: jsonEncode({'status': 'paid'}),
       );

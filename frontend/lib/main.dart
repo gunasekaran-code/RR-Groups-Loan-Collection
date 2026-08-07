@@ -7,10 +7,13 @@ import 'theme/glass_toast.dart';
 import 'theme/theme_controller.dart';
 import 'screens/splash/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
-import 'screens/dashboard/dashboard_screen.dart';
+import 'screens/dashboard/admin_dashboard.dart';
+import 'screens/dashboard/agent_dashboard.dart';
+import 'screens/dashboard/customer_dashboard.dart';
 import 'screens/customers/customers_screen.dart';
 import 'screens/loans/loans_screen.dart';
 import 'screens/repayment/repayment_schedule_screen.dart';
+import 'screens/Payment_History/Payment_History.dart';
 import 'screens/collections/collections_screen.dart';
 import 'screens/overdue/overdue_screen.dart';
 import 'screens/route_map/route_map_screen.dart';
@@ -57,6 +60,7 @@ class FinCollectApp extends StatelessWidget {
 
   Route<dynamic> _onGenerateRoute(RouteSettings settings) {
     Widget page;
+    final currentRole = SessionService.instance.currentUser?.role;
 
     switch (settings.name) {
       case AppRoutes.splash:
@@ -66,7 +70,7 @@ class FinCollectApp extends StatelessWidget {
         page = const LoginScreen();
         break;
       case AppRoutes.dashboard:
-        page = _guarded(const DashboardScreen(), UserRole.values);
+        page = _guarded(_dashboardForRole(currentRole), UserRole.values);
         break;
       case AppRoutes.customers:
         page = _guarded(const CustomersScreen(), UserRole.values);
@@ -76,6 +80,9 @@ class FinCollectApp extends StatelessWidget {
         break;
       case AppRoutes.repayment:
         page = _guarded(const RepaymentScheduleScreen(), UserRole.values);
+        break;
+      case AppRoutes.paymentHistory:
+        page = _guarded(const PaymentHistoryScreen(), UserRole.values);
         break;
       case AppRoutes.collections:
         page = _guarded(
@@ -89,35 +96,45 @@ class FinCollectApp extends StatelessWidget {
         page = _guarded(const OverdueScreen(), UserRole.values);
         break;
       case AppRoutes.agent:
-        page = _guarded(const AgentManagementScreen(), const [UserRole.owner, UserRole.admin]);
+        page = _guarded(const AgentManagementScreen(),
+            const [UserRole.owner, UserRole.admin]);
         break;
       case AppRoutes.agentCollection:
         page = _guarded(const AgentCollectionScreen(), const [UserRole.agent]);
         break;
       case AppRoutes.routeMap:
-        page = _guarded(const RouteMapScreen(), const [UserRole.owner, UserRole.admin, UserRole.agent]);
+        page = _guarded(const RouteMapScreen(),
+            const [UserRole.owner, UserRole.admin, UserRole.agent]);
         break;
       case AppRoutes.chitGroups:
-        page = _guarded(const ChitGroupsScreen(), const [UserRole.owner, UserRole.admin, UserRole.agent, UserRole.customer]);
+        page = _guarded(const ChitGroupsScreen(), const [
+          UserRole.owner,
+          UserRole.admin,
+          UserRole.agent,
+          UserRole.customer
+        ]);
         break;
       case AppRoutes.reports:
-        page = _guarded(const ReportsScreen(), const [UserRole.owner, UserRole.admin]);
+        page = _guarded(
+            const ReportsScreen(), const [UserRole.owner, UserRole.admin]);
         break;
       case AppRoutes.notifications:
         page = _guarded(const NotificationsScreen(), UserRole.values);
         break;
       case AppRoutes.userManagement:
-        page = _guarded(const UserManagementScreen(), const [UserRole.owner, UserRole.admin]);
+        page = _guarded(const UserManagementScreen(),
+            const [UserRole.owner, UserRole.admin]);
         break;
       case AppRoutes.settings:
-        page = _guarded(const SettingsScreen(), const [UserRole.owner, UserRole.admin]);
+        page = _guarded(
+            const SettingsScreen(), const [UserRole.owner, UserRole.admin]);
         break;
       case AppRoutes.profile:
         page = _guarded(
-          AppShell(
+          const AppShell(
             currentRoute: AppRoutes.profile,
             title: 'My Profile',
-            body: const ProfilePage(showScaffold: false),
+            body: ProfilePage(showScaffold: false),
           ),
           UserRole.values,
         );
@@ -140,7 +157,20 @@ class FinCollectApp extends StatelessWidget {
   Widget _guarded(Widget page, List<UserRole> allowedRoles) {
     final user = SessionService.instance.currentUser;
     if (user == null) return const LoginScreen();
-    if (!allowedRoles.contains(user.role)) return const DashboardScreen();
+    if (!allowedRoles.contains(user.role)) return _dashboardForRole(user.role);
     return page;
+  }
+
+  Widget _dashboardForRole(UserRole? role) {
+    switch (role) {
+      case UserRole.customer:
+        return const CustomerDashboardScreen();
+      case UserRole.agent:
+        return const AgentDashboardScreen();
+      case UserRole.owner:
+      case UserRole.admin:
+      case null:
+        return const DashboardScreen();
+    }
   }
 }

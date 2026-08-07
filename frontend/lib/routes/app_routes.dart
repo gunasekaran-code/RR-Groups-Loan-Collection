@@ -4,9 +4,12 @@ class AppRoutes {
   static const String splash = '/splash';
   static const String login = '/login';
   static const String dashboard = '/dashboard';
+  static const String customerDashboard = '/customer-Dashboard';
+  static const String agentDashboard = '/agent-Dashboard';
   static const String customers = '/customers';
   static const String loans = '/loans';
   static const String repayment = '/repayment';
+  static const String paymentHistory = '/Payments-history';
   static const String collections = '/collections';
   static const String overdue = '/Overdue';
   static const String agent = '/agent';

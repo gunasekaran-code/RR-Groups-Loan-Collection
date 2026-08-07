@@ -144,10 +144,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(0.08),
+                          color: Colors.red.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(10),
-                          border:
-                              Border.all(color: Colors.red.withOpacity(0.3)),
+                          border: Border.all(
+                              color: Colors.red.withValues(alpha: 0.3)),
                         ),
                         child: Row(
                           children: [
@@ -179,8 +179,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         prefixIcon: Icon(Icons.mail_outline, size: 20),
                       ),
                       validator: (v) {
-                        if (v == null || v.trim().isEmpty)
+                        if (v == null || v.trim().isEmpty) {
                           return 'Email is required';
+                        }
                         if (!v.contains('@')) return 'Enter a valid email';
                         return null;
                       },

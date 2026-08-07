@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'auth_api_service.dart'; // adjust import path to wherever this actually lives
 import '../config/api_config.dart';
+import 'method_override_http.dart';
 
 /// CRUD client for the generic `ResourceController`-backed agent/profile
 /// endpoint. Mirrors AuthApiService's error handling so both services throw
@@ -76,10 +77,12 @@ class AgentApiService {
       String id, Map<String, dynamic> data) async {
     late http.Response res;
     try {
-      res = await http
-          .patch(Uri.parse('$userEndpoint?id=$id'),
-              headers: await _headers(), body: jsonEncode(data))
-          .timeout(const Duration(seconds: 15));
+      res = await postWithMethodOverride(
+        Uri.parse('$userEndpoint?id=$id'),
+        method: 'PATCH',
+        headers: await _headers(),
+        body: jsonEncode(data),
+      ).timeout(const Duration(seconds: 15));
     } catch (_) {
       throw ApiException(
           'Could not reach the server. Check your connection and try again.',
@@ -93,9 +96,11 @@ class AgentApiService {
   Future<void> deleteAgent(String id) async {
     late http.Response res;
     try {
-      res = await http
-          .delete(Uri.parse('$agentEndpoint?id=$id'), headers: await _headers())
-          .timeout(const Duration(seconds: 15));
+      res = await postWithMethodOverride(
+        Uri.parse('$agentEndpoint?id=$id'),
+        method: 'DELETE',
+        headers: await _headers(),
+      ).timeout(const Duration(seconds: 15));
     } catch (_) {
       throw ApiException(
           'Could not reach the server. Check your connection and try again.',

@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/cash_handover.dart';
 import '../models/user_role.dart';
+import 'method_override_http.dart';
 import 'session_service.dart';
 
 class HandoverAgentOption {
@@ -108,7 +109,8 @@ class CashHandoverApiService {
           ),
         )
         .where((a) => a.id.isNotEmpty)
-        .where((a) => _isAdmin || currentUserId == null || a.id == currentUserId)
+        .where(
+            (a) => _isAdmin || currentUserId == null || a.id == currentUserId)
         .toList()
       ..sort((a, b) => a.name.compareTo(b.name));
     return agents;
@@ -118,7 +120,8 @@ class CashHandoverApiService {
     final rows = await _listRows();
     final records = rows.map(HandoverRecord.fromJson).toList();
 
-    final totalCollected = records.fold<double>(0, (sum, row) => sum + row.totalAmount);
+    final totalCollected =
+        records.fold<double>(0, (sum, row) => sum + row.totalAmount);
     final totalHandedOver = records
         .where((row) => row.verified)
         .fold<double>(0, (sum, row) => sum + row.totalAmount);
@@ -150,7 +153,8 @@ class CashHandoverApiService {
 
     return grouped.entries.map((entry) {
       final items = entry.value;
-      final collected = items.fold<double>(0, (sum, row) => sum + row.totalAmount);
+      final collected =
+          items.fold<double>(0, (sum, row) => sum + row.totalAmount);
       final handedOver = items
           .where((row) => row.verified)
           .fold<double>(0, (sum, row) => sum + row.totalAmount);
@@ -191,8 +195,9 @@ class CashHandoverApiService {
   }
 
   static Future<HandoverRecord> verifyHandover(String id) async {
-    final res = await http.patch(
+    final res = await postWithMethodOverride(
       _uri('handovers', {'id': id}),
+      method: 'PATCH',
       headers: _headers,
       body: jsonEncode({
         'status': 'verified',
@@ -210,8 +215,9 @@ class CashHandoverApiService {
   }
 
   static Future<HandoverRecord> updateHandover(HandoverRecord record) async {
-    final res = await http.patch(
+    final res = await postWithMethodOverride(
       _uri('handovers', {'id': record.id}),
+      method: 'PATCH',
       headers: _headers,
       body: jsonEncode(record.toUpdateJson()),
     );
@@ -225,8 +231,9 @@ class CashHandoverApiService {
   }
 
   static Future<void> deleteHandover(String id) async {
-    final res = await http.delete(
+    final res = await postWithMethodOverride(
       _uri('handovers', {'id': id}),
+      method: 'DELETE',
       headers: _headers,
     );
     if (res.statusCode != 200 && res.statusCode != 204) {

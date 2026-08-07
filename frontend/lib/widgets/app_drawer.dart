@@ -95,7 +95,7 @@ const List<_DrawerSection> _customerSections = [
   _DrawerSection(title: 'MY ACCOUNT', items: [
     _DrawerItem(label: 'My Loans', icon: Icons.account_balance_outlined, route: AppRoutes.loans),
     _DrawerItem(label: 'Repayment Schedule', icon: Icons.event_note_outlined, route: AppRoutes.repayment),
-    _DrawerItem(label: 'Payment History', icon: Icons.history_rounded, route: AppRoutes.collections),
+    _DrawerItem(label: 'Payment History', icon: Icons.history_rounded, route: AppRoutes.paymentHistory),
     _DrawerItem(label: 'My Funds', icon: Icons.account_balance_wallet_outlined, route: AppRoutes.funds),
     _DrawerItem(label: 'My Chits', icon: Icons.groups_2_outlined, route: AppRoutes.chitGroups), 
   ]),

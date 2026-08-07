@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
+import 'method_override_http.dart';
 import 'session_service.dart'; // adjust path — wherever SessionService lives
 
 class ApiService {
@@ -35,14 +36,23 @@ class ApiService {
       {required String id, required Map<String, dynamic> body}) async {
     final uri = Uri.parse(_restEndpoint)
         .replace(queryParameters: {'table': table, 'id': id});
-    final res = await http.put(uri, headers: _headers, body: jsonEncode(body));
+    final res = await postWithMethodOverride(
+      uri,
+      method: 'PUT',
+      headers: _headers,
+      body: jsonEncode(body),
+    );
     return _handle(res);
   }
 
   static Future<dynamic> delete(String table, {required String id}) async {
     final uri = Uri.parse(_restEndpoint)
         .replace(queryParameters: {'table': table, 'id': id});
-    final res = await http.delete(uri, headers: _headers);
+    final res = await postWithMethodOverride(
+      uri,
+      method: 'DELETE',
+      headers: _headers,
+    );
     return _handle(res);
   }
 

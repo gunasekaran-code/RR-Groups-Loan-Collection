@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import '../models/repayment_installment.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
+import 'method_override_http.dart';
 
 /// Talks to the `ScheduleController` endpoint backing `repayment_schedule`.
 ///
@@ -58,7 +59,7 @@ class ApiServiceRepayment {
     RepaymentInstallment installment,
   ) async {
     final res = await http.post(
-      Uri.parse(_baseUrl),
+      _uri(),
       headers: await _headers(),
       body: jsonEncode(installment.toJson()),
     );
@@ -75,8 +76,9 @@ class ApiServiceRepayment {
     String id,
     Map<String, dynamic> changes,
   ) async {
-    final res = await http.patch(
-      Uri.parse('$_baseUrl/$id'),
+    final res = await postWithMethodOverride(
+      _uri({'id': id}),
+      method: 'PATCH',
       headers: await _headers(),
       body: jsonEncode(changes),
     );
@@ -90,8 +92,9 @@ class ApiServiceRepayment {
 
   /// Delete an installment row (admin only).
   Future<void> deleteInstallment(String id) async {
-    final res = await http.delete(
-      Uri.parse('$_baseUrl/$id'),
+    final res = await postWithMethodOverride(
+      _uri({'id': id}),
+      method: 'DELETE',
       headers: await _headers(),
     );
 

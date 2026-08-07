@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/customer.dart';
+import 'method_override_http.dart';
 import 'session_service.dart'; // adjust import to your actual SessionService path
 
 class CustomerApiException implements Exception {
@@ -17,15 +18,15 @@ class AgentOption {
   final String fullName;
   AgentOption(this.id, this.fullName);
 }
- 
+
 class CustomerApiService {
   CustomerApiService({http.Client? client}) : _client = client ?? http.Client();
 
   final http.Client _client;
 
-  static const String _baseUrl = ApiConfig.baseUrl;
-  static const String _customerEndpoint = '$_baseUrl/customers.php';
-  static const String _restEndpoint = '$_baseUrl/rest.php';
+  static String get _baseUrl => ApiConfig.normalizedBaseUrl;
+  static String get _customerEndpoint => '$_baseUrl/customers.php';
+  static String get _restEndpoint => '$_baseUrl/rest.php';
 
   Map<String, String> get _headers {
     final token = SessionService.instance.token;
@@ -48,7 +49,8 @@ class CustomerApiService {
   Map<String, dynamic> _decodeObject(http.Response res) {
     final data = _decodeBody(res);
     if (res.statusCode < 200 || res.statusCode >= 300) {
-      throw CustomerApiException(_messageFromPayload(data, res.statusCode), res.statusCode);
+      throw CustomerApiException(
+          _messageFromPayload(data, res.statusCode), res.statusCode);
     }
 
     if (data is List) {
@@ -69,7 +71,8 @@ class CustomerApiService {
   List<dynamic> _decodeList(http.Response res) {
     final data = _decodeBody(res);
     if (res.statusCode < 200 || res.statusCode >= 300) {
-      throw CustomerApiException(_messageFromPayload(data, res.statusCode), res.statusCode);
+      throw CustomerApiException(
+          _messageFromPayload(data, res.statusCode), res.statusCode);
     }
 
     if (data is List) {
@@ -106,11 +109,13 @@ class CustomerApiService {
         .toList();
   }
 
-  Future<Customer> create(Customer customer, {String? email, String? password}) async {
+  Future<Customer> create(Customer customer,
+      {String? email, String? password}) async {
     final res = await _client.post(
       Uri.parse(_customerEndpoint),
       headers: _headers,
-      body: jsonEncode(customer.toRequestBody(email: email, password: password)),
+      body:
+          jsonEncode(customer.toRequestBody(email: email, password: password)),
     );
     final data = _decodeObject(res);
     return Customer.fromJson(data);
@@ -122,17 +127,21 @@ class CustomerApiService {
     String? email,
     String? password,
   }) async {
-    final res = await _client.patch(
+    final res = await postWithMethodOverride(
       Uri.parse('$_customerEndpoint?id=$id'),
+      method: 'PATCH',
       headers: _headers,
-      body: jsonEncode(customer.toRequestBody(email: email, password: password)),
+      body:
+          jsonEncode(customer.toRequestBody(email: email, password: password)),
     );
     final data = _decodeObject(res);
     return Customer.fromJson(data);
   }
+
   Future<void> delete(String id) async {
-    final res = await _client.delete(
+    final res = await postWithMethodOverride(
       Uri.parse('$_restEndpoint?table=customers&id=eq.$id'),
+      method: 'DELETE',
       headers: _headers,
     );
     if (res.statusCode < 200 || res.statusCode >= 300) {
@@ -161,15 +170,17 @@ class CustomerApiService {
       Uri.parse('$_restEndpoint?table=customers&select=id,full_name,email'),
       headers: _headers,
     );
-    
+
     final list = _decodeList(res);
-    
+
     return list.map((e) {
       final map = e as Map<String, dynamic>;
       return {
         'id': map['id']?.toString() ?? '',
         // Fallback to 'name' if your DB uses 'name' instead of 'full_name'
-        'name': map['full_name']?.toString() ?? map['name']?.toString() ?? 'Unknown',
+        'name': map['full_name']?.toString() ??
+            map['name']?.toString() ??
+            'Unknown',
         'email': map['email']?.toString() ?? '',
       };
     }).toList();
@@ -177,7 +188,8 @@ class CustomerApiService {
 
   Future<List<Map<String, String>>> fetchCustomerLogins() async {
     final res = await _client.get(
-      Uri.parse('$_restEndpoint?table=profiles&role=eq.customer&select=id,customer_id'),
+      Uri.parse(
+          '$_restEndpoint?table=profiles&role=eq.customer&select=id,customer_id'),
       headers: _headers,
     );
     final list = _decodeList(res);

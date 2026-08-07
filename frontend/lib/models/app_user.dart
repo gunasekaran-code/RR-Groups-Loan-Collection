@@ -15,6 +15,8 @@ class AppUser {
     this.avatarUrl,
   });
 
+  String get agentId => userId;
+
   String get initials {
     final parts = name.trim().split(RegExp(r'\s+'));
     if (parts.isEmpty) return '?';

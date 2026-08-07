@@ -3,6 +3,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
+import 'method_override_http.dart';
 import 'session_service.dart';
 import '../models/chit_group.dart';
 import '../models/chit_member.dart';
@@ -40,8 +41,9 @@ class ChitGroupApiService {
   // ---- GROUPS: UPDATE (admin full edit) ----
   static Future<ChitGroup> update(ChitGroup group) async {
     final uri = Uri.parse('$_restEndpoint?table=chit_groups&id=${group.id}');
-    final res = await http.patch(
+    final res = await postWithMethodOverride(
       uri,
+      method: 'PATCH',
       headers: _headers,
       body: jsonEncode(group.toJson()),
     );
@@ -61,8 +63,9 @@ class ChitGroupApiService {
     String? status,
   }) async {
     final uri = Uri.parse('$_restEndpoint?table=chit_groups&id=$groupId');
-    final res = await http.patch(
+    final res = await postWithMethodOverride(
       uri,
+      method: 'PATCH',
       headers: _headers,
       body: jsonEncode({
         'collected_amount': collectedAmount,
@@ -77,7 +80,11 @@ class ChitGroupApiService {
   // ---- GROUPS: DELETE (admin only — enforced server-side) ----
   static Future<void> delete(String id) async {
     final uri = Uri.parse('$_restEndpoint?table=chit_groups&id=$id');
-    final res = await http.delete(uri, headers: _headers);
+    final res = await postWithMethodOverride(
+      uri,
+      method: 'DELETE',
+      headers: _headers,
+    );
     _throwIfError(res);
   }
 
@@ -124,7 +131,11 @@ class ChitGroupApiService {
   // Gated to admin only in the UI, same note as addMember above.
   static Future<void> deleteMember(String memberId) async {
     final uri = Uri.parse('$_restEndpoint?table=chit_members&id=$memberId');
-    final res = await http.delete(uri, headers: _headers);
+    final res = await postWithMethodOverride(
+      uri,
+      method: 'DELETE',
+      headers: _headers,
+    );
     _throwIfError(res);
   }
 
@@ -134,8 +145,9 @@ class ChitGroupApiService {
     required ChitPaymentStatus status,
   }) async {
     final uri = Uri.parse('$_restEndpoint?table=chit_members&id=$memberId');
-    final res = await http.patch(
+    final res = await postWithMethodOverride(
       uri,
+      method: 'PATCH',
       headers: _headers,
       body: jsonEncode({'payment_status': ChitMember.statusToString(status)}),
     );
@@ -161,14 +173,6 @@ class ChitGroupApiService {
         ? decoded['data']
         : decoded as List;
     return list.cast<Map<String, dynamic>>();
-  }
-
-  static Map<String, dynamic> _dataFrom(http.Response res) {
-    final decoded = jsonDecode(res.body);
-    final data = decoded is Map && decoded.containsKey('data')
-        ? decoded['data']
-        : decoded;
-    return data as Map<String, dynamic>;
   }
 
   static Map<String, dynamic> _rowFrom(http.Response res) {

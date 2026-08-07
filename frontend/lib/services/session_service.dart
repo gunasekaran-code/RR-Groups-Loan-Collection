@@ -73,6 +73,4 @@ UserRole _roleFromProfile(dynamic rawRole) {
     default:
       return UserRole.agent;
   }
-
-  
 }

@@ -6,14 +6,15 @@ import '../services/session_service.dart';
 import '../screens/agent_collection/agent_collection_screen.dart';
 import '../screens/collections/collections_screen.dart';
 import '../screens/customers/customers_screen.dart';
-import '../screens/dashboard/dashboard_screen.dart';
+import '../screens/dashboard/admin_dashboard.dart';
+import '../screens/dashboard/agent_dashboard.dart';
+import '../screens/dashboard/customer_dashboard.dart';
 import '../screens/loans/loans_screen.dart';
 import '../screens/repayment/repayment_schedule_screen.dart';
 import '../screens/settings/profile_page.dart';
 import 'app_navbar.dart';
 import 'app_drawer.dart';
 import 'user_avatar.dart';
-
 
 class _AppShellContentOnly extends InheritedWidget {
   const _AppShellContentOnly({required super.child});
@@ -53,9 +54,6 @@ class AppShell extends StatefulWidget {
     AppRoutes.collections,
   ];
 
-  // Titles for every tab reachable from the bottom nav, so the AppBar can
-  // show the right title the instant a tab is tapped — without having to
-  // wait for that screen to build and report its own title back up.
   static const Map<String, String> _tabTitles = {
     AppRoutes.dashboard: 'Dashboard',
     AppRoutes.customers: 'Customers',
@@ -86,10 +84,6 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
-  /// Title to show in the AppBar for whatever tab/page is currently active.
-  /// Falls back to widget.title (the title the page itself was given) if
-  /// the active route isn't in the lookup — e.g. for routes reached outside
-  /// the bottom nav.
   String get _headerTitle {
     if (_activeRoute == widget.currentRoute) return widget.title;
     return AppShell._tabTitles[_activeRoute] ?? widget.title;
@@ -173,17 +167,24 @@ class _AppShellState extends State<AppShell> {
     final user = SessionService.instance.currentUser;
     return _AppShellContentOnly(
       child: switch (_activeRoute) {
-        AppRoutes.dashboard => const DashboardScreen(),
+        AppRoutes.dashboard => _dashboardForRole(user?.role),
         AppRoutes.customers => const CustomersScreen(),
         AppRoutes.loans => const LoansScreen(),
         AppRoutes.repayment => const RepaymentScheduleScreen(),
-        AppRoutes.collections =>
-          user?.role == UserRole.agent
-              ? const AgentCollectionScreen()
-              : const CollectionsScreen(),
+        AppRoutes.collections => user?.role == UserRole.agent
+            ? const AgentCollectionScreen()
+            : const CollectionsScreen(),
         AppRoutes.profile => const ProfilePage(showScaffold: false),
         _ => widget.body,
       },
     );
+  }
+
+  Widget _dashboardForRole(UserRole? role) {
+    return switch (role) {
+      UserRole.customer => const CustomerDashboardScreen(),
+      UserRole.agent => const AgentDashboardScreen(),
+      UserRole.owner || UserRole.admin || null => const DashboardScreen(),
+    };
   }
 }

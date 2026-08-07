@@ -2,12 +2,14 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/fund.dart';
+import 'method_override_http.dart';
 import 'session_service.dart';
 
 class FundApiService {
   static const String _baseUrl = ApiConfig.baseUrl;
   // Ensure we don't end up with a double slash when baseUrl ends with '/'
-  static final String _restEndpoint = _baseUrl.replaceAll(RegExp(r'/+$'), '') + '/rest.php';
+  static final String _restEndpoint =
+      '${_baseUrl.replaceAll(RegExp(r'/+$'), '')}/rest.php';
 
   static Map<String, String> get _headers => {
         'Content-Type': 'application/json',
@@ -101,8 +103,9 @@ class FundApiService {
   /// bonus, customer, dates). Used by the admin "Edit" action. Admins pass
   /// the FundController's role check unconditionally, so any field set is fine.
   static Future<Fund> update(String id, Fund fund) async {
-    final res = await http.patch(
+    final res = await postWithMethodOverride(
       _uri('funds', {'id': id}),
+      method: 'PATCH',
       headers: _headers,
       body: jsonEncode(fund.toCreateJson()),
     );
@@ -113,7 +116,11 @@ class FundApiService {
   }
 
   static Future<void> delete(String id) async {
-    final res = await http.delete(_uri('funds', {'id': id}), headers: _headers);
+    final res = await postWithMethodOverride(
+      _uri('funds', {'id': id}),
+      method: 'DELETE',
+      headers: _headers,
+    );
     if (res.statusCode != 200 && res.statusCode != 204) _throwFromResponse(res);
   }
 
@@ -129,8 +136,9 @@ class FundApiService {
     required double collectedAmount,
     required String status,
   }) async {
-    final res = await http.patch(
+    final res = await postWithMethodOverride(
       _uri('funds', {'id': id}),
+      method: 'PATCH',
       headers: _headers,
       body: jsonEncode({
         'collected_amount': collectedAmount,
@@ -152,8 +160,9 @@ class FundApiService {
     required String paymentMethod,
     required DateTime settlementDate,
   }) async {
-    final res = await http.patch(
+    final res = await postWithMethodOverride(
       _uri('funds', {'id': id}),
+      method: 'PATCH',
       headers: _headers,
       body: jsonEncode({
         'action': 'settle_in_full',

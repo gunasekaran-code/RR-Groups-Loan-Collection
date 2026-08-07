@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/user_account.dart';
+import 'method_override_http.dart';
 import 'session_service.dart';
 
 class UserApiService {
@@ -86,8 +87,9 @@ class UserApiService {
     UserAccount user, {
     String? password,
   }) async {
-    final res = await http.patch(
+    final res = await postWithMethodOverride(
       Uri.parse(_usersEndpoint).replace(queryParameters: {'id': user.id}),
+      method: 'PATCH',
       headers: _headers,
       body: jsonEncode(user.toUpdateJson(password: password)),
     );
@@ -100,8 +102,11 @@ class UserApiService {
 
   /// DELETE /rest.php?table=profiles&id={id} — remove a user account.
   Future<void> deleteUser(String id) async {
-    final res =
-        await http.delete(_uri('profiles', {'id': id}), headers: _headers);
+    final res = await postWithMethodOverride(
+      _uri('profiles', {'id': id}),
+      method: 'DELETE',
+      headers: _headers,
+    );
     if (res.statusCode != 200 && res.statusCode != 204) {
       _throwFromResponse(res);
     }
