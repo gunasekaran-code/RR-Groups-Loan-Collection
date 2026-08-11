@@ -26,6 +26,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
   String? _loadError;
   String _searchQuery = '';
   String _selectedCustomerId = 'all';
+  bool _mapReady = false;
 
   List<CollectionPoint> _points = [];
   FieldMapSummary? _summary;
@@ -96,11 +97,27 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
   }
 
   void _fitMapToPoints() {
+    if (!_mapReady) return;
+
     final points = _filteredPoints;
     if (!mounted || points.isEmpty) return;
-    if (points.length == 1) {
+
+    // `CameraFit.bounds` can blow up when all visible points collapse to a
+    // single coordinate or an almost-zero bounding box, so fall back to a
+    // stable center/zoom in that case.
+    final first = points.first;
+    final hasMeaningfulSpread = points.any((p) =>
+        (p.latitude - first.latitude).abs() > 0.000001 ||
+        (p.longitude - first.longitude).abs() > 0.000001);
+
+    if (points.length == 1 || !hasMeaningfulSpread) {
       _mapController.move(
-        LatLng(points.first.latitude, points.first.longitude),
+        LatLng(
+          points.map((p) => p.latitude).reduce((a, b) => a + b) /
+              points.length,
+          points.map((p) => p.longitude).reduce((a, b) => a + b) /
+              points.length,
+        ),
         15,
       );
       return;
@@ -254,6 +271,10 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                                     options: MapOptions(
                                       initialCenter: _mapCenter,
                                       initialZoom: 10,
+                                      onMapReady: () {
+                                        _mapReady = true;
+                                        _fitMapToPoints();
+                                      },
                                     ),
                                     children: [
                                       TileLayer(
@@ -380,8 +401,8 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: point.collected
-                        ? AppColors.kSuccess.withOpacity(0.1)
-                        : AppColors.kDanger.withOpacity(0.1),
+                        ? AppColors.kSuccess.withValues(alpha: 0.1)
+                        : AppColors.kDanger.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -560,7 +581,7 @@ class _MapPin extends StatelessWidget {
               border: Border.all(color: Colors.white, width: 2),
               boxShadow: [
                 BoxShadow(
-                    color: Colors.black.withOpacity(0.25),
+                    color: Colors.black.withValues(alpha: 0.25),
                     blurRadius: 4,
                     offset: const Offset(0, 2)),
               ],
