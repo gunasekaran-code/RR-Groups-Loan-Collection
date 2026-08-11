@@ -11,14 +11,15 @@ class AgentApiService {
   AgentApiService._();
   static final AgentApiService instance = AgentApiService._();
 
-  // ---------------------------------------------------------------------
-  // Read agents through the generic profiles REST entrypoint, but create
-  // and update accounts through the admin-only users endpoint so passwords
-  // are hashed and extra profile fields are handled correctly.
-  // ---------------------------------------------------------------------
-  static const String baseUrl = ApiConfig.baseUrl;
-  static const String agentEndpoint = '$baseUrl/rest.php?table=profiles';
-  static const String userEndpoint = '$baseUrl/users.php';
+  static String get _baseUrl => ApiConfig.normalizedBaseUrl;
+  static String get _restEndpoint => '$_baseUrl/rest.php';
+  static String get _userEndpoint => '$_baseUrl/users.php';
+
+  Uri _profilesUri([Map<String, String>? query]) {
+    return Uri.parse(_restEndpoint).replace(
+      queryParameters: {'table': 'profiles', ...?query},
+    );
+  }
 
   Future<Map<String, String>> _headers() async {
     final token = await AuthApiService.instance.getToken();
@@ -36,7 +37,7 @@ class AgentApiService {
     late http.Response res;
     try {
       res = await http
-          .get(Uri.parse(agentEndpoint), headers: await _headers())
+          .get(_profilesUri(), headers: await _headers())
           .timeout(const Duration(seconds: 15));
     } catch (_) {
       throw ApiException(
@@ -57,7 +58,7 @@ class AgentApiService {
     late http.Response res;
     try {
       res = await http
-          .post(Uri.parse(userEndpoint),
+          .post(Uri.parse(_userEndpoint),
               headers: await _headers(), body: jsonEncode(data))
           .timeout(const Duration(seconds: 15));
     } catch (_) {
@@ -78,7 +79,7 @@ class AgentApiService {
     late http.Response res;
     try {
       res = await postWithMethodOverride(
-        Uri.parse('$userEndpoint?id=$id'),
+        Uri.parse(_userEndpoint).replace(queryParameters: {'id': id}),
         method: 'PATCH',
         headers: await _headers(),
         body: jsonEncode(data),
@@ -97,7 +98,7 @@ class AgentApiService {
     late http.Response res;
     try {
       res = await postWithMethodOverride(
-        Uri.parse('$agentEndpoint?id=$id'),
+        _profilesUri({'id': id}),
         method: 'DELETE',
         headers: await _headers(),
       ).timeout(const Duration(seconds: 15));

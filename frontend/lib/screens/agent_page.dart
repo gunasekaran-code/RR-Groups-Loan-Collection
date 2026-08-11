@@ -22,6 +22,24 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
   String _query = '';
   String _selectedRole = 'Agent';
 
+  String _formatCreatedDate(dynamic value) {
+  if (value == null || value.toString().isEmpty) {
+    return '';
+  }
+
+  try {
+    final date = DateTime.parse(value.toString());
+
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
+  } catch (_) {
+    return value.toString();
+  }
+}
+
   final ScrollController _tableScrollController = ScrollController();
 
   final List<String> _roleFilters = ['Agent', 'Admin', 'Manager', 'All'];
@@ -595,7 +613,7 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
           DataCell(StatusBadge(label: agent['role']!, tone: BadgeTone.success)),
           DataCell(StatusBadge(
               label: agent['status']!, tone: _toneFor(agent['status']!))),
-          DataCell(Text(agent['created'] ?? '')),
+          DataCell( Text(_formatCreatedDate(agent['created'])),),
           DataCell(Row(
             mainAxisSize: MainAxisSize.min,
             children: [

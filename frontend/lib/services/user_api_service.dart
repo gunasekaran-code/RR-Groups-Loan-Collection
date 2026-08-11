@@ -9,9 +9,9 @@ class UserApiService {
   UserApiService._();
   static final UserApiService instance = UserApiService._();
 
-  static const String _baseUrl = ApiConfig.baseUrl;
-  static const String _restEndpoint = '$_baseUrl/rest.php';
-  static const String _usersEndpoint = '$_baseUrl/users.php';
+  static String get _baseUrl => ApiConfig.normalizedBaseUrl;
+  static String get _restEndpoint => '$_baseUrl/rest.php';
+  static String get _usersEndpoint => '$_baseUrl/users.php';
 
   static Map<String, String> get _headers => {
         'Content-Type': 'application/json',
@@ -21,9 +21,9 @@ class UserApiService {
           'Authorization': 'Bearer ${SessionService.instance.token}',
       };
 
-  static Uri _uri(String resource, [Map<String, String>? query]) {
+  static Uri _profilesUri([Map<String, String>? query]) {
     return Uri.parse(_restEndpoint).replace(
-      queryParameters: {'table': resource, ...?query},
+      queryParameters: {'table': 'profiles', ...?query},
     );
   }
 
@@ -42,7 +42,7 @@ class UserApiService {
 
   /// GET /rest.php?table=profiles — list all user accounts.
   Future<List<UserAccount>> fetchUsers() async {
-    final res = await http.get(_uri('profiles'), headers: _headers);
+    final res = await http.get(_profilesUri(), headers: _headers);
     if (res.statusCode != 200) _throwFromResponse(res);
 
     final data = jsonDecode(res.body);
@@ -57,7 +57,7 @@ class UserApiService {
 
   /// GET /rest.php?table=profiles&id={id} — fetch a single user.
   Future<UserAccount> fetchUser(String id) async {
-    final res = await http.get(_uri('profiles', {'id': id}), headers: _headers);
+    final res = await http.get(_profilesUri({'id': id}), headers: _headers);
     if (res.statusCode != 200) _throwFromResponse(res);
 
     final data = jsonDecode(res.body);
@@ -103,7 +103,7 @@ class UserApiService {
   /// DELETE /rest.php?table=profiles&id={id} — remove a user account.
   Future<void> deleteUser(String id) async {
     final res = await postWithMethodOverride(
-      _uri('profiles', {'id': id}),
+      _profilesUri({'id': id}),
       method: 'DELETE',
       headers: _headers,
     );
