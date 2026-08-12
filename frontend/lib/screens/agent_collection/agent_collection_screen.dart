@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
-import 'package:image_picker/image_picker.dart';
 import '../../routes/app_routes.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_shell.dart';
 import '../../theme/glass_toast.dart';
 import '../../models/agent_collection.dart';
 import '../../services/agent_collection_api_service.dart';
+import '../../utils/location_launcher.dart';
+import '../../screens/agent_collection/agent_collection_detail_screen.dart';
+import '../../widgets/collect_payment_sheet.dart';
 
-// Gold accent used for the primary "Collect" action — matches the
-// screenshot's button color. Not currently exposed on AppColors, so it's
-// defined locally; move it into AppColors if you want it reused elsewhere.
 const Color _kGold = Color(0xFFA9791F);
 const Color _kGoldTint = Color(0xFFFBF3E1);
 
@@ -24,7 +22,8 @@ class AgentCollectionScreen extends StatefulWidget {
 class _AgentCollectionScreenState extends State<AgentCollectionScreen> {
   bool _isLoading = true;
   String? _loadError;
-  List<AgentCollectionItem> _items = [];
+  List<AgentCustomerGroup> _groups = [];
+  String _query = '';
 
   int _collectedToday = 0;
 
@@ -40,11 +39,11 @@ class _AgentCollectionScreenState extends State<AgentCollectionScreen> {
       _loadError = null;
     });
     try {
-      final items = await AgentCollectionApiService.fetchAssignedCollections();
-
+      final groups =
+          await AgentCollectionApiService.fetchAssignedCollectionGroups();
       if (!mounted) return;
       setState(() {
-        _items = items;
+        _groups = groups;
         _isLoading = false;
       });
     } catch (e) {
@@ -61,42 +60,52 @@ class _AgentCollectionScreenState extends State<AgentCollectionScreen> {
     }
   }
 
-  int get _customerCount =>
-      _items.map((e) => e.customerId ?? e.customerName).toSet().length;
+  List<AgentCustomerGroup> get _filteredGroups =>
+      _groups.where((g) => g.matchesQuery(_query)).toList();
 
-  void _openVisit(AgentCollectionItem item) {
-    // Wired to your existing Route Map screen. Adjust the route name if
-    // yours differs.
-    Navigator.of(context).pushNamed(
-      AppRoutes.routeMap,
-      arguments: {'customerId': item.customerId, 'loanId': item.loanId},
+  double get _totalDue => _groups.fold(0.0, (sum, g) => sum + g.totalDue);
+
+  void _openDetail(AgentCustomerGroup group) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AgentCollectionDetailScreen(
+          group: group,
+          onReload: _load,
+        ),
+      ),
     );
+    // The detail screen keeps its own local state but the underlying data
+    // may have changed (payments recorded), so refresh the list on return.
+    _load();
   }
 
-  void _showCollectSheet(AgentCollectionItem item) {
+  void _showCollectSheet(AgentCustomerGroup group) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withOpacity(0.4),
-      builder: (context) => _CollectPaymentSheet(
-        item: item,
+      barrierColor: Colors.black.withValues(alpha: 0.4),
+      builder: (context) => CollectPaymentSheet(
+        customerName: group.customerName,
+        subtitleLabel: 'Loan Type',
+        subtitleValue: group.displayLoanType,
+        prefillAmount: group.totalDue,
         onSubmit: (amount, method, date, notes) =>
-            _collectPayment(item, amount, method, date, notes),
+            _collectForGroup(group, amount, method, date, notes),
       ),
     );
   }
 
-  Future<void> _collectPayment(AgentCollectionItem item, double amount,
+  Future<void> _collectForGroup(AgentCustomerGroup group, double amount,
       String method, DateTime date, String? notes) async {
     try {
-      await AgentCollectionApiService.collectPayment(
-  item: item,
-  amount: amount,
-  paymentMethod: method,
-  collectionDate: date,
-  notes: notes,
-);
+      final createdCount = await AgentCollectionApiService.collectForCustomer(
+        group: group,
+        amount: amount,
+        paymentMethod: method,
+        collectionDate: date,
+        notes: notes,
+      );
       if (!mounted) return;
       final now = DateTime.now();
       final isToday = date.year == now.year &&
@@ -105,32 +114,22 @@ class _AgentCollectionScreenState extends State<AgentCollectionScreen> {
       setState(() {
         if (isToday) _collectedToday++;
       });
+      final summary = createdCount == 1
+          ? '1 installment recorded'
+          : '$createdCount installments recorded';
       ToastService.show(
-        title: 'Collection recorded',
-        message: item.customerName,
+        title: 'Collection saved',
+        message: '${group.uniqueName} • $summary',
         type: ToastType.success,
       );
       await _load();
     } catch (e) {
       ToastService.show(
-        title: 'Failed to record collection',
-        message: e.toString(),
+        title: 'Collection failed',
+        message: '${group.uniqueName}: $e',
         type: ToastType.error,
       );
     }
-  }
-
-  void _showProofSheet(AgentCollectionItem item) {
-    // TODO: wire to a real "proof of visit / document" upload endpoint once
-    // one exists on the backend. For now this just captures a file name
-    // locally, matching the upload-box UX from the Collect Payment sheet.
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withOpacity(0.4),
-      builder: (context) => _ProofUploadSheet(item: item),
-    );
   }
 
   @override
@@ -165,36 +164,27 @@ class _AgentCollectionScreenState extends State<AgentCollectionScreen> {
                 )
               : RefreshIndicator(
                   onRefresh: _load,
-                  child: _items.isEmpty
-                      ? ListView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          children: [
-                            _buildHeader(),
-                            const SizedBox(height: 80),
-                            const Center(
-                              child: Text(
-                                'No collections assigned',
-                                style: TextStyle(color: AppColors.kTextMuted),
-                              ),
-                            ),
-                          ],
-                        )
-                      : ListView.builder(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.only(bottom: 16),
-                          itemCount: _items.length + 1,
-                          itemBuilder: (context, index) {
-                            if (index == 0) return _buildHeader();
-                            final item = _items[index - 1];
-                            return _CollectionCard(
-                              item: item,
-                              onCollect: () => _showCollectSheet(item),
-                              onVisit: () => _openVisit(item),
-                              onProof: () => _showProofSheet(item),
-                            );
-                          },
-                        ),
+                  child: _buildList(),
                 ),
+    );
+  }
+
+  Widget _buildList() {
+    final filtered = _filteredGroups;
+    return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.only(bottom: 16),
+      itemCount: filtered.length + 1,
+      itemBuilder: (context, index) {
+        if (index == 0) return _buildHeader();
+        final group = filtered[index - 1];
+        return _CustomerGroupCard(
+          group: group,
+          onTap: () => _openDetail(group),
+          onCollect: () => _showCollectSheet(group),
+          onVisit: () => openCustomerLocation(context, group),
+        );
+      },
     );
   }
 
@@ -214,190 +204,320 @@ class _AgentCollectionScreenState extends State<AgentCollectionScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            '$_customerCount customers assigned • $_collectedToday collected today',
+            '${_groups.length} customers assigned • $_collectedToday collected today',
             style: const TextStyle(fontSize: 13, color: AppColors.kTextMuted),
+          ),
+          const SizedBox(height: 16),
+          _buildTotalDueBanner(),
+          const SizedBox(height: 16),
+          _buildSearchBar(),
+          if (_query.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                '${_filteredGroups.length} result(s) for "$_query"',
+                style:
+                    const TextStyle(fontSize: 12, color: AppColors.kTextMuted),
+              ),
+            ),
+          if (_filteredGroups.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 60),
+              child: Center(
+                child: Text(
+                  _query.isEmpty
+                      ? 'No collections assigned'
+                      : 'No customers match "$_query"',
+                  style: const TextStyle(color: AppColors.kTextMuted),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTotalDueBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: _kGold,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Total Collection Due',
+                  style: TextStyle(color: Colors.white70, fontSize: 12)),
+            ],
+          ),
+          Text(
+            AgentCollectionItem.formatAmount(_totalDue),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       ),
     );
   }
+
+  Widget _buildSearchBar() {
+    return TextField(
+      onChanged: (v) => setState(() => _query = v),
+      decoration: InputDecoration(
+        hintText: 'Search by customer name or User/Loan ID',
+        prefixIcon: const Icon(Icons.search, color: AppColors.kTextMuted),
+        suffixIcon: _query.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.close, color: AppColors.kTextMuted),
+                onPressed: () => setState(() => _query = ''),
+              )
+            : null,
+        filled: true,
+        fillColor: AppColors.kBackground,
+        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.kBorder),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.kBorder),
+        ),
+      ),
+    );
+  }
 }
 
-class _CollectionCard extends StatelessWidget {
-  final AgentCollectionItem item;
+class _CustomerGroupCard extends StatelessWidget {
+  final AgentCustomerGroup group;
+  final VoidCallback onTap;
   final VoidCallback onCollect;
   final VoidCallback onVisit;
-  final VoidCallback onProof;
 
-  const _CollectionCard({
-    required this.item,
+  const _CustomerGroupCard({
+    required this.group,
+    required this.onTap,
     required this.onCollect,
     required this.onVisit,
-    required this.onProof,
   });
 
   Color get _statusColor {
-    switch (item.status) {
+    switch (group.status) {
       case AgentCollectionStatus.overdue:
         return AppColors.kDanger;
       case AgentCollectionStatus.dueToday:
         return AppColors.kWarning;
-      case AgentCollectionStatus.paid:
-        return AppColors.kSuccess;
-      case AgentCollectionStatus.pending:
+      default:
         return AppColors.kSuccess;
     }
   }
 
   Color get _statusBg {
-    switch (item.status) {
+    switch (group.status) {
       case AgentCollectionStatus.overdue:
         return const Color(0xFFFDEBEC);
       case AgentCollectionStatus.dueToday:
         return const Color(0xFFFFF3DC);
-      case AgentCollectionStatus.paid:
-      case AgentCollectionStatus.pending:
+      default:
         return const Color(0xFFE7F7EE);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.kSurface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.kBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: _kGoldTint,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.people_alt_outlined, color: _kGold),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(item.customerName,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 16,
-                            color: AppColors.kTextDark)),
-                    const SizedBox(height: 2),
-                    Text(item.loanNumber,
-                        style: const TextStyle(
-                            fontSize: 13, color: AppColors.kTextMuted)),
-                  ],
-                ),
-              ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                decoration: BoxDecoration(
-                  color: _statusBg,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  item.statusLabel,
-                  style: TextStyle(
-                    color: _statusColor,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.kSurface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.kBorder),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: _kGoldTint,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    group.initials,
+                    style: const TextStyle(
+                        color: _kGold, fontWeight: FontWeight.bold),
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: _InfoBox(label: 'Due Amount', value: item.formattedDueAmount),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _InfoBox(label: 'Due Date', value: item.formattedDueDate),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              const Icon(Icons.phone_outlined, size: 16, color: AppColors.kTextMuted),
-              const SizedBox(width: 6),
-              Text(
-                item.contactPhone?.isNotEmpty == true
-                    ? item.contactPhone!
-                    : 'Contact on file',
-                style: const TextStyle(fontSize: 13, color: AppColors.kTextMuted),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                flex: 2,
-                child: ElevatedButton.icon(
-                  onPressed: onCollect,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _kGold,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(group.customerName,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                              color: AppColors.kTextDark)),
+                      const SizedBox(height: 2),
+                      Text(group.uniqueName,
+                          style: const TextStyle(
+                              fontSize: 13, color: AppColors.kTextMuted)),
+                      Text('Loan ID: ${group.loanId}',
+                          style: const TextStyle(
+                              fontSize: 12, color: AppColors.kTextMuted)),
+                    ],
                   ),
-                  icon: const Icon(Icons.currency_rupee, size: 16),
-                  label: const Text('Collect'),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onVisit,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.kTextDark,
-                    side: const BorderSide(color: AppColors.kBorder),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: _statusBg,
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  icon: const Icon(Icons.location_on_outlined, size: 16),
-                  label: const Text('Visit'),
+                  child: Text(
+                    group.statusLabel,
+                    style: TextStyle(
+                      color: _statusColor,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                  ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: _InfoBox(
+                      label: 'Total Outstanding',
+                      value: AgentCollectionItem.formatAmount(
+                          group.totalOutstanding)),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _InfoBox(
+                      label: 'Due Now',
+                      value: AgentCollectionItem.formatAmount(group.totalDue)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Icon(Icons.event_outlined,
+                    size: 16, color: AppColors.kTextMuted),
+                const SizedBox(width: 6),
+                Text(
+                  'Due ${AgentCollectionItem.formatDate(group.nearestDueDate)}',
+                  style: const TextStyle(
+                      fontSize: 13, color: AppColors.kTextMuted),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.phone_outlined,
+                    size: 16, color: AppColors.kTextMuted),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    group.contactPhone?.isNotEmpty == true
+                        ? group.contactPhone!
+                        : 'Contact on file',
+                    style: const TextStyle(
+                        fontSize: 13, color: AppColors.kTextMuted),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.category_outlined,
+                    size: 16, color: AppColors.kTextMuted),
+                const SizedBox(width: 6),
+                Text(
+                  'Loan Type: ${group.displayLoanType} • ${group.displayLoanName}',
+                  style: const TextStyle(
+                      fontSize: 13, color: AppColors.kTextMuted),
+                ),
+              ],
+            ),
+            if (group.address != null && group.address!.trim().isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  const Icon(Icons.location_on_outlined,
+                      size: 16, color: AppColors.kTextMuted),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      group.address!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 13, color: AppColors.kTextMuted),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              // Expanded(
-              //   child: OutlinedButton.icon(
-              //     onPressed: onProof,
-              //     style: OutlinedButton.styleFrom(
-              //       foregroundColor: AppColors.kTextDark,
-              //       side: const BorderSide(color: AppColors.kBorder),
-              //       padding: const EdgeInsets.symmetric(vertical: 12),
-              //       shape: RoundedRectangleBorder(
-              //           borderRadius: BorderRadius.circular(10)),
-              //     ),
-              //     icon: const Icon(Icons.upload_outlined, size: 16),
-              //     label: const Text('Proof'),
-              //   ),
-              // ),
             ],
-          ),
-        ],
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton.icon(
+                    onPressed: onCollect,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _kGold,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    icon: const Icon(Icons.currency_rupee, size: 16),
+                    label: const Text('Collect'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onVisit,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.kTextDark,
+                      side: const BorderSide(color: AppColors.kBorder),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    icon: const Icon(Icons.location_on_outlined, size: 16),
+                    label: const Text('Visit'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -420,7 +540,8 @@ class _InfoBox extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label,
-              style: const TextStyle(fontSize: 11, color: AppColors.kTextMuted)),
+              style:
+                  const TextStyle(fontSize: 11, color: AppColors.kTextMuted)),
           const SizedBox(height: 2),
           Text(value,
               style: const TextStyle(
@@ -428,557 +549,6 @@ class _InfoBox extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                   color: AppColors.kTextDark)),
         ],
-      ),
-    );
-  }
-}
-
-// ==========================================
-// COLLECT PAYMENT SHEET (matches the provided screenshot)
-// ==========================================
-class _CollectPaymentSheet extends StatefulWidget {
-  final AgentCollectionItem item;
-  final void Function(double amount, String method, DateTime date, String? notes)
-      onSubmit;
-
-  const _CollectPaymentSheet({required this.item, required this.onSubmit});
-
-  @override
-  State<_CollectPaymentSheet> createState() => _CollectPaymentSheetState();
-}
-class _CollectPaymentSheetState extends State<_CollectPaymentSheet> {
-  static const List<String> _paymentMethods = [
-    'Cash',
-    'UPI',
-    'Bank Transfer',
-    'Cheque',
-    'Card',
-  ];
-  static const Map<String, String> _methodApiValue = {
-    'Cash': 'cash',
-    'UPI': 'upi',
-    'Bank Transfer': 'bank',
-    'Cheque': 'cheque',
-    'Card': 'card',
-  };
-
-  late final TextEditingController _amountController;
-  final TextEditingController _notesController = TextEditingController();
-  String _paymentMethod = 'Cash';
-  DateTime _collectionDate = DateTime.now();
-  
-  // Replaced String with File for real picking
-  File? _screenshotFile;
-  File? _signatureFile;
-  final ImagePicker _picker = ImagePicker();
-  
-  bool _submitting = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _amountController =
-        TextEditingController(text: widget.item.dueAmount.round().toString());
-  }
-
-  @override
-  void dispose() {
-    _amountController.dispose();
-    _notesController.dispose();
-    super.dispose();
-  }
-
-  bool get _canSave =>
-      (double.tryParse(_amountController.text.trim()) ?? 0) > 0 && !_submitting;
-
-  Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _collectionDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
-    );
-    if (picked != null) setState(() => _collectionDate = picked);
-  }
-
-  // Updated _pickFile method
-  Future<void> _pickFile({required bool isSignature}) async {
-    final source = await _showSourcePicker();
-    if (source == null) return;
-
-    final XFile? picked = await _picker.pickImage(
-      source: source,
-      imageQuality: 80, // compress a bit before upload
-      maxWidth: 1600,
-    );
-    if (picked == null) return;
-
-    setState(() {
-      if (isSignature) {
-        _signatureFile = File(picked.path);
-      } else {
-        _screenshotFile = File(picked.path);
-      }
-    });
-  }
-
-  // Added Bottom Sheet for Camera vs Gallery
-  Future<ImageSource?> _showSourcePicker() {
-    return showModalBottomSheet<ImageSource>(
-      context: context,
-      backgroundColor: AppColors.kSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                // Ensure you have an appropriate color or use Colors.grey
-                color: AppColors.kTextMuted.withOpacity(0.3), 
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 12),
-            ListTile(
-              leading: const Icon(Icons.camera_alt_outlined, color: AppColors.kTextDark),
-              title: const Text('Take Photo'),
-              onTap: () => Navigator.of(ctx).pop(ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined, color: AppColors.kTextDark),
-              title: const Text('Choose from Gallery'),
-              onTap: () => Navigator.of(ctx).pop(ImageSource.gallery),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _submit() async {
-    if (!_canSave) return;
-    final amount = double.tryParse(_amountController.text.trim()) ?? 0;
-    setState(() => _submitting = true);
-    widget.onSubmit(
-      amount,
-      _methodApiValue[_paymentMethod] ?? 'cash',
-      _collectionDate,
-      _notesController.text,
-      // Note: You will eventually pass your files/URLs here too when wiring up the API!
-    );
-    if (mounted) Navigator.of(context).pop();
-  }
-
-  String _formatDate(DateTime d) {
-    return '${d.day.toString().padLeft(2, '0')}-'
-        '${d.month.toString().padLeft(2, '0')}-${d.year}';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final keyboardPadding = MediaQuery.of(context).viewInsets.bottom;
-    final maxSheetHeight = MediaQuery.of(context).size.height * 0.85;
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: keyboardPadding),
-      child: Container(
-        constraints: BoxConstraints(maxHeight: maxSheetHeight),
-        decoration: const BoxDecoration(
-          color: AppColors.kSurface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Collect Payment',
-                        style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.kTextDark)),
-                    IconButton(
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      icon: const Icon(Icons.close, color: AppColors.kTextMuted),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF9E6), // using hex for _kGoldTint
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Customer',
-                              style: TextStyle(fontSize: 12, color: Color(0xFFD4AF37))),
-                          Text(widget.item.customerName,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.kTextDark)),
-                        ],
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          const Text('Loan',
-                              style: TextStyle(fontSize: 12, color: Color(0xFFD4AF37))),
-                          Text(widget.item.loanNumber,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.kTextDark)),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _label('AMOUNT RECEIVED *'),
-                          TextField(
-                            controller: _amountController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                                prefixText: '₹  ', hintText: '0', isDense: true),
-                            onChanged: (_) => setState(() {}),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _label('PAYMENT METHOD'),
-                          DropdownButtonFormField<String>(
-                            isExpanded: true,
-                            initialValue: _paymentMethod,
-                            decoration: const InputDecoration(isDense: true),
-                            items: _paymentMethods
-                                .map((m) =>
-                                    DropdownMenuItem(value: m, child: Text(m)))
-                                .toList(),
-                            onChanged: (v) =>
-                                setState(() => _paymentMethod = v ?? 'Cash'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _label('COLLECTION DATE'),
-                InkWell(
-                  onTap: _pickDate,
-                  child: InputDecorator(
-                    decoration: const InputDecoration(isDense: true),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(_formatDate(_collectionDate)),
-                        const Icon(Icons.calendar_today_outlined, size: 18),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _label('NOTES'),
-                TextField(
-                  controller: _notesController,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                      hintText: 'Optional notes about this collection...',
-                      isDense: true),
-                ),
-                const SizedBox(height: 16),
-                
-                // Updated Upload Boxes
-                Row(
-                  children: [
-                    Expanded(
-                      child: _UploadBox(
-                        icon: Icons.camera_alt_outlined,
-                        label: 'Payment Screenshot',
-                        file: _screenshotFile,
-                        onTap: () => _pickFile(isSignature: false),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _UploadBox(
-                        icon: Icons.edit_outlined,
-                        label: 'Customer Signature',
-                        file: _signatureFile,
-                        accent: true,
-                        onTap: () => _pickFile(isSignature: true),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('Cancel'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 2,
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.kSuccess,
-                        ),
-                        onPressed: _canSave ? _submit : null,
-                        icon: const Icon(Icons.print_outlined, size: 18),
-                        label: Text(_submitting ? 'Saving...' : 'Generate Receipt'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _label(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(text,
-            style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: AppColors.kTextMuted)),
-      );
-}
-
-// ==========================================
-// PROOF UPLOAD SHEET
-// ==========================================
-class _ProofUploadSheet extends StatefulWidget {
-  final AgentCollectionItem item;
-  const _ProofUploadSheet({required this.item});
-
-  @override
-  State<_ProofUploadSheet> createState() => _ProofUploadSheetState();
-}
-
-class _ProofUploadSheetState extends State<_ProofUploadSheet> {
-  File? _file;
-  final ImagePicker _picker = ImagePicker();
-
-  Future<void> _pickFile() async {
-    final source = await _showSourcePicker();
-    if (source == null) return;
-
-    final XFile? picked = await _picker.pickImage(
-      source: source,
-      imageQuality: 80, 
-      maxWidth: 1600,
-    );
-    if (picked == null) return;
-
-    setState(() {
-      _file = File(picked.path);
-    });
-  }
-  
-  Future<ImageSource?> _showSourcePicker() {
-    return showModalBottomSheet<ImageSource>(
-      context: context,
-      backgroundColor: AppColors.kSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.kTextMuted.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 12),
-            ListTile(
-              leading: const Icon(Icons.camera_alt_outlined, color: AppColors.kTextDark),
-              title: const Text('Take Photo'),
-              onTap: () => Navigator.of(ctx).pop(ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined, color: AppColors.kTextDark),
-              title: const Text('Choose from Gallery'),
-              onTap: () => Navigator.of(ctx).pop(ImageSource.gallery),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Upload Proof — ${widget.item.customerName}',
-                  style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.kTextDark)),
-              IconButton(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                icon: const Icon(Icons.close, color: AppColors.kTextMuted),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          _UploadBox(
-            icon: Icons.upload_file_outlined,
-            label: 'Visit / collection proof',
-            file: _file,
-            onTap: _pickFile,
-          ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: _file == null
-                      ? null
-                      : () {
-                          Navigator.of(context).pop();
-                          // TODO: Upload logic goes here
-                        },
-                  child: const Text('Save'),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ==========================================
-// UPDATED UPLOAD BOX (Supports Image Previews)
-// ==========================================
-class _UploadBox extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final File? file;
-  final VoidCallback onTap;
-  final bool accent;
-
-  const _UploadBox({
-    required this.icon,
-    required this.label,
-    required this.file,
-    required this.onTap,
-    this.accent = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final hasFile = file != null;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-        decoration: BoxDecoration(
-          color: hasFile
-              ? (accent ? const Color(0xFFF0FDF4) : const Color(0xFFF0F5FF))
-              : AppColors.kBackground,
-          borderRadius: BorderRadius.circular(10),
-          border: hasFile
-              ? Border.all(color: accent ? AppColors.kSuccess : AppColors.kInfo)
-              : null,
-        ),
-        child: hasFile
-            ? Column(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.file(file!, height: 70, width: double.infinity, fit: BoxFit.cover),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Tap to change',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: accent ? AppColors.kSuccess : AppColors.kInfo,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              )
-            : Column(
-                children: [
-                  Icon(icon, color: AppColors.kTextMuted, size: 22),
-                  const SizedBox(height: 8),
-                  Text(
-                    label,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 12, color: AppColors.kTextMuted),
-                  ),
-                ],
-              ),
       ),
     );
   }

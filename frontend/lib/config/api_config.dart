@@ -4,6 +4,5 @@ class ApiConfig {
     // defaultValue: 'https://rrgroupscbe.com/backend/',
     defaultValue: 'http://localhost:8889/',
   );
-
   static String get normalizedBaseUrl => baseUrl.replaceAll(RegExp(r'/+$'), '');
 }

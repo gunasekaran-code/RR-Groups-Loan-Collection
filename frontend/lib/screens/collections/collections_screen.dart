@@ -17,8 +17,8 @@ class CollectionsScreen extends StatefulWidget {
 class _CollectionsScreenState extends State<CollectionsScreen> {
   String _query = '';
   String _period = 'All';
-  bool _isLoading = true;   // NEW
-  String? _loadError;       // NEW
+  bool _isLoading = true; // NEW
+  String? _loadError; // NEW
 
   final List<String> _periods = const [
     'Today',
@@ -46,8 +46,18 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
   // ---------- API <-> UI mapping ----------
 
   static const Map<int, String> _monthNames = {
-    1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun',
-    7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec',
+    1: 'Jan',
+    2: 'Feb',
+    3: 'Mar',
+    4: 'Apr',
+    5: 'May',
+    6: 'Jun',
+    7: 'Jul',
+    8: 'Aug',
+    9: 'Sep',
+    10: 'Oct',
+    11: 'Nov',
+    12: 'Dec',
   };
 
   String _formatApiDate(dynamic raw) {
@@ -124,6 +134,9 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
     final id = (row['id'] ?? '').toString();
     final receipt = (row['receipt_number'] ?? '').toString();
     final customerName = (row['customer_name'] ?? '').toString();
+    final loanType =
+        (row['loan_type'] ?? row['collection_type'] ?? '').toString().trim();
+    final loanNumber = (row['loan_number'] ?? '-').toString();
 
     if (id.isNotEmpty && receipt.isNotEmpty) {
       _receiptToId[receipt] = id;
@@ -134,7 +147,8 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
       'customer': customerName.isEmpty ? '-' : customerName,
       'initials': _initials(customerName.isEmpty ? '-' : customerName),
       'receipt': receipt.isEmpty ? '-' : receipt,
-      'loan': (row['loan_number'] ?? '-').toString(),
+      'loan': loanNumber,
+      'loan_type': loanType.isEmpty ? '-' : loanType,
       'amount': _formatAmount(row['collection_amount']),
       'date': _formatApiDate(row['collection_date']),
       'method': _formatMethod(row['payment_method']),
@@ -175,8 +189,18 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
       int.tryParse(amount.replaceAll(RegExp(r'[₹,]'), '')) ?? 0;
 
   static const Map<String, int> _months = {
-    'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
-    'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12,
+    'Jan': 1,
+    'Feb': 2,
+    'Mar': 3,
+    'Apr': 4,
+    'May': 5,
+    'Jun': 6,
+    'Jul': 7,
+    'Aug': 8,
+    'Sep': 9,
+    'Oct': 10,
+    'Nov': 11,
+    'Dec': 12,
   };
 
   DateTime? _parseDate(String date) {
@@ -212,6 +236,7 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
         final matchesQuery = q.isEmpty ||
             c['customer']!.toLowerCase().contains(q) ||
             c['loan']!.toLowerCase().contains(q) ||
+            c['loan_type']!.toLowerCase().contains(q) ||
             c['receipt']!.toLowerCase().contains(q);
         return matchesQuery && _matchesPeriod(c, _period);
       }).toList();
@@ -273,7 +298,7 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withOpacity(0.4),
+      barrierColor: Colors.black.withValues(alpha: 0.4),
       builder: (context) => _buildGlobalSheetFrame(
         child: AddCollectionDialog(
           customers: _collections.map((c) => c['customer']!).toSet().toList()
@@ -289,13 +314,14 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withOpacity(0.4),
+      barrierColor: Colors.black.withValues(alpha: 0.4),
       builder: (context) => _buildGlobalSheetFrame(
         child: AddCollectionDialog(
           customers: _collections.map((c) => c['customer']!).toSet().toList()
             ..sort(),
           existing: record,
-          onSaved: (updated) => _updateCollectionOnBackend(record, updated), // CHANGED
+          onSaved: (updated) =>
+              _updateCollectionOnBackend(record, updated), // CHANGED
         ),
       ),
     );
@@ -307,6 +333,7 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
       final payload = {
         'customer_name': record['customer'],
         'loan_number': record['loan'] == '-' ? null : record['loan'],
+        'loan_type': record['loan_type'] == '-' ? null : record['loan_type'],
         'collection_amount': _parseAmount(record['amount'] ?? '0'),
         'payment_method': _apiMethodValue(record['method'] ?? 'Cash'),
         'collection_date': _toIsoDate(record['date']),
@@ -344,6 +371,7 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
       final payload = {
         'customer_name': updated['customer'],
         'loan_number': updated['loan'] == '-' ? null : updated['loan'],
+        'loan_type': updated['loan_type'] == '-' ? null : updated['loan_type'],
         'collection_amount': _parseAmount(updated['amount'] ?? '0'),
         'payment_method': _apiMethodValue(updated['method'] ?? 'Cash'),
         'collection_date': _toIsoDate(updated['date']),
@@ -491,7 +519,7 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
                 ),
     );
   }
-  
+
   Widget _buildStatCards(bool isNarrow) {
     final cards = [
       _StatCardData(
@@ -525,7 +553,8 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
     ];
 
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: isNarrow ? 20 : 24, vertical: 8),
+      padding:
+          EdgeInsets.symmetric(horizontal: isNarrow ? 20 : 24, vertical: 8),
       child: GridView.count(
         crossAxisCount: isNarrow ? 2 : 4,
         shrinkWrap: true,
@@ -589,7 +618,7 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
                   boxShadow: selected
                       ? [
                           BoxShadow(
-                              color: Colors.black.withOpacity(0.06),
+                              color: Colors.black.withValues(alpha: 0.06),
                               blurRadius: 4,
                               offset: const Offset(0, 1))
                         ]
@@ -628,7 +657,7 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
       dividerThickness: 0,
       columns: const [
         DataColumn(label: Text('CUSTOMER')),
-        DataColumn(label: Text('LOAN NUMBER')),
+        DataColumn(label: Text('LOAN INFO')),
         DataColumn(label: Text('AMOUNT')),
         DataColumn(label: Text('METHOD')),
         DataColumn(label: Text('DATE')),
@@ -661,11 +690,16 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
                   Text(c['receipt']!,
                       style: const TextStyle(
                           fontSize: 12, color: AppColors.kTextMuted)),
+                  Text(
+                    '${c['loan']!} • ${c['loan_type']!}',
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.kTextMuted),
+                  ),
                 ],
               ),
             ],
           )),
-          DataCell(Text(c['loan']!)),
+          DataCell(Text('${c['loan']!}\n${c['loan_type']!}')),
           DataCell(Text(c['amount']!,
               style: const TextStyle(fontWeight: FontWeight.w700))),
           DataCell(Text(c['method']!)),
@@ -834,7 +868,6 @@ class _StatCard extends StatelessWidget {
     );
   }
 }
-
 
 // ==========================================
 // ADD / EDIT COLLECTION SHEET (Removed Dialog Wrapping)
@@ -1015,9 +1048,8 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
             isExpanded: true,
             initialValue: _loanNumber,
             decoration: InputDecoration(
-              hintText: _customer == null
-                  ? 'Select customer first'
-                  : 'Select loan',
+              hintText:
+                  _customer == null ? 'Select customer first' : 'Select loan',
               isDense: true,
             ),
             items: availableLoans
@@ -1048,8 +1080,7 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
             items: _paymentMethods
                 .map((m) => DropdownMenuItem(value: m, child: Text(m)))
                 .toList(),
-            onChanged: (v) =>
-                setState(() => _paymentMethod = v ?? 'Cash'),
+            onChanged: (v) => setState(() => _paymentMethod = v ?? 'Cash'),
           ),
           const SizedBox(height: 16),
           _label('COLLECTION DATE *'),
@@ -1062,8 +1093,8 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
           DropdownButtonFormField<String>(
             isExpanded: true,
             initialValue: _agent,
-            decoration: const InputDecoration(
-                hintText: 'Select agent', isDense: true),
+            decoration:
+                const InputDecoration(hintText: 'Select agent', isDense: true),
             items: _agents
                 .map((a) => DropdownMenuItem(value: a, child: Text(a)))
                 .toList(),
@@ -1166,7 +1197,9 @@ class _UploadBox extends StatelessWidget {
         child: Row(
           children: [
             Icon(
-              hasFile ? Icons.check_circle_outline : Icons.cloud_upload_outlined,
+              hasFile
+                  ? Icons.check_circle_outline
+                  : Icons.cloud_upload_outlined,
               color: hasFile
                   ? (accent ? AppColors.kSuccess : AppColors.kInfo)
                   : AppColors.kTextMuted,

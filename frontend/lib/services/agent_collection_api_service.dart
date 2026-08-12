@@ -35,6 +35,9 @@ class AgentCollectionApiService {
 
   /// GET repayment_schedule -> only the rows assigned to the logged-in
   /// agent via the loan's assigned_agent field, and only unpaid schedules.
+  /// Each row is enriched with customer/location/loan-balance details
+  /// pulled from the joined loan record, so the UI can group everything by
+  /// customer without a second round trip.
   static Future<List<AgentCollectionItem>> fetchAssignedCollections() async {
     final currentUser = SessionService.instance.currentUser;
     final agentId = currentUser?.userId;
@@ -84,9 +87,29 @@ class AgentCollectionApiService {
           return AgentCollectionItem.fromJson({
             ...row,
             'loan_number': row['loan_number'] ?? loan?['loan_number'],
+            'loan_type': row['loan_type'] ??
+                loan?['loan_type'] ??
+                loan?['collection_type'],
+            'loan_name': row['loan_name'] ??
+                loan?['loan_name'] ??
+                loan?['scheme_name'] ??
+                loan?['collection_name'] ??
+                loan?['loan_number'],
             'customer_name': row['customer_name'] ?? loan?['customer_name'],
+            'customer_id': row['customer_id'] ?? loan?['customer_id'],
             'agent_id': row['agent_id'] ?? loan?['assigned_agent'],
             'agent_name': row['agent_name'] ?? loan?['agent_name'],
+            'contact_phone': row['contact_phone'] ??
+                row['phone'] ??
+                loan?['contact_phone'] ??
+                loan?['phone'],
+            'address':
+                row['address'] ?? loan?['address'] ?? loan?['customer_address'],
+            'latitude': row['latitude'] ?? loan?['latitude'],
+            'longitude': row['longitude'] ?? loan?['longitude'],
+            'outstanding_balance': row['outstanding_balance'] ??
+                loan?['outstanding_balance'] ??
+                loan?['balance'],
             'due_amount':
                 row['due_amount'] ?? row['balance'] ?? row['emi_amount'],
           });
@@ -107,15 +130,29 @@ class AgentCollectionApiService {
     return items;
   }
 
-  /// Records a collection: creates a row in `collections` via
-  /// [CollectionApiService.createCollection], then (best-effort) marks the
-  /// schedule row as paid so it drops off the agent's due list.
+  /// Fetches and groups the agent's due collections by customer in one call
+  /// — this is what the collections list screen should use.
+  static Future<List<AgentCustomerGroup>>
+      fetchAssignedCollectionGroups() async {
+    final items = await fetchAssignedCollections();
+    return AgentCustomerGroup.groupItems(items);
+  }
+
+  /// Records a collection against a single installment: creates a row in
+  /// `collections` via [CollectionApiService.createCollection], then
+  /// (best-effort) updates the schedule row so it drops off the agent's due
+  /// list once fully paid.
+  ///
+  /// [markPaid] controls whether the schedule row is flagged `paid`. Pass
+  /// `false` for a partial payment so the remaining balance stays open —
+  /// the schedule's `due_amount` is reduced by the collected amount instead.
   static Future<void> collectPayment({
     required AgentCollectionItem item,
     required double amount,
     required String paymentMethod,
     required DateTime collectionDate,
     String? notes,
+    bool markPaid = true,
   }) async {
     final currentUser = SessionService.instance.currentUser;
     final payload = {
@@ -123,28 +160,81 @@ class AgentCollectionApiService {
       'customer_name': item.customerName,
       'loan_id': item.loanId,
       'loan_number': item.loanNumber,
+      'loan_type': item.loanType,
+      'loan_name': item.loanName,
       'collection_amount': amount,
       'payment_method': paymentMethod,
       'collection_date': _toIsoDate(collectionDate),
       'agent_id': currentUser?.userId,
       'agent_name': currentUser?.name,
       'schedule_id': item.scheduleId ?? item.id,
-      'receipt_number': _generateReceiptNumber(), // <-- added
+      'receipt_number': _generateReceiptNumber(),
       if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
     };
 
     await CollectionApiService.createCollection(payload);
 
     try {
-      await postWithMethodOverride(
-        _scheduleUri({'id': item.id}),
-        method: 'PATCH',
-        headers: await _headers(),
-        body: jsonEncode({'status': 'paid'}),
-      );
+      if (markPaid) {
+        await postWithMethodOverride(
+          _scheduleUri({'id': item.id}),
+          method: 'PATCH',
+          headers: await _headers(),
+          body: jsonEncode({'status': 'paid'}),
+        );
+      } else {
+        final remainingDue =
+            (item.dueAmount - amount) < 0 ? 0.0 : (item.dueAmount - amount);
+        await postWithMethodOverride(
+          _scheduleUri({'id': item.id}),
+          method: 'PATCH',
+          headers: await _headers(),
+          body: jsonEncode({'due_amount': remainingDue}),
+        );
+      }
     } catch (_) {
       // Non-fatal — the collection itself was already recorded above.
     }
+  }
+
+  /// Records a single payment against a customer who may have several due
+  /// loans/installments. The amount is applied like a payment waterfall —
+  /// oldest due date first — fully settling each installment before moving
+  /// to the next, so every affected schedule row is updated and every
+  /// collection is persisted individually to the backend.
+  static Future<int> collectForCustomer({
+    required AgentCustomerGroup group,
+    required double amount,
+    required String paymentMethod,
+    required DateTime collectionDate,
+    String? notes,
+  }) async {
+    final sortedItems = [...group.items]..sort((a, b) {
+        final aDate = a.dueDate ?? DateTime(2100);
+        final bDate = b.dueDate ?? DateTime(2100);
+        return aDate.compareTo(bDate);
+      });
+
+    double remaining = amount;
+    var recordsCreated = 0;
+    for (final item in sortedItems) {
+      if (remaining <= 0) break;
+      final payAmount =
+          remaining >= item.dueAmount ? item.dueAmount : remaining;
+      if (payAmount <= 0) continue;
+      remaining -= payAmount;
+      final fullyCovered = payAmount >= (item.dueAmount - 0.01);
+      await collectPayment(
+        item: item,
+        amount: payAmount,
+        paymentMethod: paymentMethod,
+        collectionDate: collectionDate,
+        notes: notes,
+        markPaid: fullyCovered,
+      );
+      recordsCreated++;
+    }
+    return recordsCreated;
   }
 
   static String _generateReceiptNumber() {

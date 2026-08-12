@@ -1,34 +1,5 @@
-// ============================================================================
-// lib/screens/agent/agent_dashboard_screen.dart
-//
-// Field agent's home dashboard: today's assigned customers, collection
-// progress, today's route with per-stop "Collect" actions, and quick
-// shortcuts to the route map / collection flow.
-//
-// DATA WIRING (REST API):
-//   Powered by `AgentReportService`, modeled on the same REST pattern as
-//   CustomerReportService. Adjust:
-//     - `_baseUrl` to your real API host
-//     - the endpoint path in `fetchAgentDashboard()`
-//     - how the auth token is read (currently `SessionService.instance.token`)
-//   to match your backend.
-//
-// ROUTING:
-//   Add to AppRoutes:
-//     static const String agentDashboard = '/agent-dashboard';
-//   Then in main.dart's _onGenerateRoute, route agents to this screen instead
-//   of the admin DashboardScreen, e.g.:
-//     case AppRoutes.dashboard:
-//       final role = SessionService.instance.currentUser?.role;
-//       page = _guarded(
-//         role == UserRole.agent ? const AgentDashboardScreen() : const DashboardScreen(),
-//         UserRole.values,
-//       );
-//       break;
-// ============================================================================
-
 import 'dart:ui';
-
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -169,6 +140,12 @@ double _asDouble(dynamic value) {
   return double.tryParse(value.toString()) ?? 0;
 }
 
+String _greetingForHour(int hour) {
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
 // ============================================================================
 // SCREEN
 // ============================================================================
@@ -182,11 +159,22 @@ class AgentDashboardScreen extends StatefulWidget {
 
 class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
   late Future<AgentDashboardData> _future;
+  Timer? _clockTimer;
+  DateTime _now = DateTime.now();
 
   @override
   void initState() {
     super.initState();
     _future = _load();
+    _clockTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() => _now = DateTime.now());
+    });
+  }
+
+  @override
+  void dispose() {
+    _clockTimer?.cancel();
+    super.dispose();
   }
 
   Future<AgentDashboardData> _load() {
@@ -202,8 +190,9 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final AppUser user = SessionService.instance.currentUser!;
-    final todayLabel = DateFormat('dd MMM y').format(DateTime.now());
+    final todayLabel = DateFormat('dd MMM y').format(_now);
     final firstName = user.name.split(' ').first;
+    final greeting = _greetingForHour(_now.hour);
 
     return AppShell(
       currentRoute:
@@ -216,31 +205,61 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
           final loading = snapshot.connectionState != ConnectionState.done;
           final error = snapshot.hasError ? snapshot.error.toString() : null;
 
-          return RefreshIndicator(
-            onRefresh: _refresh,
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                _buildHeader(todayLabel, firstName),
-                const SizedBox(height: 16),
-                _buildProfileRow(user),
-                const SizedBox(height: 16),
-                if (loading)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 64),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                else if (error != null)
-                  _errorCard(error)
-                else if (data != null) ...[
-                  _buildStatGrid(data.summary),
-                  const SizedBox(height: 16),
-                  _buildRouteCard(context, data.todayRoute),
-                  const SizedBox(height: 16),
-                  _buildQuickActionsRow(context),
-                ],
-              ],
-            ),
+          return Stack(
+            children: [
+              Positioned.fill(
+                child: Container(
+                  color: Theme.of(context).scaffoldBackgroundColor,
+                ),
+              ),
+              Positioned(
+                top: -60,
+                left: -40,
+                child: _blurOrb(220, AppColors.kGold.withValues(alpha: 0.35)),
+              ),
+              Positioned(
+                top: 220,
+                right: -60,
+                child: _blurOrb(200, AppColors.kInfo.withValues(alpha: 0.28)),
+              ),
+              Positioned(
+                bottom: 100,
+                left: -50,
+                child: _blurOrb(240, AppColors.kSuccess.withValues(alpha: 0.22)),
+              ),
+              RefreshIndicator(
+                onRefresh: _refresh,
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    _buildHeroBanner(
+                      context,
+                      todayLabel,
+                      greeting,
+                      firstName,
+                      data,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildProfileRow(user),
+                    const SizedBox(height: 16),
+                    if (loading)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 64),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else if (error != null)
+                      _errorCard(error)
+                    else if (data != null) ...[
+                      _buildStatGrid(data.summary),
+                      const SizedBox(height: 16),
+                      _buildRouteCard(context, data.todayRoute),
+                      const SizedBox(height: 16),
+                      _buildQuickActionsRow(context),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           );
         },
       ),
@@ -249,15 +268,112 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
 
   // -- helpers --------------------------------------------------------------
 
+  Widget _buildHeroBanner(
+    BuildContext context,
+    String today,
+    String greeting,
+    String firstName,
+    AgentDashboardData? data,
+  ) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final collectedToday = data?.summary.collectedToday ?? 0;
+    final stopsToday = data?.todayRoute.length ?? 0;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(26),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                scheme.primary.withValues(alpha: 0.92),
+                AppColors.kGoldDark.withValues(alpha: 0.92),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.35),
+              width: 1.2,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(today.toUpperCase(),
+                  style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              Text('$greeting, $firstName',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text(
+                'Live figures from the database: ${_formatIndianCurrency(collectedToday)} collected today and $stopsToday stops scheduled.',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 14),
+              ElevatedButton.icon(
+                onPressed: () =>
+                    Navigator.of(context).pushNamed(AppRoutes.routeMap),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: AppColors.kGoldDark,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: const Icon(Icons.arrow_forward, size: 16),
+                label: const Text('View Route'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _errorCard(String message) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.kDanger.withOpacity(0.25)),
+        border: Border.all(color: AppColors.kDanger.withValues(alpha: 0.25)),
       ),
       child: Text(message, style: const TextStyle(color: AppColors.kDanger)),
+    );
+  }
+
+  Widget _blurOrb(double size, Color color) {
+    return IgnorePointer(
+      child: ClipRRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 0, sigmaY: 0),
+          child: Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [color, color.withValues(alpha: 0.0)],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -274,12 +390,12 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
           width: double.infinity,
           padding: padding,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.75),
+            color: Colors.white.withValues(alpha: 0.75),
             borderRadius: BorderRadius.circular(radius),
-            border: Border.all(color: Colors.white.withOpacity(0.7)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.7)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withValues(alpha: 0.04),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -288,22 +404,6 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
           child: child,
         ),
       ),
-    );
-  }
-
-  Widget _buildHeader(String today, String firstName) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Good morning, $firstName',
-            style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: AppColors.kTextDark)),
-        const SizedBox(height: 4),
-        Text(today,
-            style: const TextStyle(fontSize: 13, color: AppColors.kTextMuted)),
-      ],
     );
   }
 
@@ -495,18 +595,18 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
       _ => AppColors.kTextMuted,
     };
     final statusBg = switch (s.status.toLowerCase()) {
-      'overdue' => AppColors.kDanger.withOpacity(0.12),
-      'active' => AppColors.kSuccess.withOpacity(0.12),
-      _ => AppColors.kTextMuted.withOpacity(0.12),
+      'overdue' => AppColors.kDanger.withValues(alpha: 0.12),
+      'active' => AppColors.kSuccess.withValues(alpha: 0.12),
+      _ => AppColors.kTextMuted.withValues(alpha: 0.12),
     };
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.6),
+        color: Colors.white.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.8)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
       ),
       child: Row(
         children: [

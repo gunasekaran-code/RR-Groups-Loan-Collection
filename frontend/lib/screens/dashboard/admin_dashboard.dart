@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:ui';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/app_user.dart';
@@ -27,11 +28,22 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   late Future<_DashboardData> _future;
+  Timer? _clockTimer;
+  DateTime _now = DateTime.now();
 
   @override
   void initState() {
     super.initState();
     _future = _load();
+        _clockTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() => _now = DateTime.now());
+    });
+  }
+
+    @override
+  void dispose() {
+    _clockTimer?.cancel();
+    super.dispose();
   }
 
   Future<_DashboardData> _load() async {
@@ -68,6 +80,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final theme = Theme.of(context);
     final todayLabel = DateFormat('EEEE, d MMMM y').format(DateTime.now());
     final firstName = user.name.split(' ').first;
+     final greeting = _greetingForHour(_now.hour);
+
 
     return AppShell(
       currentRoute: AppRoutes.dashboard,
@@ -141,6 +155,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
+
+  String _greetingForHour(int hour) {
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
 
   Widget _errorCard(String message) {
     return Container(
@@ -223,6 +243,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  
+
   Widget _buildHeroBanner(BuildContext context, String today, String firstName,
       _DashboardData? data) {
     final theme = Theme.of(context);
@@ -274,6 +296,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
+
+
+
 
   Widget _buildStatGrid(_DashboardData data) {
     final daily = data.daily;

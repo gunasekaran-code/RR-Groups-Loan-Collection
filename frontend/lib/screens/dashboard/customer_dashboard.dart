@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 import 'dart:ui';
-
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -254,6 +254,12 @@ double _asDouble(dynamic value) {
   return double.tryParse(value.toString()) ?? 0;
 }
 
+String _greetingForHour(int hour) {
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
 // ============================================================================
 // SCREEN
 // ============================================================================
@@ -268,11 +274,22 @@ class CustomerDashboardScreen extends StatefulWidget {
 
 class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
   late Future<CustomerDashboardData> _future;
+  Timer? _clockTimer;
+  DateTime _now = DateTime.now();
 
   @override
   void initState() {
     super.initState();
     _future = _load();
+    _clockTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() => _now = DateTime.now());
+    });
+  }
+
+  @override
+  void dispose() {
+    _clockTimer?.cancel();
+    super.dispose();
   }
 
   Future<CustomerDashboardData> _load() {
@@ -292,8 +309,9 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
   Widget build(BuildContext context) {
     final AppUser user = SessionService.instance.currentUser!;
     final theme = Theme.of(context);
-    final todayLabel = DateFormat('EEEE, d MMMM y').format(DateTime.now());
+    final todayLabel = DateFormat('EEEE, d MMMM y').format(_now);
     final firstName = user.name.split(' ').first;
+    final greeting = _greetingForHour(_now.hour);
 
     return AppShell(
       currentRoute: AppRoutes.customerDashboard, // TODO: add this route const
@@ -331,7 +349,7 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                 child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    _buildHeroBanner(context, todayLabel, firstName, data),
+                    _buildHeroBanner(context, todayLabel, greeting, firstName, data),
                     const SizedBox(height: 16),
                     if (loading)
                       const Padding(
@@ -449,8 +467,8 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
 
   // -- sections specific to the customer view --
 
-  Widget _buildHeroBanner(BuildContext context, String today, String firstName,
-      CustomerDashboardData? data) {
+  Widget _buildHeroBanner(BuildContext context, String today, String greeting,
+      String firstName, CustomerDashboardData? data) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final nextEmi = data?.summary.nextEmiAmount ?? 0;
@@ -485,7 +503,7 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                       fontSize: 11,
                       fontWeight: FontWeight.w600)),
               const SizedBox(height: 6),
-              Text('Good morning, $firstName',
+              Text('$greeting, $firstName',
                   style: const TextStyle(
                       color: Colors.white,
                       fontSize: 24,
