@@ -2,6 +2,8 @@ import 'dart:ui'; // Required for ImageFilter.blur
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import '../routes/app_routes.dart';
+import '../models/user_role.dart';
+import '../services/session_service.dart';
 
 class _NavItem {
   final String label;
@@ -14,7 +16,7 @@ class _NavItem {
   });
 }
 
-const List<_NavItem> _navItems = [
+const List<_NavItem> _defaultNavItems = [
   _NavItem(
       label: 'Dashboard',
       icon: CupertinoIcons.square_grid_2x2,
@@ -37,6 +39,25 @@ const List<_NavItem> _navItems = [
       route: AppRoutes.collections),
 ];
 
+const List<_NavItem> _customerNavItems = [
+  _NavItem(
+      label: 'Dashboard',
+      icon: CupertinoIcons.square_grid_2x2,
+      route: AppRoutes.dashboard),
+  _NavItem(
+      label: 'My Loans',
+      icon: CupertinoIcons.building_2_fill,
+      route: AppRoutes.loans),
+  _NavItem(
+      label: 'My Funds',
+      icon: CupertinoIcons.money_dollar_circle,
+      route: AppRoutes.funds),
+  _NavItem(
+      label: 'Notifications',
+      icon: CupertinoIcons.bell,
+      route: AppRoutes.notifications),
+];
+
 class AppBottomNav extends StatelessWidget {
   final String currentRoute;
   final ValueChanged<String> onTabSelected;
@@ -49,7 +70,9 @@ class AppBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final int index = _navItems.indexWhere((i) => i.route == currentRoute);
+    final role = SessionService.instance.currentUser?.role;
+    final items = role == UserRole.customer ? _customerNavItems : _defaultNavItems;
+    final int index = items.indexWhere((i) => i.route == currentRoute);
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
 
@@ -91,9 +114,9 @@ class AppBottomNav extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  for (int i = 0; i < _navItems.length; i++)
+                  for (int i = 0; i < items.length; i++)
                     Expanded(
-                      child: _buildTab(context, _navItems[i], i == index),
+                      child: _buildTab(context, items[i], i == index),
                     ),
                 ],
               ),
@@ -107,7 +130,7 @@ class AppBottomNav extends StatelessWidget {
   Widget _buildTab(BuildContext context, _NavItem item, bool selected) {
     final scheme = Theme.of(context).colorScheme;
     final Color color = selected ? scheme.primary : scheme.outline;
-    
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -129,34 +152,34 @@ class AppBottomNav extends StatelessWidget {
                 curve: Curves.easeOut,
                 scale: selected ? 1.08 : 1,
                 child: Container(
-  width: 34,
-  height: 30,
-  alignment: Alignment.center,
-  decoration: BoxDecoration(
-    color: Colors.transparent,
-    shape: BoxShape.circle,
-    border: selected
-        ? Border.all(
-            color: scheme.onSurface.withValues(alpha: 0.25),
-            width: 1,
-          )
-        : null,
-    boxShadow: selected
-        ? [
-            BoxShadow(
-              color: scheme.primary.withValues(alpha: 0.14),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            ),
-          ]
-        : null,
-  ),
-  child: Icon(
-    item.icon, 
-    size: selected ? 21 : 19, 
-    color: color,
-  ),
-),
+                  width: 34,
+                  height: 30,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.transparent,
+                    shape: BoxShape.circle,
+                    border: selected
+                        ? Border.all(
+                            color: scheme.onSurface.withValues(alpha: 0.25),
+                            width: 1,
+                          )
+                        : null,
+                    boxShadow: selected
+                        ? [
+                            BoxShadow(
+                              color: scheme.primary.withValues(alpha: 0.14),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Icon(
+                    item.icon,
+                    size: selected ? 21 : 19,
+                    color: color,
+                  ),
+                ),
               ),
               const SizedBox(height: 3),
               FittedBox(

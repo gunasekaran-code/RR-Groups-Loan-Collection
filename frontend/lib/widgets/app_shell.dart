@@ -9,7 +9,9 @@ import '../screens/customers/customers_screen.dart';
 import '../screens/dashboard/admin_dashboard.dart';
 import '../screens/dashboard/agent_dashboard.dart';
 import '../screens/dashboard/customer_dashboard.dart';
+import '../screens/funds/funds_screen.dart';
 import '../screens/loans/loans_screen.dart';
+import '../screens/notifications/notifications_screen.dart';
 import '../screens/repayment/repayment_schedule_screen.dart';
 import '../screens/settings/profile_page.dart';
 import 'app_navbar.dart';
@@ -46,20 +48,14 @@ class AppShell extends StatefulWidget {
     this.floatingActionButton,
   });
 
-  static const List<String> _tabRoutes = [
-    AppRoutes.dashboard,
-    AppRoutes.customers,
-    AppRoutes.loans,
-    AppRoutes.repayment,
-    AppRoutes.collections,
-  ];
-
   static const Map<String, String> _tabTitles = {
     AppRoutes.dashboard: 'Dashboard',
     AppRoutes.customers: 'Customers',
     AppRoutes.loans: 'Loans',
     AppRoutes.repayment: 'Repayment Schedule',
     AppRoutes.collections: 'Collections',
+    AppRoutes.funds: 'My Funds',
+    AppRoutes.notifications: 'Notifications',
     AppRoutes.profile: 'My Profile',
   };
 
@@ -149,8 +145,7 @@ class _AppShellState extends State<AppShell> {
         child: _buildActiveBody(),
       ),
       bottomNavigationBar: AppBottomNav(
-        currentRoute:
-            AppShell._tabRoutes.contains(_activeRoute) ? _activeRoute : '',
+        currentRoute: _activeRoute,
         onTabSelected: (route) => setState(() => _activeRoute = route),
       ),
       floatingActionButton: _activeRoute == widget.currentRoute
@@ -171,6 +166,8 @@ class _AppShellState extends State<AppShell> {
         AppRoutes.customers => const CustomersScreen(),
         AppRoutes.loans => const LoansScreen(),
         AppRoutes.repayment => const RepaymentScheduleScreen(),
+        AppRoutes.funds => const FundsScreen(),
+        AppRoutes.notifications => const NotificationsScreen(),
         AppRoutes.collections => user?.role == UserRole.agent
             ? const AgentCollectionScreen()
             : const CollectionsScreen(),

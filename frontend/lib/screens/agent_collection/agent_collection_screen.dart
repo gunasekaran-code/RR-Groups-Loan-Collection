@@ -272,7 +272,7 @@ class _AgentCollectionScreenState extends State<AgentCollectionScreen> {
     return TextField(
       onChanged: (v) => setState(() => _query = v),
       decoration: InputDecoration(
-        hintText: 'Search by customer name or User/Loan ID',
+        hintText: 'Search by name or Loan ID',
         prefixIcon: const Icon(Icons.search, color: AppColors.kTextMuted),
         suffixIcon: _query.isNotEmpty
             ? IconButton(
