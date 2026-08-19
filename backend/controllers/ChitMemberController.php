@@ -11,24 +11,15 @@ class ChitMemberController extends ResourceController
     public function handle(): void
     {
         $claims = $this->requireAuth();
-        $role   = $claims['role'] ?? '';
+        $role   = strtolower(trim($claims['role'] ?? ''));
         $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
         if ($method === 'POST' || $method === 'DELETE') {
-            if ($role !== 'admin') {
-                json_error('Only admins can add or remove chit members', 403);
+            if ($role !== 'admin' && $role !== 'agent') {
+                json_error('Only admins or agents can add or remove chit members', 403);
             }
         } elseif ($method === 'PATCH' || $method === 'PUT') {
-            if ($role === 'admin') {
-                // full edit allowed
-            } elseif ($role === 'agent') {
-                $allowed = ['payment_status', 'due_date'];
-                foreach (array_keys($this->body()) as $k) {
-                    if (!in_array($k, $allowed, true)) {
-                        json_error('Agents can only record chit collections', 403);
-                    }
-                }
-            } else {
+            if ($role !== 'admin' && $role !== 'agent') {
                 json_error('Not allowed', 403);
             }
         }

@@ -23,7 +23,7 @@ class OverdueApiService {
 
   final http.Client _client;
 
-  Uri get _endpoint => Uri.parse('${ApiConfig.baseUrl}/overdue.php');
+  Uri get _endpoint => Uri.parse('${ApiConfig.normalizedBaseUrl}/overdue.php');
 
   Future<Map<String, String>> _headers() async {
     final prefs = await SharedPreferences.getInstance();

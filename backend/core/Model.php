@@ -17,12 +17,15 @@ abstract class Model
         'collections'        => Collection::class,
         'chit_groups'        => ChitGroup::class,
         'chit_members'       => ChitMember::class,
+        'chit_schedules'     => ChitSchedule::class,
         'funds'              => Fund::class,
         'fund_payments'      => FundPayment::class,
         'handovers'          => Handover::class,
         'notifications'      => Notification::class,
         'settings'           => Setting::class,
         'push_subscriptions' => PushSubscription::class,
+        'account_ledger'     => AccountLedger::class,
+        'promo_popups'       => PromoPopup::class,
     ];
 
     public static function forTable(string $table): ?string
@@ -41,12 +44,16 @@ abstract class Model
         static $cache = [];
         $t = static::$table;
         if (!isset($cache[$t])) {
-            $rows = Database::pdo()->query("SHOW COLUMNS FROM `$t`")->fetchAll();
-            $cols = [];
-            foreach ($rows as $r) {
-                $cols[$r['Field']] = strtolower($r['Type']);
+            try {
+                $rows = Database::pdo()->query("SHOW COLUMNS FROM `$t`")->fetchAll();
+                $cols = [];
+                foreach ($rows as $r) {
+                    $cols[$r['Field']] = strtolower($r['Type']);
+                }
+                $cache[$t] = $cols;
+            } catch (\Throwable $e) {
+                $cache[$t] = [];
             }
-            $cache[$t] = $cols;
         }
         return $cache[$t];
     }
@@ -106,9 +113,13 @@ abstract class Model
     /** SELECT with pre-built WHERE/ORDER/LIMIT fragments. Returns cast rows. */
     public static function select(string $where, array $binds, string $order = '', string $limit = ''): array
     {
-        $stmt = Database::pdo()->prepare("SELECT * FROM `" . static::$table . "`$where$order$limit");
-        $stmt->execute($binds);
-        return static::castRows($stmt->fetchAll());
+        try {
+            $stmt = Database::pdo()->prepare("SELECT * FROM `" . static::$table . "`$where$order$limit");
+            $stmt->execute($binds);
+            return static::castRows($stmt->fetchAll());
+        } catch (\Throwable $e) {
+            return [];
+        }
     }
 
     /** Raw first row INCLUDING hidden columns (used for auth). */

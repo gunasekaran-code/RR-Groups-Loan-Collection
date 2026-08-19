@@ -1,32 +1,20 @@
 -- ============================================================
 --  RRGroups / FinCollect  —  MySQL (MariaDB) schema
---  Import in MySQL Workbench:  File > Open SQL Script > Run
---  Or CLI:  mysql -u root < schema.sql
+--  Import in phpMyAdmin or MySQL Workbench:
+--  Select your database (e.g. cwhycofr_RRgroups) > Import > Choose schema.sql > Go
 -- ============================================================
-
-CREATE DATABASE IF NOT EXISTS rrgroups
-  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- ---------- dedicated application user ----------
--- Uses mysql_native_password so PHP's PDO/mysqlnd connects without TLS setup.
--- Change this password and keep it in sync with backend/config.php.
-CREATE USER IF NOT EXISTS 'rrgroups_app'@'localhost'
-  IDENTIFIED WITH mysql_native_password BY 'Rr#app_2026local';
-CREATE USER IF NOT EXISTS 'rrgroups_app'@'127.0.0.1'
-  IDENTIFIED WITH mysql_native_password BY 'Rr#app_2026local';
-GRANT ALL PRIVILEGES ON rrgroups.* TO 'rrgroups_app'@'localhost';
-GRANT ALL PRIVILEGES ON rrgroups.* TO 'rrgroups_app'@'127.0.0.1';
-FLUSH PRIVILEGES;
-
-USE rrgroups;
 
 -- Drop in dependency order (safe re-run during development)
 SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS promo_popups;
+DROP TABLE IF EXISTS account_ledger;
+DROP TABLE IF EXISTS biometric_credentials;
 DROP TABLE IF EXISTS push_subscriptions;
 DROP TABLE IF EXISTS notifications;
 DROP TABLE IF EXISTS handovers;
 DROP TABLE IF EXISTS fund_payments;
 DROP TABLE IF EXISTS funds;
+DROP TABLE IF EXISTS chit_schedules;
 DROP TABLE IF EXISTS chit_members;
 DROP TABLE IF EXISTS chit_groups;
 DROP TABLE IF EXISTS collections;
@@ -45,6 +33,7 @@ CREATE TABLE profiles (
   full_name     VARCHAR(191) NOT NULL,
   mobile        VARCHAR(32)  NULL,
   role          ENUM('admin','agent','customer') NOT NULL DEFAULT 'agent',
+  user_code     VARCHAR(32)  NULL,
   customer_id   CHAR(36)     NULL,   -- links a customer login to its customers row
   address       TEXT         NULL,
   aadhaar       VARCHAR(32)  NULL,
@@ -165,6 +154,9 @@ CREATE TABLE chit_groups (
   collected_amount     DECIMAL(14,2) NOT NULL DEFAULT 0,
   pending_amount       DECIMAL(14,2) NOT NULL DEFAULT 0,
   status               ENUM('active','closed','pending') NOT NULL DEFAULT 'pending',
+  draw_frequency       ENUM('monthly_1', 'monthly_2', 'monthly_3', 'custom', 'every_5_days', 'every_10_days', 'interval_days') NOT NULL DEFAULT 'monthly_1',
+  draw_days            VARCHAR(191) NULL DEFAULT '1',
+  draw_dates           TEXT         NULL,
   created_at           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
@@ -183,6 +175,22 @@ CREATE TABLE chit_members (
     REFERENCES chit_groups(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- ---------- chit_schedules ----------
+CREATE TABLE chit_schedules (
+  id             CHAR(36)     NOT NULL PRIMARY KEY,
+  group_id       CHAR(36)     NOT NULL,
+  installment_no INT          NOT NULL,
+  due_date       DATE         NOT NULL,
+  payable_amount DECIMAL(14,2) NOT NULL DEFAULT 0,
+  pool_amount    DECIMAL(14,2) NOT NULL DEFAULT 0,
+  is_overridden  TINYINT(1)   NOT NULL DEFAULT 0,
+  notes          VARCHAR(255) NULL,
+  created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_chit_sched_group (group_id),
+  CONSTRAINT fk_chit_sched_group FOREIGN KEY (group_id)
+    REFERENCES chit_groups(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- ---------- funds (daily-deposit savings scheme) ----------
 CREATE TABLE funds (
   id               CHAR(36)     NOT NULL PRIMARY KEY,
@@ -198,8 +206,14 @@ CREATE TABLE funds (
   start_date       DATE          NULL,
   maturity_date    DATE          NULL,
   status           ENUM('active','matured','closed') NOT NULL DEFAULT 'active',
+  assigned_agent   CHAR(36)      NULL,
+  agent_name       VARCHAR(191)  NULL,
+  units            DECIMAL(10,2) NOT NULL DEFAULT 1.00,
   created_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_funds_customer (customer_id)
+  INDEX idx_funds_customer (customer_id),
+  INDEX idx_funds_agent (assigned_agent),
+  CONSTRAINT fk_funds_agent FOREIGN KEY (assigned_agent)
+    REFERENCES profiles(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- ---------- fund_payments (passbook — one row per collection) ----------
@@ -275,6 +289,9 @@ CREATE TABLE settings (
   biometric_enabled        TINYINT(1)   NOT NULL DEFAULT 0,
   biometric_required_roles VARCHAR(191) NOT NULL DEFAULT 'admin,agent',
   language                 VARCHAR(10)  NOT NULL DEFAULT 'en',
+  popup_enabled            TINYINT(1)   NOT NULL DEFAULT 0,
+  popup_image_url          LONGTEXT     NULL,
+  popup_target_url         TEXT         NULL,
   updated_at               DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
@@ -302,20 +319,51 @@ CREATE TABLE biometric_credentials (
   UNIQUE KEY uniq_biocred (credential_id)
 ) ENGINE=InnoDB;
 
+-- ---------- account_ledger (custom ledger entries / adjustments) ----------
+CREATE TABLE account_ledger (
+  id           CHAR(36)     NOT NULL PRIMARY KEY,
+  entry_type   VARCHAR(64)  NOT NULL DEFAULT 'cash_in',
+  title        VARCHAR(191) NOT NULL,
+  amount       DECIMAL(14,2) NOT NULL DEFAULT 0,
+  category     VARCHAR(128) NOT NULL DEFAULT 'General',
+  entry_date   DATE         NULL,
+  notes        TEXT         NULL,
+  created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_account_ledger_type (entry_type),
+  INDEX idx_account_ledger_date (entry_date)
+) ENGINE=InnoDB;
+
+-- ---------- promo_popups ----------
+CREATE TABLE promo_popups (
+  id           CHAR(36)     NOT NULL PRIMARY KEY,
+  title        VARCHAR(191) NOT NULL DEFAULT 'Promotional Banner',
+  image_url    LONGTEXT     NOT NULL,
+  target_url   TEXT         NULL,
+  is_active    TINYINT(1)   NOT NULL DEFAULT 1,
+  created_by   VARCHAR(191) NULL,
+  created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
 -- ============================================================
 --  Seed accounts
 --  All passwords below are bcrypt hashes.
---    owner@fincollect.in / owner123   (admin)
 --    admin@fincollect.in / admin123   (admin)
 --    agent@fincollect.in / agent123   (agent)
+--    customer@fincollect.in / customer123 (customer)
 --  Hashes are generated by seed.php; this block is a fallback.
 -- ============================================================
-INSERT INTO profiles (id, email, password_hash, full_name, mobile, role, status)
+INSERT INTO profiles (id, email, password_hash, full_name, mobile, role, user_code, status)
 VALUES
-  ('a0000000-0000-4000-8000-000000000001', 'owner@fincollect.in',
-   '$2y$10$8K1p/a0dL1LXMIgoEDFrwOe6g7hqz9nB3T8vY1t6iQ0Yy5kqk9Zqu', 'Owner Admin', '9876543210', 'admin', 'active'),
   ('f46ac1bf-6f72-49a3-aadc-dc7583c5cd77', 'admin@fincollect.in',
-   '$2y$10$8K1p/a0dL1LXMIgoEDFrwOe6g7hqz9nB3T8vY1t6iQ0Yy5kqk9Zqu', 'Priya Sharma', '9876543211', 'admin', 'active'),
+   '$2y$10$8K1p/a0dL1LXMIgoEDFrwOe6g7hqz9nB3T8vY1t6iQ0Yy5kqk9Zqu', 'Priya Sharma', '9876543211', 'admin', 'RRG-ADM-0001', 'active'),
   ('c834ac54-bcb6-442e-a99f-9b7c144dee24', 'agent@fincollect.in',
-   '$2y$10$8K1p/a0dL1LXMIgoEDFrwOe6g7hqz9nB3T8vY1t6iQ0Yy5kqk9Zqu', 'Arjun Mehta', '9876543212', 'agent', 'active')
+   '$2y$10$8K1p/a0dL1LXMIgoEDFrwOe6g7hqz9nB3T8vY1t6iQ0Yy5kqk9Zqu', 'Arjun Mehta', '9876543212', 'agent', 'RRG-STF-0001', 'active')
 ON DUPLICATE KEY UPDATE email = VALUES(email);
+
+-- ---------- initial company settings ----------
+INSERT INTO settings (id, company_name, interest_config, emi_formula, reminder_days, reminder_time, auto_reminders_enabled, group_updates_enabled, group_auction_alerts, group_payment_alerts, language)
+VALUES
+  ('a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'RR Groups', 12.00, 'P × r × (1 + r)ⁿ / ( (1 + r)ⁿ − 1 )', 3, '09:00', 1, 1, 1, 1, 'en')
+ON DUPLICATE KEY UPDATE company_name = VALUES(company_name);
+

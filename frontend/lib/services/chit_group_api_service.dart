@@ -9,8 +9,7 @@ import '../models/chit_group.dart';
 import '../models/chit_member.dart';
 
 class ChitGroupApiService {
-  static const String _baseUrl = ApiConfig.baseUrl;
-  static const String _restEndpoint = '$_baseUrl/rest.php';
+  static String get _restEndpoint => '${ApiConfig.normalizedBaseUrl}/rest.php';
 
   static Map<String, String> get _headers => {
         'Content-Type': 'application/json',

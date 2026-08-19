@@ -7,12 +7,21 @@ class UserController extends Controller
 
     public function handle(): void
     {
-        $this->requireAdmin();
+        $claims = $this->requireAuth();
+        $role   = strtolower(trim($claims['role'] ?? ''));
+        if (!$role && !empty($claims['sub'])) {
+            $p = Profile::firstRaw(' WHERE id = ?', [$claims['sub']]);
+            if ($p) $role = strtolower(trim($p['role'] ?? ''));
+        }
+        if ($role !== 'admin' && $role !== 'agent') {
+            json_error('Only admins or agents can manage user accounts', 403);
+        }
         switch ($_SERVER['REQUEST_METHOD'] ?? '') {
-            case 'POST':  $this->store();  break;
+            case 'POST':   $this->store();   break;
             case 'PATCH':
-            case 'PUT':   $this->update(); break;
-            default:      json_error('Method not allowed', 405);
+            case 'PUT':    $this->update();  break;
+            case 'DELETE': $this->destroy(); break;
+            default:       json_error('Method not allowed', 405);
         }
     }
 
@@ -31,6 +40,24 @@ class UserController extends Controller
         return $role;
     }
 
+    public static function genUserCode(string $role): string
+    {
+        $pdo = Database::pdo();
+        $prefix = ($role === 'admin') ? 'RRG-ADM-' : (($role === 'agent') ? 'RRG-STF-' : 'RRG-CUS-');
+        $stmt = $pdo->query("SELECT user_code FROM profiles WHERE user_code LIKE '{$prefix}%'");
+        $maxNum = 0;
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            if (preg_match('/' . preg_quote($prefix, '/') . '(\d+)/i', $row['user_code'], $m)) {
+                $num = (int)$m[1];
+                if ($num > $maxNum) $maxNum = $num;
+            }
+        }
+        if ($maxNum === 0) {
+            $maxNum = (int)$pdo->query("SELECT COUNT(*) FROM profiles WHERE role = " . $pdo->quote($role))->fetchColumn();
+        }
+        return sprintf('%s%04d', $prefix, $maxNum + 1);
+    }
+
     private function store(): void
     {
         $b = $this->body();
@@ -43,12 +70,16 @@ class UserController extends Controller
         if (strlen($password) < 6) json_error('Password must be at least 6 characters', 400);
         if (Profile::emailTaken($email)) json_error('That email is already registered', 409);
 
+        $userRole = $this->role($b['role'] ?? null);
+        $userCode = self::clean($b['user_code'] ?? null) ?? self::genUserCode($userRole);
+
         $rows = Profile::insertRows([[
             'email'         => $email,
             'password_hash' => password_hash($password, PASSWORD_BCRYPT),
             'full_name'     => $full_name,
             'mobile'        => self::clean($b['mobile'] ?? null),
-            'role'          => $this->role($b['role'] ?? null),
+            'role'          => $userRole,
+            'user_code'     => $userCode,
             'customer_id'   => self::clean($b['customer_id'] ?? null),
             'address'       => self::clean($b['address'] ?? null),
             'aadhaar'       => self::clean($b['aadhaar'] ?? null),
@@ -93,5 +124,17 @@ class UserController extends Controller
 
         $rows = Profile::updateWhere($data, ' WHERE id = ?', [$id]);
         json_out($rows[0] ?? null);
+    }
+
+    private function destroy(): void
+    {
+        $id = $_GET['id'] ?? '';
+        if ($id === '') json_error('Missing user id', 400);
+        try {
+            Profile::deleteWhere(' WHERE id = ?', [$id]);
+            json_out(['success' => true]);
+        } catch (\Throwable $e) {
+            json_error('Delete failed: ' . $e->getMessage(), 400);
+        }
     }
 }

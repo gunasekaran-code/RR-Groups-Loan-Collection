@@ -28,13 +28,13 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
   bool get _isAgent => _role == UserRole.agent;
 
   String? get _customerId =>
-      SessionService.instance.currentUser?.customerId?.toString();
+      SessionService.instance.currentUser?.customerId;
 
   // NOTE: assumes SessionService.currentUser exposes an agentId getter the
   // same way it exposes customerId. If your AppUser model uses a different
   // field name for the logged-in agent's id, update this line.
   String? get _agentId =>
-      SessionService.instance.currentUser?.agentId?.toString();
+      SessionService.instance.currentUser?.agentId;
 
   @override
   void initState() {
@@ -87,6 +87,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
       }
 
       final data = await CollectionApiService.fetchPaymentHistory(
+        customerId: _isCustomer ? _customerId : null,
         loanIds: loanIds,
         agentId: _isAgent ? _agentId : null,
       );

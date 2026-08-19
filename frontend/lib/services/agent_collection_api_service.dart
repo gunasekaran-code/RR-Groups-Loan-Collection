@@ -8,8 +8,7 @@ import 'method_override_http.dart';
 import '../models/agent_collection.dart';
 
 class AgentCollectionApiService {
-  static const String _baseUrl = ApiConfig.baseUrl;
-  static const String _restEndpoint = '$_baseUrl/rest.php';
+  static String get _restEndpoint => '${ApiConfig.normalizedBaseUrl}/rest.php';
 
   static Future<Map<String, String>> _headers() async {
     final token = await AuthApiService.instance.getToken();

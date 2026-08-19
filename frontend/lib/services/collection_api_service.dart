@@ -89,8 +89,7 @@ import '../models/payment_history.dart';
 import 'method_override_http.dart';
 
 class CollectionApiService {
-  static const String _baseUrl = ApiConfig.baseUrl;
-  static const String _restEndpoint = '$_baseUrl/rest.php';
+  static String get _restEndpoint => '${ApiConfig.normalizedBaseUrl}/rest.php';
 
   static Future<Map<String, String>> _headers() async {
     final token = await AuthApiService.instance.getToken();
@@ -131,6 +130,7 @@ class CollectionApiService {
   /// is always populated and is a hard foreign key back to the loan, which
   /// is itself tied to a trustworthy customer_id (see LoanService/loans).
   static Future<List<PaymentHistoryItem>> fetchPaymentHistory({
+    String? customerId,
     List<String>? loanIds,
     String? agentId,
   }) async {
@@ -139,7 +139,17 @@ class CollectionApiService {
     final items = rows
         .map((row) => PaymentHistoryItem.fromJson(row))
         .where((item) => item.isPaidRecord)
-        .where((item) => loanIdSet == null || loanIdSet.contains(item.loanId))
+        .where((item) {
+          final matchesCustomer = customerId != null &&
+              customerId.isNotEmpty &&
+              item.customerId == customerId;
+          final matchesLoan =
+              loanIdSet != null && loanIdSet.contains(item.loanId);
+          if (customerId != null && customerId.isNotEmpty) {
+            return matchesCustomer || matchesLoan;
+          }
+          return loanIdSet == null || matchesLoan;
+        })
         .where((item) => agentId == null || item.agentId == agentId)
         .toList();
 

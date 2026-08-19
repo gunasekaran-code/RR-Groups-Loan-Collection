@@ -16,7 +16,7 @@ class ApiServiceRepayment {
   ApiServiceRepayment._();
   static final ApiServiceRepayment instance = ApiServiceRepayment._();
 
-  static String get _baseUrl => '${ApiConfig.baseUrl}rest.php';
+  static String get _baseUrl => '${ApiConfig.normalizedBaseUrl}/rest.php';
 
   Future<Map<String, String>> _headers() async {
     final prefs = await SharedPreferences.getInstance();

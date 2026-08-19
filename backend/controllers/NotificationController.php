@@ -11,7 +11,7 @@ class NotificationController extends ResourceController
     public function handle(): void
     {
         $claims = $this->requireAuth();
-        $role   = $claims['role'] ?? '';
+        $role   = strtolower(trim($claims['role'] ?? ''));
         $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
         if ($method === 'POST') {

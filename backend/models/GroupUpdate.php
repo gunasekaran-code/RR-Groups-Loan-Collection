@@ -57,10 +57,12 @@ class GroupUpdate extends Model
      */
     public static function dispatch(array $settings): array
     {
-        if (empty($settings['group_updates_enabled'])) {
+        $enabled = !isset($settings['group_updates_enabled']) || (bool)$settings['group_updates_enabled'];
+        if (!$enabled) {
             return ['sent' => 0, 'skipped' => 0, 'reason' => 'group_updates_disabled'];
         }
-        if (empty($settings['group_payment_alerts'])) {
+        $paymentAlerts = !isset($settings['group_payment_alerts']) || (bool)$settings['group_payment_alerts'];
+        if (!$paymentAlerts) {
             return ['sent' => 0, 'skipped' => 0, 'reason' => 'payment_alerts_disabled'];
         }
         $days = (int)($settings['reminder_days'] ?? 3);
@@ -75,10 +77,12 @@ class GroupUpdate extends Model
             $userId = $ps->fetchColumn();
             if (!$userId) { $skipped++; continue; }
 
+            $groupNum = $r['group_number'] ?? $r['group_name'] ?? 'Chit Group';
+            $groupName = $r['group_name'] ?? '';
             $title = 'Chit Contribution Due';
-            $body  = 'Your monthly contribution of ₹' . number_format($r['contribution_amount'], 0)
-                   . ' for chit group ' . $r['group_number'] . ' (' . $r['group_name'] . ')'
-                   . ' is due on ' . $r['due_date'] . '.';
+            $body  = 'Your monthly contribution of ₹' . number_format((float)($r['contribution_amount'] ?? 0), 0)
+                   . ' for chit group ' . $groupNum . ($groupName ? ' (' . $groupName . ')' : '')
+                   . ' is due on ' . ($r['due_date'] ?? 'soon') . '.';
 
             $dupe = $pdo->prepare("
                 SELECT COUNT(*) FROM notifications

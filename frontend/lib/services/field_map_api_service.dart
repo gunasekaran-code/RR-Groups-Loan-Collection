@@ -7,8 +7,7 @@ import 'customer_api_service.dart';
 import 'session_service.dart';
 
 class FieldMapApiService {
-  static const String _baseUrl = ApiConfig.baseUrl;
-  static const String _restEndpoint = '$_baseUrl/rest.php';
+  static String get _restEndpoint => '${ApiConfig.normalizedBaseUrl}/rest.php';
 
   static Map<String, String> get _headers => {
         'Content-Type': 'application/json',
@@ -127,8 +126,7 @@ class FieldMapApiService {
 
     final activeCustomers = points
         .where(
-          (p) =>
-              (p['loan_status']?.toString().toLowerCase() ?? '') == 'active',
+          (p) => (p['loan_status']?.toString().toLowerCase() ?? '') == 'active',
         )
         .length;
 

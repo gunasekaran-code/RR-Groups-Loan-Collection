@@ -22,9 +22,11 @@ $controllers = [
     'repayment_schedule' => ScheduleController::class,
     'chit_groups'        => ChitGroupController::class,
     'chit_members'       => ChitMemberController::class,
+    'chit_schedules'     => ChitGroupController::class,
     'notifications'      => NotificationController::class,
     'settings'           => SettingController::class,
     'push_subscriptions' => PushSubscriptionController::class,
+    'promo_popups'       => PromoPopupController::class,
 ];
 $controllerClass = $controllers[$table] ?? ResourceController::class;
 $controller = new $controllerClass($model);

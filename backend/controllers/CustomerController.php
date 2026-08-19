@@ -6,7 +6,12 @@ class CustomerController extends Controller
 {
     public function handle(): void
     {
-        $this->requireAdmin();
+        $claims = $this->requireAuth();
+        ensure_sequential_codes();
+        $role   = strtolower(trim($claims['role'] ?? ''));
+        if ($role === 'customer' || !$role) {
+            json_error('Only admins or agents can manage customers', 403);
+        }
         switch ($_SERVER['REQUEST_METHOD'] ?? '') {
             case 'POST':  $this->store();  break;
             case 'PATCH':
@@ -28,9 +33,21 @@ class CustomerController extends Controller
         return (float)$v;
     }
 
-    private static function genCode(): string
+    public static function genCode(): string
     {
-        return 'CUST-' . random_int(100000, 999999);
+        $pdo = Database::pdo();
+        $stmt = $pdo->query("SELECT customer_id FROM customers WHERE customer_id LIKE 'RRG-CUS-%'");
+        $maxNum = 0;
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            if (preg_match('/RRG-CUS-(\d+)/i', $row['customer_id'], $m)) {
+                $num = (int)$m[1];
+                if ($num > $maxNum) $maxNum = $num;
+            }
+        }
+        if ($maxNum === 0) {
+            $maxNum = (int)$pdo->query("SELECT COUNT(*) FROM customers")->fetchColumn();
+        }
+        return sprintf('RRG-CUS-%04d', $maxNum + 1);
     }
 
     /** Fields shared by the customers row. */
@@ -67,13 +84,14 @@ class CustomerController extends Controller
             if (Profile::emailTaken($email)) json_error('That email is already registered', 409);
         }
 
-        $data['customer_id'] = self::clean($b['customer_id'] ?? null) ?? self::genCode();
+        $inputCode = self::clean($b['customer_id'] ?? null);
+        $data['customer_id'] = ($inputCode && str_starts_with($inputCode, 'RRG-CUS-')) ? $inputCode : self::genCode();
         $rows = Customer::insertRows([$data]);
         $customer = $rows[0] ?? null;
         if (!$customer) json_error('Failed to create customer', 500);
 
         if ($wantsLogin) {
-            $this->createLogin($customer['id'], $email, $password, $data);
+            $this->createLogin($customer['id'], $email, $password, $data, $customer['customer_id']);
         }
         json_out($customer, 201);
     }
@@ -91,6 +109,17 @@ class CustomerController extends Controller
             json_error('Full name cannot be empty', 400);
         }
         Customer::updateWhere($data, ' WHERE id = ?', [$id]);
+
+        // Keep loans in sync with the customer's assigned agent.
+        if (array_key_exists('assigned_agent', $b)) {
+            $agentId = $data['assigned_agent'];
+            $agentName = null;
+            if ($agentId) {
+                $prof = Profile::findPublic($agentId);
+                $agentName = $prof['full_name'] ?? null;
+            }
+            Loan::updateWhere(['assigned_agent' => $agentId, 'agent_name' => $agentName], ' WHERE customer_id = ?', [$id]);
+        }
 
         // Optional login handling.
         $email = strtolower((string)(self::clean($b['email'] ?? null) ?? ''));
@@ -116,14 +145,14 @@ class CustomerController extends Controller
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) json_error('A valid email is required to create a login', 400);
             if (strlen($password) < 6) json_error('Password must be at least 6 characters', 400);
             if (Profile::emailTaken($email)) json_error('That email is already registered', 409);
-            $this->createLogin($id, $email, $password, $data);
+            $this->createLogin($id, $email, $password, $data, $existingCustomer['customer_id'] ?? null);
         }
 
         $customer = Customer::select(' WHERE id = ?', [$id])[0] ?? null;
         json_out($customer);
     }
 
-    private function createLogin(string $customerId, string $email, string $password, array $data): void
+    private function createLogin(string $customerId, string $email, string $password, array $data, ?string $userCode = null): void
     {
         Profile::insertRows([[
             'email'         => $email,
@@ -131,6 +160,7 @@ class CustomerController extends Controller
             'full_name'     => $data['full_name'],
             'mobile'        => $data['mobile'] ?? null,
             'role'          => 'customer',
+            'user_code'     => $userCode,
             'customer_id'   => $customerId,
             'avatar_url'    => $data['photo_url'] ?? null,
             'status'        => 'active',

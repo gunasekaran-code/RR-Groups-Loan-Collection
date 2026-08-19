@@ -554,7 +554,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 ),
               ),
             const SizedBox(height: 20),
-            const Text('Permissions Matrix',
+           /* const Text('Permissions Matrix',
                 style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
@@ -658,7 +658,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   ),
                 ],
               ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 2), */
           ],
         ),
       ),

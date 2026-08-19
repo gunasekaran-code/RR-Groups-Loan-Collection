@@ -210,22 +210,22 @@ class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
       alignment: Alignment.centerLeft,
       child: SizedBox(
         width: 200,
-        child: ElevatedButton.icon(
-          onPressed: () {
-            ToastService.show(
-              title: 'Download started',
-              message: _selectedLoan?.loanNumber ?? 'No loan selected',
-              type: ToastType.info,
-            );
-          },
-          icon: const Icon(Icons.download_outlined, size: 20),
-          label: const Text('Download Schedule'),
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        ),
+        // child: ElevatedButton.icon(
+        //   onPressed: () {
+        //     ToastService.show(
+        //       title: 'Download started',
+        //       message: _selectedLoan?.loanNumber ?? 'No loan selected',
+        //       type: ToastType.info,
+        //     );
+        //   },
+        //   icon: const Icon(Icons.download_outlined, size: 20),
+        //   label: const Text('Download Schedule'),
+        //   style: ElevatedButton.styleFrom(
+        //     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        //     shape:
+        //         RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        //   ),
+        // ),
       ),
     );
 

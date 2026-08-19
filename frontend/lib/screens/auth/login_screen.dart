@@ -6,6 +6,8 @@ import '../../services/session_service.dart';
 import '../../theme/app_theme.dart';
 import '../../services/auth_api_service.dart';
 import '../../services/api_client.dart' hide ApiException;
+import '../../services/branding_service.dart';
+import 'dart:convert';
 import 'forgot_password_screen.dart';
 
 /// Maps the backend's `role` string (Profile.role column) onto the app's
@@ -83,6 +85,7 @@ class _LoginScreenState extends State<LoginScreen> {
         token: data['token']?.toString(),
       );
       ApiClient.instance.authToken = data['token']?.toString();
+      await BrandingService.instance.refreshFromServer();
       if (!mounted) return;
       // main.dart's onGenerateRoute -> _guarded() decides what's actually
       // shown based on this role. Everyone lands on the dashboard first.
@@ -114,26 +117,21 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Center(
-                      child: Container(
-                        width: 64,
-                        height: 64,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                              colors: [AppColors.kGold, AppColors.kGoldDark]),
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        child: const Icon(Icons.account_balance,
-                            color: Colors.white, size: 32),
+                    ValueListenableBuilder<AppBranding>(
+                      valueListenable: BrandingService.instance.branding,
+                      builder: (context, branding, _) => Column(
+                        children: [
+                          _LoginBrandLogo(logoUrl: branding.logoUrl),
+                          const SizedBox(height: 16),
+                          Text(branding.companyName,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.kTextDark)),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    const Text('FinCollect',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            fontSize: 26,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.kTextDark)),
                     const SizedBox(height: 4),
                     const Text('Loan & Collection Management',
                         textAlign: TextAlign.center,
@@ -259,4 +257,71 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+}
+class _LoginBrandLogo extends StatelessWidget {
+  final String? logoUrl;
+
+  const _LoginBrandLogo({required this.logoUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    final url = logoUrl;
+
+    if (url != null && url.isNotEmpty) {
+      Widget imageWidget;
+      if (url.startsWith('data:')) {
+        try {
+          imageWidget = Image.memory(
+            base64Decode(url.substring(url.indexOf(',') + 1)),
+            fit: BoxFit.cover,
+            width: 64,
+            height: 64,
+            errorBuilder: (_, __, ___) => _fallback(),
+          );
+        } catch (_) {
+          return _fallback();
+        }
+      } else {
+        imageWidget = Image.network(
+          url,
+          fit: BoxFit.cover,
+          width: 64,
+          height: 64,
+          errorBuilder: (_, __, ___) => _fallback(),
+        );
+      }
+
+      return Container(
+        width: 64,
+        height: 64,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: imageWidget,
+        ),
+      );
+    }
+
+    return _fallback();
+  }
+
+  Widget _fallback() => Container(
+        width: 64,
+        height: 64,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+              colors: [AppColors.kGold, AppColors.kGoldDark]),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: const Icon(Icons.account_balance, color: Colors.white, size: 32),
+      );
 }

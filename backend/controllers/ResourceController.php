@@ -4,7 +4,7 @@
 class ResourceController extends Controller
 {
     /** @var class-string<Model> */
-    private string $model;
+    protected string $model;
 
     public function __construct(string $modelClass)
     {
@@ -14,6 +14,7 @@ class ResourceController extends Controller
     public function handle(): void
     {
         $this->requireAuth();
+        ensure_sequential_codes();
         switch ($_SERVER['REQUEST_METHOD'] ?? 'GET') {
             case 'GET':    $this->index();   break;
             case 'POST':   $this->store();   break;
@@ -24,7 +25,7 @@ class ResourceController extends Controller
         }
     }
 
-    private function index(): void
+    protected function index(): void
     {
         $model = $this->model;
         $columns = $model::columns();
@@ -32,7 +33,7 @@ class ResourceController extends Controller
         json_out($model::select($where, $binds, QueryParser::order($columns), QueryParser::limit()));
     }
 
-    private function store(): void
+    protected function store(): void
     {
         $model = $this->model;
         $body = $this->body();
@@ -46,7 +47,7 @@ class ResourceController extends Controller
         }
     }
 
-    private function update(): void
+    protected function update(): void
     {
         $model = $this->model;
         [$where, $binds] = QueryParser::where($model::columns());
@@ -60,7 +61,7 @@ class ResourceController extends Controller
         }
     }
 
-    private function destroy(): void
+    protected function destroy(): void
     {
         $model = $this->model;
         [$where, $binds] = QueryParser::where($model::columns());

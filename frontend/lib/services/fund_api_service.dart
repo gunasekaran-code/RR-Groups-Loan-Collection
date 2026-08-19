@@ -6,10 +6,7 @@ import 'method_override_http.dart';
 import 'session_service.dart';
 
 class FundApiService {
-  static const String _baseUrl = ApiConfig.baseUrl;
-  // Ensure we don't end up with a double slash when baseUrl ends with '/'
-  static final String _restEndpoint =
-      '${_baseUrl.replaceAll(RegExp(r'/+$'), '')}/rest.php';
+  static String get _restEndpoint => '${ApiConfig.normalizedBaseUrl}/rest.php';
 
   static Map<String, String> get _headers => {
         'Content-Type': 'application/json',

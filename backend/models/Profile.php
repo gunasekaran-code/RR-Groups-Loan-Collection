@@ -9,6 +9,23 @@ class Profile extends Model
         return static::firstRaw(' WHERE email = ?', [$email]);
     }
 
+    public static function findByIdentifier(string $input): ?array
+    {
+        $input = trim($input);
+        if ($input === '') return null;
+        if (str_contains($input, '@')) {
+            return static::firstRaw(' WHERE LOWER(email) = LOWER(?)', [$input]);
+        }
+        $digits = preg_replace('/\D+/', '', $input);
+        if ($digits !== '') {
+            return static::firstRaw(
+                ' WHERE LOWER(email) = LOWER(?) OR mobile = ? OR REPLACE(REPLACE(REPLACE(mobile, " ", ""), "-", ""), "+", "") LIKE ?',
+                [strtolower($input), $input, '%' . $digits]
+            );
+        }
+        return static::firstRaw(' WHERE LOWER(email) = LOWER(?) OR mobile = ?', [strtolower($input), $input]);
+    }
+
     public static function emailTaken(string $email, ?string $exceptId = null): bool
     {
         if ($exceptId) {

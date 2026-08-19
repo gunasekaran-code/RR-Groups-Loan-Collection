@@ -16,8 +16,7 @@ class NotificationApiException implements Exception {
 class NotificationService {
   static final http.Client _client = http.Client();
 
-  static const String _baseUrl = ApiConfig.baseUrl;
-  static const String _restEndpoint = '$_baseUrl/rest.php';
+  static String get _restEndpoint => '${ApiConfig.normalizedBaseUrl}/rest.php';
   static final Uri _notifCreateUri = Uri.parse(_restEndpoint)
       .replace(queryParameters: {'table': 'notifications'});
 

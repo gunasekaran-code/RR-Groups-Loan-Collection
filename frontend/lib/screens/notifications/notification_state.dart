@@ -1,4 +1,5 @@
 // notification_state.dart
+
 import 'package:flutter/foundation.dart';
 import '../../services/NotificationService.dart';
 
@@ -15,7 +16,6 @@ class NotificationState extends ChangeNotifier {
       _unreadCount = count;
       notifyListeners();
     } catch (_) {
-      // Handle or log error silently
     }
   }
 

@@ -253,31 +253,31 @@ class _ReportsScreenState extends State<ReportsScreen> {
             LayoutBuilder(
               builder: (context, constraints) {
                 final narrow = constraints.maxWidth < 380;
-                final pdfBtn = OutlinedButton.icon(
-                  onPressed: _exportPdf,
-                  icon: const Icon(Icons.description_outlined, size: 18),
-                  label: const Text('Export PDF'),
-                );
-                final excelBtn = ElevatedButton.icon(
-                  onPressed: _exportExcel,
-                  icon: const Icon(Icons.file_download_outlined, size: 18),
-                  label: const Text('Export Excel',
-                      style: TextStyle(fontWeight: FontWeight.w600)),
-                );
+                // final pdfBtn = OutlinedButton.icon(
+                //   onPressed: _exportPdf,
+                //   icon: const Icon(Icons.description_outlined, size: 18),
+                //   label: const Text('Export PDF'),
+                // );
+                // final excelBtn = ElevatedButton.icon(
+                //   onPressed: _exportExcel,
+                //   icon: const Icon(Icons.file_download_outlined, size: 18),
+                //   label: const Text('Export Excel',
+                //       style: TextStyle(fontWeight: FontWeight.w600)),
+                // );
                 if (narrow) {
                   return Column(
                     children: [
-                      SizedBox(width: double.infinity, child: pdfBtn),
+                      // SizedBox(width: double.infinity, child: pdfBtn),
                       const SizedBox(height: 10),
-                      SizedBox(width: double.infinity, child: excelBtn),
+                      // SizedBox(width: double.infinity, child: excelBtn),
                     ],
                   );
                 }
                 return Row(
                   children: [
-                    Expanded(child: pdfBtn),
+                    // Expanded(child: pdfBtn),
                     const SizedBox(width: 12),
-                    Expanded(child: excelBtn),
+                    // Expanded(child: excelBtn),
                   ],
                 );
               },

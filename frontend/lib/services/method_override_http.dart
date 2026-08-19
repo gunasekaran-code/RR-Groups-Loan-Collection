@@ -6,11 +6,22 @@ Future<http.Response> postWithMethodOverride(
   Object? body,
   String method = 'PATCH',
 }) {
-  final requestHeaders = Map<String, String>.from(headers);
-  requestHeaders['X-HTTP-Method-Override'] = method.toUpperCase();
-  return http.post(
-    uri,
-    headers: requestHeaders,
-    body: body,
-  );
+  // Use native methods for Flutter Web. A query-string `_method` is copied to
+  // the browser's OPTIONS preflight, which makes this backend authenticate the
+  // preflight as PATCH/DELETE and return 401. Native methods keep the
+  // preflight as OPTIONS; the API already permits PATCH/PUT/DELETE in CORS.
+  switch (method.toUpperCase()) {
+    case 'PATCH':
+      return http.patch(uri, headers: headers, body: body);
+    case 'PUT':
+      return http.put(uri, headers: headers, body: body);
+    case 'DELETE':
+      return http.delete(uri, headers: headers, body: body);
+    default:
+      throw ArgumentError.value(
+        method,
+        'method',
+        'Only PATCH, PUT, and DELETE are supported.',
+      );
+  }
 }

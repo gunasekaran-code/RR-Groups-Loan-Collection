@@ -4,11 +4,14 @@
 
 class QueryParser
 {
-    private const RESERVED = ['table', 'select', 'order', 'limit', 'offset', 'upsert', 'on_conflict', 'action'];
+    private const RESERVED = ['table', 'select', 'order', 'limit', 'offset', 'upsert', 'on_conflict', 'action', 'token'];
 
     /** @return array{0:string,1:array} [sqlFragment, binds] */
     public static function where(array $columns): array
     {
+        if (empty($columns)) {
+            return ['', []];
+        }
         $clauses = [];
         $binds = [];
         foreach ($_GET as $key => $raw) {
@@ -16,7 +19,7 @@ class QueryParser
                 continue;
             }
             if (!isset($columns[$key])) {
-                json_error("Unknown column in filter: $key", 400);
+                continue;
             }
             $col = "`$key`";
             $dot = strpos($raw, '.');
@@ -55,7 +58,7 @@ class QueryParser
     public static function order(array $columns): string
     {
         $order = $_GET['order'] ?? '';
-        if ($order === '') {
+        if ($order === '' || empty($columns)) {
             return '';
         }
         $parts = [];
@@ -65,7 +68,7 @@ class QueryParser
             $bits = explode('.', $spec);
             $col = $bits[0];
             if (!isset($columns[$col])) {
-                json_error("Unknown column in order: $col", 400);
+                continue;
             }
             $dir = (isset($bits[1]) && strtolower($bits[1]) === 'desc') ? 'DESC' : 'ASC';
             $parts[] = "`$col` $dir";

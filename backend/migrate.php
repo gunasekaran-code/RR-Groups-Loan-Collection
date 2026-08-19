@@ -251,4 +251,146 @@ if (!$hasBio) {
     echo "biometric_credentials table already present.\n";
 }
 
+// 13. Add user_code column to profiles + backfill sequential RRG-ADM-0001, RRG-STF-0001, RRG-CUS-0001 codes.
+$hasUserCode = $pdo->query(
+    "SELECT COUNT(*) FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'profiles' AND COLUMN_NAME = 'user_code'"
+)->fetchColumn();
+if (!$hasUserCode) {
+    $pdo->exec("ALTER TABLE profiles ADD COLUMN `user_code` VARCHAR(64) NULL AFTER `role`");
+    echo "profiles.user_code column added.\n";
+}
+
+// Backfill profiles user_code
+foreach (['admin' => 'RRG-ADM-', 'agent' => 'RRG-STF-', 'customer' => 'RRG-CUS-'] as $r => $prefix) {
+    $rows = $pdo->query("SELECT id, user_code FROM profiles WHERE role = '$r' ORDER BY created_at ASC, id ASC")->fetchAll(PDO::FETCH_ASSOC);
+    $idx = 1;
+    foreach ($rows as $row) {
+        if (!$row['user_code'] || !str_starts_with($row['user_code'], $prefix)) {
+            $code = sprintf('%s%04d', $prefix, $idx);
+            $stmt = $pdo->prepare("UPDATE profiles SET user_code = ? WHERE id = ?");
+            $stmt->execute([$code, $row['id']]);
+        } else if (preg_match('/' . preg_quote($prefix, '/') . '(\d+)/i', $row['user_code'], $m)) {
+            $val = (int)$m[1];
+            if ($val >= $idx) $idx = $val;
+        }
+        $idx++;
+    }
+}
+
+// Backfill customers customer_id to RRG-CUS-XXXX
+$custRows = $pdo->query("SELECT id, customer_id FROM customers ORDER BY created_at ASC, id ASC")->fetchAll(PDO::FETCH_ASSOC);
+$cIdx = 1;
+foreach ($custRows as $cRow) {
+    if (!$cRow['customer_id'] || !str_starts_with($cRow['customer_id'], 'RRG-CUS-')) {
+        $code = sprintf('RRG-CUS-%04d', $cIdx);
+        $stmt = $pdo->prepare("UPDATE customers SET customer_id = ? WHERE id = ?");
+        $stmt->execute([$code, $cRow['id']]);
+    } else if (preg_match('/RRG-CUS-(\d+)/i', $cRow['customer_id'], $m)) {
+        $val = (int)$m[1];
+        if ($val >= $cIdx) $cIdx = $val;
+    }
+    $cIdx++;
+}
+
+// 14. Ensure account_ledger table exists and entry_type is VARCHAR(64).
+$hasAccountLedger = $pdo->query(
+    "SELECT COUNT(*) FROM information_schema.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'account_ledger'"
+)->fetchColumn();
+if (!$hasAccountLedger) {
+    $pdo->exec("
+        CREATE TABLE account_ledger (
+          id           CHAR(36)     NOT NULL PRIMARY KEY,
+          entry_type   VARCHAR(64)  NOT NULL DEFAULT 'cash_in',
+          title        VARCHAR(191) NOT NULL,
+          amount       DECIMAL(14,2) NOT NULL DEFAULT 0,
+          category     VARCHAR(128) NOT NULL DEFAULT 'General',
+          entry_date   DATE         NULL,
+          notes        TEXT         NULL,
+          created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_account_ledger_type (entry_type),
+          INDEX idx_account_ledger_date (entry_date)
+        ) ENGINE=InnoDB
+    ");
+    echo "account_ledger table created.\n";
+} else {
+    $pdo->exec("ALTER TABLE account_ledger MODIFY COLUMN entry_type VARCHAR(64) NOT NULL DEFAULT 'cash_in'");
+    echo "account_ledger table already present, entry_type column set to VARCHAR(64).\n";
+}
+
+// 15. Ensure chit_schedules table exists.
+$hasChitSchedules = $pdo->query(
+    "SELECT COUNT(*) FROM information_schema.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'chit_schedules'"
+)->fetchColumn();
+if (!$hasChitSchedules) {
+    $pdo->exec("
+        CREATE TABLE chit_schedules (
+          id             CHAR(36)     NOT NULL PRIMARY KEY,
+          group_id       CHAR(36)     NOT NULL,
+          installment_no INT          NOT NULL,
+          due_date       DATE         NOT NULL,
+          payable_amount DECIMAL(14,2) NOT NULL DEFAULT 0,
+          pool_amount    DECIMAL(14,2) NOT NULL DEFAULT 0,
+          is_overridden  TINYINT(1)   NOT NULL DEFAULT 0,
+          notes          VARCHAR(255) NULL,
+          created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_chit_sched_group (group_id),
+          CONSTRAINT fk_chit_sched_group FOREIGN KEY (group_id)
+            REFERENCES chit_groups(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB
+    ");
+    echo "chit_schedules table created.\n";
+} else {
+    echo "chit_schedules table already present.\n";
+}
+
+// 16. Ensure chit_groups draw_frequency enum includes 'every_10_days'.
+try {
+    $pdo->exec("ALTER TABLE chit_groups MODIFY draw_frequency ENUM('monthly_1', 'monthly_2', 'monthly_3', 'custom', 'every_5_days', 'every_10_days', 'interval_days') NOT NULL DEFAULT 'monthly_1'");
+    echo "chit_groups.draw_frequency enum updated.\n";
+} catch (\Throwable $e) {
+    // ignore if already updated
+}
+
+// 17. Ensure funds units column exists.
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM funds LIKE 'units'");
+    if ($stmt && $stmt->rowCount() === 0) {
+        $pdo->exec("ALTER TABLE funds ADD COLUMN units DECIMAL(10,2) NOT NULL DEFAULT 1.00");
+        echo "funds.units column added.\n";
+    }
+} catch (\Throwable $e) {
+    // ignore if already added
+}
+
+// 18. Ensure settings popup columns exist.
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM settings LIKE 'popup_enabled'");
+    if ($stmt && $stmt->rowCount() === 0) {
+        $pdo->exec("ALTER TABLE settings ADD COLUMN popup_enabled TINYINT(1) NOT NULL DEFAULT 0, ADD COLUMN popup_image_url LONGTEXT NULL, ADD COLUMN popup_target_url TEXT NULL");
+        echo "settings.popup columns added.\n";
+    }
+} catch (\Throwable $e) {
+    // ignore if already added
+}
+
+// 19. Ensure promo_popups table exists.
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS promo_popups (
+      id           CHAR(36)     NOT NULL PRIMARY KEY,
+      title        VARCHAR(191) NOT NULL DEFAULT 'Promotional Banner',
+      image_url    LONGTEXT     NOT NULL,
+      target_url   TEXT         NULL,
+      is_active    TINYINT(1)   NOT NULL DEFAULT 1,
+      created_by   VARCHAR(191) NULL,
+      created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB");
+    echo "promo_popups table checked/created.\n";
+} catch (\Throwable $e) {
+    // ignore if already created
+}
+
 echo "Migration complete.\n";

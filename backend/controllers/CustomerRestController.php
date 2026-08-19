@@ -14,25 +14,42 @@ class CustomerRestController extends ResourceController
     public function handle(): void
     {
         $claims = $this->requireAuth();
-        $role   = $claims['role'] ?? '';
+        ensure_sequential_codes();
+        $role   = strtolower(trim($claims['role'] ?? ''));
+        if (!$role && !empty($claims['sub'])) {
+            $p = Profile::firstRaw(' WHERE id = ?', [$claims['sub']]);
+            if ($p) $role = strtolower(trim($p['role'] ?? ''));
+        }
         $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
-        if ($method === 'POST' || $method === 'DELETE') {
-            if ($role !== 'admin') {
-                json_error('Only admins can create or delete customers', 403);
+        if (in_array($method, ['POST', 'PATCH', 'PUT', 'DELETE'], true)) {
+            if ($role === 'customer') {
+                json_error('Customers cannot modify customer records', 403);
             }
-        } elseif ($method === 'PATCH' || $method === 'PUT') {
-            if ($role === 'admin') {
-                // full edit allowed
-            } elseif ($role === 'agent') {
-                $allowed = ['latitude', 'longitude', 'photo_url', 'aadhaar_front_url', 'aadhaar_back_url', 'pan_url', 'signature_url'];
-                foreach (array_keys($this->body()) as $k) {
-                    if (!in_array($k, $allowed, true)) {
-                        json_error('Agents can only update a customer location or documents', 403);
+            if ($method === 'DELETE' && $role !== 'admin') {
+                json_error('Only admins can delete customers', 403);
+            }
+        }
+
+        if ($method === 'PATCH' || $method === 'PUT') {
+            $b = $this->body();
+            if (array_key_exists('assigned_agent', $b)) {
+                [$where, $binds] = QueryParser::where(Customer::columns());
+                if ($where !== '') {
+                    $agentId = $b['assigned_agent'] ?: null;
+                    $agentName = null;
+                    if ($agentId) {
+                        $prof = Profile::findPublic($agentId);
+                        $agentName = $prof['full_name'] ?? null;
+                    }
+                    // Sync assigned_agent to all loans belonging to the customer
+                    $customers = Customer::select($where, $binds);
+                    foreach ($customers as $cust) {
+                        if (!empty($cust['id'])) {
+                            Loan::updateWhere(['assigned_agent' => $agentId, 'agent_name' => $agentName], ' WHERE customer_id = ?', [$cust['id']]);
+                        }
                     }
                 }
-            } else {
-                json_error('Not allowed', 403);
             }
         }
 

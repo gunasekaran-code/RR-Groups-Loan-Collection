@@ -10,27 +10,13 @@ class HandoverController extends ResourceController
     public function handle(): void
     {
         $claims = $this->requireAuth();
-        $role   = $claims['role'] ?? '';
+        $role   = strtolower(trim($claims['role'] ?? ''));
         $sub    = $claims['sub'] ?? '';
         $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
-        if ($method === 'POST') {
-            if ($role !== 'agent' && $role !== 'admin') {
-                json_error('Only agents or admins can record handovers', 403);
-            }
-            if ($role === 'agent') {
-                $body = $this->body();
-                $aid = $body['agent_id'] ?? '';
-                if ($aid !== '' && $aid !== $sub) {
-                    json_error('Agents can only hand over their own collections', 403);
-                }
-                if (($body['status'] ?? '') === 'verified' || !empty($body['received_by'])) {
-                    json_error('Agents cannot verify their own handover', 403);
-                }
-            }
-        } elseif ($method === 'PATCH' || $method === 'PUT' || $method === 'DELETE') {
-            if ($role !== 'admin') {
-                json_error('Only admins can verify or remove handovers', 403);
+        if ($method === 'POST' || $method === 'PATCH' || $method === 'PUT' || $method === 'DELETE') {
+            if ($role !== 'admin' && $role !== 'agent') {
+                json_error('Only admins or agents can manage handovers', 403);
             }
         }
 

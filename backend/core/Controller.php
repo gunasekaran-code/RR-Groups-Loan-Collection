@@ -19,6 +19,34 @@ abstract class Controller
         if (!$claims) {
             json_error('Invalid or expired token', 401);
         }
+        if (!empty($claims['sub'])) {
+            $p = Profile::firstRaw(' WHERE id = ?', [$claims['sub']]);
+            if ($p && !empty($p['role'])) {
+                $claims['role'] = strtolower(trim($p['role']));
+            }
+        }
+        $claims['role'] = strtolower(trim($claims['role'] ?? ''));
+        return $claims;
+    }
+
+    /** Attempts auth but returns null instead of dying if no/invalid token. */
+    protected function tryAuth(): ?array
+    {
+        $token = bearer_token();
+        if (!$token) {
+            return null;
+        }
+        $claims = Jwt::decode($token);
+        if (!$claims) {
+            return null;
+        }
+        if (!empty($claims['sub'])) {
+            $p = Profile::firstRaw(' WHERE id = ?', [$claims['sub']]);
+            if ($p && !empty($p['role'])) {
+                $claims['role'] = strtolower(trim($p['role']));
+            }
+        }
+        $claims['role'] = strtolower(trim($claims['role'] ?? ''));
         return $claims;
     }
 

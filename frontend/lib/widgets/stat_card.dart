@@ -45,14 +45,17 @@ class StatCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      value,
-                      style: const TextStyle(
-                        fontSize: 26, // Adjusted slightly to fit larger text like currency smoothly
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        value,
+                        style: const TextStyle(
+                          fontSize: 26, // Adjusted slightly to fit larger text like currency smoothly
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
                       ),
-                      overflow: TextOverflow.ellipsis,
                     ),
                     // Trend line right beneath the main metric value if present
                     if (trend != null) ...[

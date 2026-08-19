@@ -4,12 +4,26 @@ class Loan extends Model
     protected static string $table = 'loans';
 
     /**
-     * A unique loan number in the app's LN-######## style. Used as a server-side
-     * fallback when a loan is created without one. Time-based so it can't collide
-     * with the random numbers the frontend generates.
+     * Sequential HP Number starting at RR001, auto-incrementing sequentially
+     * (RR002, RR003, etc.) based on existing database entries.
      */
     public static function nextLoanNumber(): string
     {
-        return 'LN-' . substr((string) (int) (microtime(true) * 1000), -8);
+        $pdo = Database::pdo();
+        $stmt = $pdo->query("SELECT loan_number FROM loans WHERE loan_number LIKE 'RR%'");
+        $numbers = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        $max = 0;
+        foreach ($numbers as $num) {
+            if (preg_match('/^RR(\d+)$/i', trim($num), $m)) {
+                $val = (int)$m[1];
+                if ($val > $max) {
+                    $max = $val;
+                }
+            }
+        }
+
+        $next = $max + 1;
+        return 'RR' . str_pad((string)$next, 3, '0', STR_PAD_LEFT);
     }
 }

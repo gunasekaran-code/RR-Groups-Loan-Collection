@@ -13,8 +13,12 @@ class LoanController extends ResourceController
     public function handle(): void
     {
         $claims = $this->requireAuth();
-        $role   = $claims['role'] ?? '';
+        $role   = strtolower(trim($claims['role'] ?? ''));
         $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+        if ($method === 'GET' && ($_GET['action'] ?? '') === 'next_hp_number') {
+            json_out(['next_hp_number' => Loan::nextLoanNumber()]);
+        }
 
         if ($method === 'POST' || $method === 'PATCH' || $method === 'PUT') {
             if ($role !== 'admin' && $role !== 'agent') {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'models/user_role.dart';
 import 'routes/app_routes.dart';
 import 'services/session_service.dart';
+import 'services/branding_service.dart';
 import 'theme/app_theme.dart';
 import 'theme/glass_toast.dart';
 import 'theme/theme_controller.dart';
@@ -32,6 +33,7 @@ import 'screens/agent_page.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SessionService.instance.restoreFromStorage();
+  await BrandingService.instance.initialize();
   runApp(const FinCollectApp());
 }
 

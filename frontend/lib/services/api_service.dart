@@ -5,7 +5,7 @@ import 'method_override_http.dart';
 import 'session_service.dart'; // adjust path — wherever SessionService lives
 
 class ApiService {
-  static String get _restEndpoint => '${ApiConfig.baseUrl}rest.php';
+  static String get _restEndpoint => '${ApiConfig.normalizedBaseUrl}/rest.php';
 
   static Map<String, String> get _headers => {
         'Content-Type': 'application/json',

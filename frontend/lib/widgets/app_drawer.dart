@@ -4,9 +4,10 @@ import '../models/user_role.dart';
 import '../routes/app_routes.dart';
 import '../services/privilege_service.dart';
 import '../services/session_service.dart';
+import '../services/branding_service.dart';
 import '../theme/app_theme.dart';
 import 'user_avatar.dart';
-
+import 'dart:convert';
 
 class _DrawerItem {
   final String label;
@@ -32,52 +33,126 @@ class _DrawerSection {
 // in _buildSection below).
 const List<_DrawerSection> _ownerAdminSections = [
   _DrawerSection(title: 'OVERVIEW', items: [
-    _DrawerItem(label: 'Dashboard', icon: Icons.grid_view_rounded, route: AppRoutes.dashboard),
+    _DrawerItem(
+        label: 'Dashboard',
+        icon: Icons.grid_view_rounded,
+        route: AppRoutes.dashboard),
   ]),
   _DrawerSection(title: 'MANAGE', items: [
-    _DrawerItem(label: 'Customers', icon: Icons.people_outline, route: AppRoutes.customers),
-    _DrawerItem(label: 'Loans', icon: Icons.account_balance_outlined, route: AppRoutes.loans),
-    _DrawerItem(label: 'Repayment Schedule', icon: Icons.event_note_outlined, route: AppRoutes.repayment),
-    _DrawerItem(label: 'Collections', icon: Icons.account_balance_wallet_outlined, route: AppRoutes.collections),
-    _DrawerItem(label: 'Handover', icon: Icons.handshake_outlined, route: AppRoutes.handover),
-    _DrawerItem(label: 'Funds', icon: Icons.account_balance_wallet_outlined, route: AppRoutes.funds),
-    _DrawerItem(label: 'Overdue', icon: Icons.error_outline, route: AppRoutes.overdue),
-    _DrawerItem(label: 'Chit Groups', icon: Icons.groups_2_outlined, route: AppRoutes.chitGroups),
+    _DrawerItem(
+        label: 'Customers',
+        icon: Icons.people_outline,
+        route: AppRoutes.customers),
+    _DrawerItem(
+        label: 'Loans',
+        icon: Icons.account_balance_outlined,
+        route: AppRoutes.loans),
+    _DrawerItem(
+        label: 'Repayment Schedule',
+        icon: Icons.event_note_outlined,
+        route: AppRoutes.repayment),
+    _DrawerItem(
+        label: 'Collections',
+        icon: Icons.account_balance_wallet_outlined,
+        route: AppRoutes.collections),
+    _DrawerItem(
+        label: 'Handover',
+        icon: Icons.handshake_outlined,
+        route: AppRoutes.handover),
+    _DrawerItem(
+        label: 'Funds',
+        icon: Icons.account_balance_wallet_outlined,
+        route: AppRoutes.funds),
+    _DrawerItem(
+        label: 'Overdue', icon: Icons.error_outline, route: AppRoutes.overdue),
+    _DrawerItem(
+        label: 'Chit Groups',
+        icon: Icons.groups_2_outlined,
+        route: AppRoutes.chitGroups),
   ]),
   _DrawerSection(title: 'AGENT', items: [
-    _DrawerItem(label: 'Agent', icon: Icons.support_agent_outlined, route: AppRoutes.agent),
-    _DrawerItem(label: 'Route Map', icon: Icons.map_outlined, route: AppRoutes.routeMap),
+    _DrawerItem(
+        label: 'Agent',
+        icon: Icons.support_agent_outlined,
+        route: AppRoutes.agent),
+    _DrawerItem(
+        label: 'Route Map',
+        icon: Icons.map_outlined,
+        route: AppRoutes.routeMap),
   ]),
   _DrawerSection(title: 'INSIGHTS', items: [
-    _DrawerItem(label: 'Reports', icon: Icons.bar_chart_outlined, route: AppRoutes.reports),
-    _DrawerItem(label: 'Notifications', icon: Icons.notifications_none_rounded, route: AppRoutes.notifications),
+    _DrawerItem(
+        label: 'Reports',
+        icon: Icons.bar_chart_outlined,
+        route: AppRoutes.reports),
+    _DrawerItem(
+        label: 'Notifications',
+        icon: Icons.notifications_none_rounded,
+        route: AppRoutes.notifications),
   ]),
   _DrawerSection(title: 'SYSTEM', items: [
-    _DrawerItem(label: 'User Management', icon: Icons.manage_accounts_outlined, route: AppRoutes.userManagement),
-    _DrawerItem(label: 'Settings', icon: Icons.settings_outlined, route: AppRoutes.settings),
+    _DrawerItem(
+        label: 'User Management',
+        icon: Icons.manage_accounts_outlined,
+        route: AppRoutes.userManagement),
+    _DrawerItem(
+        label: 'Settings',
+        icon: Icons.settings_outlined,
+        route: AppRoutes.settings),
   ]),
 ];
 
 // ---------------- AGENT ----------------
 const List<_DrawerSection> _agentSections = [
   _DrawerSection(title: 'OVERVIEW', items: [
-    _DrawerItem(label: 'Dashboard', icon: Icons.grid_view_rounded, route: AppRoutes.dashboard),
+    _DrawerItem(
+        label: 'Dashboard',
+        icon: Icons.grid_view_rounded,
+        route: AppRoutes.dashboard),
   ]),
   _DrawerSection(title: 'MANAGE', items: [
-    _DrawerItem(label: 'Customers', icon: Icons.people_outline, route: AppRoutes.customers),
-    _DrawerItem(label: 'Loans', icon: Icons.account_balance_outlined, route: AppRoutes.loans),
-    _DrawerItem(label: 'Repayment Schedule', icon: Icons.event_note_outlined, route: AppRoutes.repayment),
-    _DrawerItem(label: 'Collections', icon: Icons.account_balance_wallet_outlined, route: AppRoutes.collections),
-    _DrawerItem(label: 'Overdue', icon: Icons.error_outline, route: AppRoutes.overdue),
-    _DrawerItem(label: 'Chit Groups', icon: Icons.groups_2_outlined, route: AppRoutes.chitGroups),
-    _DrawerItem(label: 'Funds', icon: Icons.account_balance_wallet_outlined, route: AppRoutes.funds),
-    _DrawerItem(label: 'Cash Handover', icon: Icons.handshake_outlined, route: AppRoutes.handover),
+    _DrawerItem(
+        label: 'Customers',
+        icon: Icons.people_outline,
+        route: AppRoutes.customers),
+    _DrawerItem(
+        label: 'Loans',
+        icon: Icons.account_balance_outlined,
+        route: AppRoutes.loans),
+    _DrawerItem(
+        label: 'Repayment Schedule',
+        icon: Icons.event_note_outlined,
+        route: AppRoutes.repayment),
+    _DrawerItem(
+        label: 'Collections',
+        icon: Icons.account_balance_wallet_outlined,
+        route: AppRoutes.collections),
+    _DrawerItem(
+        label: 'Overdue', icon: Icons.error_outline, route: AppRoutes.overdue),
+    _DrawerItem(
+        label: 'Chit Groups',
+        icon: Icons.groups_2_outlined,
+        route: AppRoutes.chitGroups),
+    _DrawerItem(
+        label: 'Funds',
+        icon: Icons.account_balance_wallet_outlined,
+        route: AppRoutes.funds),
+    _DrawerItem(
+        label: 'Cash Handover',
+        icon: Icons.handshake_outlined,
+        route: AppRoutes.handover),
   ]),
   _DrawerSection(title: 'AGENT', items: [
-    _DrawerItem(label: 'Route Map', icon: Icons.map_outlined, route: AppRoutes.routeMap),
+    _DrawerItem(
+        label: 'Route Map',
+        icon: Icons.map_outlined,
+        route: AppRoutes.routeMap),
   ]),
   _DrawerSection(title: 'INSIGHTS', items: [
-    _DrawerItem(label: 'Notifications', icon: Icons.notifications_none_rounded, route: AppRoutes.notifications),
+    _DrawerItem(
+        label: 'Notifications',
+        icon: Icons.notifications_none_rounded,
+        route: AppRoutes.notifications),
   ]),
 ];
 
@@ -90,17 +165,38 @@ const List<_DrawerSection> _agentSections = [
 // ---------------- CUSTOMER ----------------
 const List<_DrawerSection> _customerSections = [
   _DrawerSection(title: 'OVERVIEW', items: [
-    _DrawerItem(label: 'Dashboard', icon: Icons.grid_view_rounded, route: AppRoutes.dashboard),
+    _DrawerItem(
+        label: 'Dashboard',
+        icon: Icons.grid_view_rounded,
+        route: AppRoutes.dashboard),
   ]),
   _DrawerSection(title: 'MY ACCOUNT', items: [
-    _DrawerItem(label: 'My Loans', icon: Icons.account_balance_outlined, route: AppRoutes.loans),
-    _DrawerItem(label: 'Repayment Schedule', icon: Icons.event_note_outlined, route: AppRoutes.repayment),
-    _DrawerItem(label: 'Payment History', icon: Icons.history_rounded, route: AppRoutes.paymentHistory),
-    _DrawerItem(label: 'My Funds', icon: Icons.account_balance_wallet_outlined, route: AppRoutes.funds),
-    _DrawerItem(label: 'My Chits', icon: Icons.groups_2_outlined, route: AppRoutes.chitGroups), 
+    _DrawerItem(
+        label: 'My Loans',
+        icon: Icons.account_balance_outlined,
+        route: AppRoutes.loans),
+    _DrawerItem(
+        label: 'Repayment Schedule',
+        icon: Icons.event_note_outlined,
+        route: AppRoutes.repayment),
+    _DrawerItem(
+        label: 'Payment History',
+        icon: Icons.history_rounded,
+        route: AppRoutes.paymentHistory),
+    _DrawerItem(
+        label: 'My Funds',
+        icon: Icons.account_balance_wallet_outlined,
+        route: AppRoutes.funds),
+    _DrawerItem(
+        label: 'My Chits',
+        icon: Icons.groups_2_outlined,
+        route: AppRoutes.chitGroups),
   ]),
   _DrawerSection(title: 'INSIGHTS', items: [
-    _DrawerItem(label: 'Notifications', icon: Icons.notifications_none_rounded, route: AppRoutes.notifications),
+    _DrawerItem(
+        label: 'Notifications',
+        icon: Icons.notifications_none_rounded,
+        route: AppRoutes.notifications),
   ]),
 ];
 
@@ -132,44 +228,37 @@ class AppDrawer extends StatelessWidget {
       child: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                        color: scheme.primary,
-                        borderRadius: BorderRadius.circular(10)),
-                    child: const Icon(Icons.account_balance,
-                        color: Colors.white, size: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'FinCollect',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            color: scheme.onSurface,
-                          ),
-                        ),
-                        Text(
-                          'Loan & Collection',
-                          style: TextStyle(fontSize: 12, color: scheme.outline),
-                        ),
-                      ],
+            ValueListenableBuilder<AppBranding>(
+              valueListenable: BrandingService.instance.branding,
+              builder: (context, branding, _) => Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                child: Row(
+                  children: [
+                    _DrawerBrandLogo(
+                        logoUrl: branding.logoUrl, color: scheme.primary),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(branding.companyName,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  color: scheme.onSurface)),
+                          Text('Loan & Collection',
+                              style: TextStyle(
+                                  fontSize: 12, color: scheme.outline)),
+                        ],
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.close, color: scheme.onSurfaceVariant),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
+                    IconButton(
+                      icon: Icon(Icons.close, color: scheme.onSurfaceVariant),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
               ),
             ),
             Divider(height: 1, color: scheme.outline.withValues(alpha: 0.2)),
@@ -210,8 +299,7 @@ class AppDrawer extends StatelessWidget {
                             overflow: TextOverflow.ellipsis),
                         Text(user.role.label,
                             style: TextStyle(
-                                fontSize: 12,
-                                color: scheme.onSurfaceVariant)),
+                                fontSize: 12, color: scheme.onSurfaceVariant)),
                       ],
                     ),
                   ),
@@ -300,6 +388,52 @@ class AppDrawer extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+
+class _DrawerBrandLogo extends StatelessWidget {
+  final String? logoUrl;
+  final Color color;
+
+  const _DrawerBrandLogo({required this.logoUrl, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final url = logoUrl;
+    Widget image =
+        const Icon(Icons.account_balance, color: Colors.white, size: 22);
+        
+    if (url != null && url.startsWith('data:')) {
+      try {
+        image = Image.memory(
+          base64Decode(url.substring(url.indexOf(',') + 1)),
+          fit: BoxFit.cover, // Changed from contain to cover
+        );
+      } catch (_) {}
+    } else if (url != null && url.isNotEmpty) {
+      image = Image.network(
+        url,
+        fit: BoxFit.cover, // Changed from contain to cover
+        errorBuilder: (_, __, ___) =>
+            const Icon(Icons.account_balance, color: Colors.white, size: 22),
+      );
+    }
+    
+    return Container(
+      width: 40,
+      height: 40,
+      // Removed the 5px padding so it can fill edge-to-edge
+      decoration: BoxDecoration(
+        color: color, 
+        borderRadius: BorderRadius.circular(10)
+      ),
+      // Wrapped in ClipRRect to keep the image corners perfectly rounded
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: image,
       ),
     );
   }

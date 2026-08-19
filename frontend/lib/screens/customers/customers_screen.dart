@@ -233,17 +233,17 @@ class _CustomersScreenState extends State<CustomersScreen> {
               const SizedBox(height: 16),
               Row(
                 children: [
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      ToastService.show(
-                        title: 'Export started',
-                        message: 'Preparing your customer list',
-                        type: ToastType.info,
-                      );
-                    },
-                    icon: const Icon(Icons.file_download_outlined, size: 18),
-                    label: const Text('Export'),
-                  ),
+                  // OutlinedButton.icon(
+                  //   onPressed: () {
+                  //     ToastService.show(
+                  //       title: 'Export started',
+                  //       message: 'Preparing your customer list',
+                  //       type: ToastType.info,
+                  //     );
+                  //   },
+                  //   icon: const Icon(Icons.file_download_outlined, size: 18),
+                  //   label: const Text('Export'),
+                  // ),
                   const SizedBox(width: 12),
                   ElevatedButton.icon(
                     onPressed: () => _showCustomerFormModal(),

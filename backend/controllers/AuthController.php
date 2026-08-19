@@ -84,15 +84,15 @@ class AuthController extends Controller
             json_error('Method not allowed', 405);
         }
         $body = $this->body();
-        $email = strtolower(trim($body['email'] ?? ''));
+        $input = trim((string)($body['identifier'] ?? $body['email'] ?? $body['mobile'] ?? ''));
         $password = (string)($body['password'] ?? '');
-        if ($email === '' || $password === '') {
-            json_error('Email and password are required', 400);
+        if ($input === '' || $password === '') {
+            json_error('Mobile number or Email ID and PIN/Password are required', 400);
         }
 
-        $user = Profile::findByEmail($email);
+        $user = Profile::findByIdentifier($input);
         if (!$user || !$user['password_hash'] || !password_verify($password, $user['password_hash'])) {
-            json_error('Invalid email or password', 401);
+            json_error('Invalid mobile number / email or PIN', 401);
         }
         if ($user['status'] === 'inactive') {
             json_error('Your account is inactive. Please contact the administrator.', 403);
@@ -111,19 +111,23 @@ class AuthController extends Controller
         ]);
     }
 
-    /** Find the account for a reset request, verifying email + mobile match. */
+    /** Find the account for a reset request, verifying email or mobile. */
     private function findResetUser(array $b): array
     {
-        $email  = strtolower(trim((string)($b['email'] ?? '')));
+        $input  = trim((string)($b['identifier'] ?? $b['email'] ?? ''));
         $mobile = preg_replace('/\D+/', '', (string)($b['mobile'] ?? '')); // digits only
-        if ($email === '' || $mobile === '') {
-            json_error('Email and registered mobile number are required', 400);
+        if ($input === '' && $mobile === '') {
+            json_error('Mobile number or Email ID is required', 400);
         }
-        $user = Profile::findByEmail($email);
-        // Generic message so we don't reveal which part didn't match.
-        $onFile = $user ? preg_replace('/\D+/', '', (string)($user['mobile'] ?? '')) : '';
-        if (!$user || $onFile === '' || $onFile !== $mobile) {
-            json_error('No account matches that email and mobile number', 404);
+        $user = null;
+        if ($input !== '') {
+            $user = Profile::findByIdentifier($input);
+        }
+        if (!$user && $mobile !== '') {
+            $user = Profile::findByIdentifier($mobile);
+        }
+        if (!$user) {
+            json_error('No account matches that mobile number or email ID', 404);
         }
         if (($user['status'] ?? '') === 'inactive') {
             json_error('Your account is inactive. Please contact the administrator.', 403);

@@ -6,8 +6,11 @@ import 'package:intl/intl.dart';
 
 import '../../models/app_user.dart';
 import '../../models/loan_record.dart';
+import '../../models/repayment_installment.dart';
 import '../../routes/app_routes.dart';
 import '../../services/api_client.dart';
+import '../../services/api_service_repayment.dart';
+import '../../services/collection_api_service.dart';
 import '../../services/session_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_shell.dart';
@@ -77,13 +80,13 @@ class CustomerSummary {
 
   factory CustomerSummary.fromJson(Map<String, dynamic> json) {
     return CustomerSummary(
-      activeLoans: (json['active_loans'] ?? 0) as int,
-      totalOutstanding: (json['total_outstanding'] ?? 0).toDouble(),
-      totalPaid: (json['total_paid'] ?? 0).toDouble(),
-      nextEmiAmount: (json['next_emi_amount'] ?? 0).toDouble(),
+      activeLoans: _asInt(json['active_loans']),
+      totalOutstanding: _asDouble(json['total_outstanding']),
+      totalPaid: _asDouble(json['total_paid']),
+      nextEmiAmount: _asDouble(json['next_emi_amount']),
       nextEmiDueDate: json['next_emi_due_date'] as String?,
-      installmentsPaidCount: (json['installments_paid'] ?? 0) as int,
-      installmentsPendingCount: (json['installments_pending'] ?? 0) as int,
+      installmentsPaidCount: _asInt(json['installments_paid']),
+      installmentsPendingCount: _asInt(json['installments_pending']),
     );
   }
 }
@@ -106,9 +109,9 @@ class CustomerLoanEntry {
   factory CustomerLoanEntry.fromJson(Map<String, dynamic> json) {
     return CustomerLoanEntry(
       loanNumber: json['loan_number'] ?? '',
-      principal: (json['principal'] ?? 0).toDouble(),
-      emiAmount: (json['emi_amount'] ?? 0).toDouble(),
-      outstanding: (json['outstanding'] ?? 0).toDouble(),
+      principal: _asDouble(json['principal']),
+      emiAmount: _asDouble(json['emi_amount']),
+      outstanding: _asDouble(json['outstanding']),
       status: json['status'] ?? 'unknown',
     );
   }
@@ -129,8 +132,8 @@ class InstallmentEntry {
 
   factory InstallmentEntry.fromJson(Map<String, dynamic> json) {
     return InstallmentEntry(
-      installmentNumber: (json['installment_number'] ?? 0) as int,
-      amount: (json['amount'] ?? 0).toDouble(),
+      installmentNumber: _asInt(json['installment_number']),
+      amount: _asDouble(json['amount']),
       dueDate: json['due_date'] ?? '',
       status: json['status'] ?? 'pending',
     );
@@ -156,7 +159,7 @@ class PaymentEntry {
     return PaymentEntry(
       receiptNumber: json['receipt_number'] ?? '',
       loanNumber: json['loan_number'] ?? '',
-      amount: (json['amount'] ?? 0).toDouble(),
+      amount: _asDouble(json['amount']),
       method: json['method'] ?? '',
       date: json['date'] ?? '',
     );
@@ -177,39 +180,62 @@ class CustomerReportService {
       'loans',
       query: {'customer_id': 'eq.$customerId'},
     );
-    final collections = await ApiClient.instance.list(
-      'collections',
-      query: {'customer_id': 'eq.$customerId'},
-    );
-
     final loanRecords = loans.map(LoanRecord.fromJson).toList();
-    final paymentEntries = collections
-        .take(10)
-        .map(
-          (row) => PaymentEntry(
-            receiptNumber:
-                (row['receipt_number'] ?? row['id'] ?? '').toString(),
-            loanNumber: (row['loan_number'] ?? '').toString(),
-            amount: _asDouble(row['collection_amount'] ?? row['amount']),
-            method: (row['payment_method'] ?? '').toString(),
-            date:
-                (row['collection_date'] ?? row['created_at'] ?? '').toString(),
-          ),
-        )
+    final loanIds = loanRecords
+        .map((loan) => loan.id)
+        .where((id) => id.isNotEmpty)
         .toList();
+    final paymentHistory =
+        await CollectionApiService.fetchPaymentHistory(
+      customerId: customerId,
+      loanIds: loanIds,
+    );
+    final scheduleRows = await _fetchSchedules(loanIds);
 
     final totalOutstanding = loanRecords.fold<double>(
       0,
       (sum, loan) => sum + loan.outstandingBalance,
     );
-    final totalPaid = loanRecords.fold<double>(
+    final totalPaid = paymentHistory.fold<double>(
       0,
-      (sum, loan) => sum + loan.principalAmount - loan.outstandingBalance,
+      (sum, payment) => sum + payment.amount,
     );
-    final activeLoans = loanRecords.length;
-    final nextEmiAmount = loanRecords.isEmpty ? 0 : loanRecords.first.emiAmount;
+    final activeLoans = loanRecords
+        .where((loan) => loan.status.toLowerCase() == 'active')
+        .length;
+
+    final sortedSchedules = List<RepaymentInstallment>.from(scheduleRows)
+      ..sort(_sortScheduleByDueDate);
+    final paidInstallments = sortedSchedules
+        .where((item) => item.status.toLowerCase() == 'paid')
+        .length;
+    final pendingInstallments = sortedSchedules.where((item) {
+      final status = item.status.toLowerCase();
+      return status == 'pending' ||
+          status == 'partial' ||
+          status == 'overdue';
+    }).length;
+    final nextDueInstallment = sortedSchedules.firstWhere(
+      (item) {
+        final status = item.status.toLowerCase();
+        return status == 'pending' ||
+            status == 'partial' ||
+            status == 'overdue';
+      },
+      orElse: () => RepaymentInstallment(
+        id: '',
+        loanId: '',
+        installmentNo: 0,
+        dueDate: null,
+        emiAmount: 0,
+        paidAmount: 0,
+        balance: 0,
+        status: 'pending',
+      ),
+    );
+    final nextEmiAmount = nextDueInstallment.emiAmount;
     final nextEmiDueDate =
-        loanRecords.isNotEmpty ? loanRecords.first.startDate : null;
+        nextDueInstallment.dueDate?.toIso8601String().split('T').first;
 
     return CustomerDashboardData.fromJson({
       'summary': {
@@ -218,8 +244,8 @@ class CustomerReportService {
         'total_paid': totalPaid,
         'next_emi_amount': nextEmiAmount,
         'next_emi_due_date': nextEmiDueDate,
-        'installments_paid': collections.length,
-        'installments_pending': loanRecords.length,
+        'installments_paid': paidInstallments,
+        'installments_pending': pendingInstallments,
       },
       'loans': loanRecords
           .map(
@@ -232,15 +258,32 @@ class CustomerReportService {
             },
           )
           .toList(),
-      'upcoming_installments': const [],
-      'recent_payments': paymentEntries
+      'upcoming_installments': sortedSchedules
+          .where((item) {
+            final status = item.status.toLowerCase();
+            return status == 'pending' ||
+                status == 'partial' ||
+                status == 'overdue';
+          })
+          .take(10)
+          .map(
+            (item) => {
+              'installment_number': item.installmentNo,
+              'amount': item.emiAmount,
+              'due_date': item.dueDate?.toIso8601String().split('T').first ?? '',
+              'status': item.status,
+            },
+          )
+          .toList(),
+      'recent_payments': paymentHistory
+          .take(10)
           .map(
             (payment) => {
-              'receipt_number': payment.receiptNumber,
+              'receipt_number': payment.displayReceipt,
               'loan_number': payment.loanNumber,
               'amount': payment.amount,
-              'method': payment.method,
-              'date': payment.date,
+              'method': payment.displayMode,
+              'date': payment.formattedDate,
             },
           )
           .toList(),
@@ -252,6 +295,41 @@ double _asDouble(dynamic value) {
   if (value == null) return 0;
   if (value is num) return value.toDouble();
   return double.tryParse(value.toString()) ?? 0;
+}
+
+int _asInt(dynamic value) {
+  if (value == null) return 0;
+  if (value is num) return value.toInt();
+  return int.tryParse(value.toString()) ?? 0;
+}
+
+Future<List<RepaymentInstallment>> _fetchSchedules(List<String> loanIds) async {
+  if (loanIds.isEmpty) return const [];
+
+  final results = await Future.wait(
+    loanIds.map((loanId) async {
+      try {
+        return await ApiServiceRepayment.instance.fetchSchedule(loanId);
+      } catch (_) {
+        return <RepaymentInstallment>[];
+      }
+    }),
+  );
+
+  return results.expand((items) => items).toList();
+}
+
+int _sortScheduleByDueDate(RepaymentInstallment a, RepaymentInstallment b) {
+  final ad = a.dueDate;
+  final bd = b.dueDate;
+  if (ad == null && bd == null) {
+    return a.installmentNo.compareTo(b.installmentNo);
+  }
+  if (ad == null) return 1;
+  if (bd == null) return -1;
+  final dateCompare = ad.compareTo(bd);
+  if (dateCompare != 0) return dateCompare;
+  return a.installmentNo.compareTo(b.installmentNo);
 }
 
 String _greetingForHour(int hour) {

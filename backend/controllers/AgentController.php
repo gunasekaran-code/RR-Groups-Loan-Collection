@@ -13,11 +13,15 @@ class AgentController extends ResourceController
     public function handle(): void
     {
         $claims = $this->requireAuth();
-        $role   = $claims['role'] ?? '';
+        $role   = strtolower(trim($claims['role'] ?? ''));
+        if (!$role && !empty($claims['sub'])) {
+            $p = Profile::firstRaw(' WHERE id = ?', [$claims['sub']]);
+            if ($p) $role = strtolower(trim($p['role'] ?? ''));
+        }
         $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
-        if (in_array($method, ['POST', 'PATCH', 'PUT', 'DELETE'], true) && $role !== 'admin') {
-            json_error('Only admins can manage user accounts', 403);
+        if (in_array($method, ['POST', 'PATCH', 'PUT', 'DELETE'], true) && $role !== 'admin' && $role !== 'agent') {
+            json_error('Only admins or agents can manage user accounts', 403);
         }
 
         parent::handle();

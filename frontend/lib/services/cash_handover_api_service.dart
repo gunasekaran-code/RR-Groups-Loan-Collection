@@ -22,8 +22,7 @@ class HandoverAgentOption {
 /// The backend exposes generic CRUD for the handovers table, so this service
 /// reads the rows and derives the summary/settlement view on the Flutter side.
 class CashHandoverApiService {
-  static const String _baseUrl = ApiConfig.baseUrl;
-  static const String _restEndpoint = '$_baseUrl/rest.php';
+  static String get _restEndpoint => '${ApiConfig.normalizedBaseUrl}/rest.php';
 
   static Map<String, String> get _headers => {
         'Content-Type': 'application/json',
