@@ -64,6 +64,10 @@ const List<_DrawerSection> _ownerAdminSections = [
         icon: Icons.account_balance_wallet_outlined,
         route: AppRoutes.funds),
     _DrawerItem(
+        label: 'Account Book',
+        icon: Icons.menu_book_outlined,
+        route: AppRoutes.accountBook),
+    _DrawerItem(
         label: 'Overdue', icon: Icons.error_outline, route: AppRoutes.overdue),
     _DrawerItem(
         label: 'Chit Groups',
@@ -393,7 +397,6 @@ class AppDrawer extends StatelessWidget {
   }
 }
 
-
 class _DrawerBrandLogo extends StatelessWidget {
   final String? logoUrl;
   final Color color;
@@ -405,7 +408,7 @@ class _DrawerBrandLogo extends StatelessWidget {
     final url = logoUrl;
     Widget image =
         const Icon(Icons.account_balance, color: Colors.white, size: 22);
-        
+
     if (url != null && url.startsWith('data:')) {
       try {
         image = Image.memory(
@@ -421,15 +424,13 @@ class _DrawerBrandLogo extends StatelessWidget {
             const Icon(Icons.account_balance, color: Colors.white, size: 22),
       );
     }
-    
+
     return Container(
       width: 40,
       height: 40,
       // Removed the 5px padding so it can fill edge-to-edge
-      decoration: BoxDecoration(
-        color: color, 
-        borderRadius: BorderRadius.circular(10)
-      ),
+      decoration:
+          BoxDecoration(color: color, borderRadius: BorderRadius.circular(10)),
       // Wrapped in ClipRRect to keep the image corners perfectly rounded
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10),

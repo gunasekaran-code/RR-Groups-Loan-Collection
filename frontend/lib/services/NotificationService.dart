@@ -24,11 +24,14 @@ class NotificationService {
     final user = SessionService.instance.currentUser;
     if (user == null) return null;
 
-    final customerId = (user.customerId ?? '').trim();
-    if (customerId.isNotEmpty) return customerId;
-
+    // Notifications are stored against the authenticated profile id. This
+    // also matches reminders and broadcasts created by the backend.
     final userId = user.userId.trim();
     if (userId.isNotEmpty) return userId;
+
+    // Kept as a fallback for older sessions that did not persist profile id.
+    final customerId = (user.customerId ?? '').trim();
+    if (customerId.isNotEmpty) return customerId;
 
     return null;
   }
@@ -122,22 +125,32 @@ class NotificationService {
     required String title,
     required String message,
   }) async {
-    for (final uid in userIds) {
-      final res = await _client.post(
-        _notifCreateUri,
-        headers: _headers,
-        body: jsonEncode({
-          'user_id': uid,
-          'title': title,
-          'message': message,
-          'type': type,
-          'read': 0,
-        }),
-      );
-      if (res.statusCode < 200 || res.statusCode >= 300) {
-        throw NotificationApiException(
-            'Failed to send to $uid', res.statusCode);
-      }
+    final uniqueUserIds = userIds.toSet().where((id) => id.isNotEmpty).toList();
+    if (uniqueUserIds.isEmpty) return;
+
+    // The REST endpoint accepts an array for bulk inserts. One request is much
+    // faster and more reliable than a separate request for every customer.
+    final res = await _client.post(
+      _notifCreateUri,
+      headers: _headers,
+      body: jsonEncode([
+        for (final userId in uniqueUserIds)
+          {
+            'user_id': userId,
+            'title': title,
+            'message': message,
+            'type': type,
+            'read': 0,
+          },
+      ]),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      final data = _decodeBody(res);
+      final message = data is Map<String, dynamic>
+          ? (data['error'] ?? data['message'] ?? 'Failed to send notifications')
+              .toString()
+          : 'Failed to send notifications';
+      throw NotificationApiException(message, res.statusCode);
     }
   }
 

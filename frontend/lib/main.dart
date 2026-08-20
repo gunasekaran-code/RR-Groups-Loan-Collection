@@ -13,6 +13,7 @@ import 'screens/dashboard/agent_dashboard.dart';
 import 'screens/dashboard/customer_dashboard.dart';
 import 'screens/customers/customers_screen.dart';
 import 'screens/loans/loans_screen.dart';
+import 'screens/account_book/account_book_page.dart';
 import 'screens/repayment/repayment_schedule_screen.dart';
 import 'screens/Payment_History/Payment_History.dart';
 import 'screens/collections/collections_screen.dart';
@@ -103,6 +104,9 @@ class FinCollectApp extends StatelessWidget {
         break;
       case AppRoutes.agentCollection:
         page = _guarded(const AgentCollectionScreen(), const [UserRole.agent]);
+        break;
+      case AppRoutes.accountBook:
+        page = _guarded(const AccountBookScreen(), const [UserRole.admin]);
         break;
       case AppRoutes.routeMap:
         page = _guarded(const RouteMapScreen(),

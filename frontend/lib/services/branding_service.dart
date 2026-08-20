@@ -67,25 +67,20 @@ class BrandingService {
 Future<void> refreshFromServer() async {
   final token = ApiClient.instance.authToken;
   if (token == null || token.isEmpty) {
-    debugPrint('BrandingService: no auth token yet, skipping refresh');
+    // debugPrint('BrandingService: no auth token yet, skipping refresh');
     return;
   }
 
   try {
     final rows = await ApiClient.instance.list('settings');
-    debugPrint('BrandingService: settings rows = $rows');
-    if (rows.isEmpty) {
-      debugPrint('BrandingService: settings table returned no rows');
-      return;
-    }
 
     final fresh = AppBranding.fromJson(rows.first);
-    debugPrint('BrandingService: parsed company_name=${fresh.companyName} logo_url=${fresh.logoUrl}');
+    // debugPrint('BrandingService: parsed company_name=${fresh.companyName} logo_url=${fresh.logoUrl}');
     branding.value = fresh;
     await _save(fresh);
   } catch (e, st) {
-    debugPrint('BrandingService: refreshFromServer failed: $e');
-    debugPrint('$st');
+    // debugPrint('BrandingService: refreshFromServer failed: $e');
+    // debugPrint('$st');
   }
 }
 

@@ -27,6 +27,7 @@ $controllers = [
     'settings'           => SettingController::class,
     'push_subscriptions' => PushSubscriptionController::class,
     'promo_popups'       => PromoPopupController::class,
+    'account_ledger'     => AccountLedgerController::class,
 ];
 $controllerClass = $controllers[$table] ?? ResourceController::class;
 $controller = new $controllerClass($model);

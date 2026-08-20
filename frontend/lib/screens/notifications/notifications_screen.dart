@@ -252,7 +252,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           color: AppColors.kSurface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           boxShadow: [
-            BoxShadow(color: Colors.black12, blurRadius: 20, offset: Offset(0, -4)),
+            BoxShadow(
+                color: Colors.black12, blurRadius: 20, offset: Offset(0, -4)),
           ],
         ),
         child: SafeArea(top: false, child: SingleChildScrollView(child: child)),
@@ -514,8 +515,8 @@ class _FilterPill extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected ? AppColors.kGold : AppColors.kSurface,
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-              color: selected ? AppColors.kGold : AppColors.kBorder),
+          border:
+              Border.all(color: selected ? AppColors.kGold : AppColors.kBorder),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -530,8 +531,7 @@ class _FilterPill extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
                 color: selected
                     ? Colors.white.withOpacity(0.25)
@@ -626,8 +626,8 @@ class _NotificationCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                     decoration: BoxDecoration(
                       color: n.type.badgeBg,
                       borderRadius: BorderRadius.circular(999),
@@ -689,7 +689,7 @@ class _SendNotificationDialog extends StatefulWidget {
 class _SendNotificationDialogState extends State<_SendNotificationDialog> {
   bool _allCustomers = true;
   List<Map<String, String>> _customers = []; // {id, name, email}
-  Map<String, String> _customerUserIds = {}; // customer_id -> profile id
+  Map<String, String> _customerUserIds = {}; // customer id -> portal profile id
   final Set<String> _selectedIds = {};
   String _search = '';
   String _type = 'info';
@@ -729,7 +729,8 @@ class _SendNotificationDialogState extends State<_SendNotificationDialog> {
         _customers = list;
         _customerUserIds = {
           for (final row in logins)
-            if ((row['customer_id'] ?? '').isNotEmpty) row['customer_id']!: row['id']!,
+            if ((row['customer_id'] ?? '').isNotEmpty)
+              row['customer_id']!: row['id']!,
         };
         _loadingCustomers = false;
       });
@@ -754,10 +755,9 @@ class _SendNotificationDialogState extends State<_SendNotificationDialog> {
         .toList();
   }
 
-  int get _recipientCount =>
-      _allCustomers
-          ? _customers.where((c) => _customerUserIds[c['id']] != null).length
-          : _selectedIds.length;
+  int get _recipientCount => _allCustomers
+      ? _customers.where((c) => _customerUserIds[c['id']] != null).length
+      : _selectedIds.where(_customerUserIds.containsKey).length;
 
   Future<void> _handleSend() async {
     if (_titleCtrl.text.trim().isEmpty) {
@@ -765,8 +765,7 @@ class _SendNotificationDialogState extends State<_SendNotificationDialog> {
       return;
     }
     if (_allCustomers && _customers.isEmpty) {
-      ToastService.show(
-          title: 'No customers found', type: ToastType.error);
+      ToastService.show(title: 'No customers found', type: ToastType.error);
       return;
     }
     if (_allCustomers && _customerUserIds.isEmpty) {
@@ -785,7 +784,20 @@ class _SendNotificationDialogState extends State<_SendNotificationDialog> {
             .map((c) => _customerUserIds[c['id']])
             .whereType<String>()
             .toList()
-        : _selectedIds.toList();
+        : _selectedIds
+            .map((customerId) => _customerUserIds[customerId])
+            .whereType<String>()
+            .toList();
+
+    if (recipientIds.isEmpty) {
+      ToastService.show(
+        title: 'No eligible recipients',
+        message:
+            'Selected customers need a portal login to receive notifications.',
+        type: ToastType.error,
+      );
+      return;
+    }
 
     setState(() => _sending = true);
     try {
@@ -912,8 +924,7 @@ class _SendNotificationDialogState extends State<_SendNotificationDialog> {
                           padding: EdgeInsets.all(24),
                           child: Center(
                             child: Text('No customers found.',
-                                style:
-                                    TextStyle(color: AppColors.kTextMuted)),
+                                style: TextStyle(color: AppColors.kTextMuted)),
                           ),
                         )
                       : ListView.separated(
@@ -928,20 +939,25 @@ class _SendNotificationDialogState extends State<_SendNotificationDialog> {
                             final checked = _selectedIds.contains(id);
                             return CheckboxListTile(
                               value: checked,
-                              onChanged: (v) => setState(() {
-                                if (v == true) {
-                                  _selectedIds.add(id);
-                                } else {
-                                  _selectedIds.remove(id);
-                                }
-                              }),
-                              controlAffinity:
-                                  ListTileControlAffinity.leading,
+                              enabled: _customerUserIds.containsKey(id),
+                              onChanged: _customerUserIds.containsKey(id)
+                                  ? (v) => setState(() {
+                                        if (v == true) {
+                                          _selectedIds.add(id);
+                                        } else {
+                                          _selectedIds.remove(id);
+                                        }
+                                      })
+                                  : null,
+                              controlAffinity: ListTileControlAffinity.leading,
                               title: Text(c['name'] ?? '',
                                   style: const TextStyle(
                                       fontWeight: FontWeight.w600,
                                       color: AppColors.kTextDark)),
-                              subtitle: Text(c['email'] ?? '',
+                              subtitle: Text(
+                                  _customerUserIds.containsKey(id)
+                                      ? (c['email'] ?? '')
+                                      : 'No portal login',
                                   style: const TextStyle(
                                       color: AppColors.kTextMuted,
                                       fontSize: 12)),
@@ -1015,7 +1031,8 @@ class _SendNotificationDialogState extends State<_SendNotificationDialog> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 OutlinedButton(
-                  onPressed: _sending ? null : () => Navigator.of(context).pop(),
+                  onPressed:
+                      _sending ? null : () => Navigator.of(context).pop(),
                   child: const Text('Cancel'),
                 ),
                 const SizedBox(width: 12),
@@ -1078,8 +1095,8 @@ class _ToggleChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected ? const Color(0xFFFEF3C7) : AppColors.kSurface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-              color: selected ? AppColors.kGold : AppColors.kBorder),
+          border:
+              Border.all(color: selected ? AppColors.kGold : AppColors.kBorder),
         ),
         child: Row(
           children: [
@@ -1094,7 +1111,8 @@ class _ToggleChip extends StatelessWidget {
                       color: selected ? AppColors.kGold : AppColors.kTextDark)),
             ),
             if (trailing != null)
-              Text(trailing!, style: const TextStyle(color: AppColors.kTextMuted)),
+              Text(trailing!,
+                  style: const TextStyle(color: AppColors.kTextMuted)),
           ],
         ),
       ),

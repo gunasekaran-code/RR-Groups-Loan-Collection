@@ -113,8 +113,8 @@ function build_loan_application_pdf(array $loan, ?array $customer, array $compan
     $pdf->text($L, 93, 'LOAN DETAILS', [110, 110, 110]);
 
     $type = $loan['loan_type'] ?? 'monthly';
-    $typeLabel = $type === 'weekly' ? 'Weekly Collection - 10 Weeks' : ($type === 'daily' ? 'Daily Collection' : 'Monthly EMI');
-    $instLabel = $type === 'weekly' ? 'Weekly Installment' : ($type === 'daily' ? 'Daily Installment' : 'Monthly EMI');
+    $typeLabel = $type === 'weekly' ? 'Weekly Collection - 10 Weeks' : ($type === 'daily' ? 'Daily Collection' : ($type === 'monthly_interest' ? 'Monthly Interest (Interest Only + Flexible Principal)' : 'Monthly EMI'));
+    $instLabel = $type === 'weekly' ? 'Weekly Installment' : ($type === 'daily' ? 'Daily Installment' : ($type === 'monthly_interest' ? 'Monthly Interest Due' : 'Monthly EMI'));
 
     $fields = [
         ['Loan Number', (string)($loan['loan_number'] ?? '')],

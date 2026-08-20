@@ -70,8 +70,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
       if (!mounted) return;
       setState(() => _agents = agents);
     } catch (e) {
-      // Non-fatal: form still works, just without an agent list.
-      debugPrint('Failed to load agents: $e');
+      // debugPrint('Failed to load agents: $e');
     }
   }
 

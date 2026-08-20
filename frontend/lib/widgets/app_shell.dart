@@ -12,6 +12,7 @@ import '../screens/dashboard/customer_dashboard.dart';
 import '../screens/funds/funds_screen.dart';
 import '../screens/loans/loans_screen.dart';
 import '../screens/notifications/notifications_screen.dart';
+import '../screens/notifications/notification_state.dart';
 import '../screens/repayment/repayment_schedule_screen.dart';
 import '../screens/settings/profile_page.dart';
 import 'app_navbar.dart';
@@ -70,6 +71,7 @@ class _AppShellState extends State<AppShell> {
   void initState() {
     super.initState();
     _activeRoute = widget.currentRoute;
+    NotificationState.instance.refreshUnreadCount();
   }
 
   @override
@@ -110,12 +112,48 @@ class _AppShellState extends State<AppShell> {
           ),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none_rounded),
-            onPressed: () {
-              if (_activeRoute != AppRoutes.notifications) {
-                Navigator.of(context).pushNamed(AppRoutes.notifications);
-              }
+          AnimatedBuilder(
+            animation: NotificationState.instance,
+            builder: (context, _) {
+              final unreadCount = NotificationState.instance.unreadCount;
+              return IconButton(
+                tooltip: unreadCount == 0
+                    ? 'Notifications'
+                    : '$unreadCount unread notifications',
+                icon: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(Icons.notifications_none_rounded),
+                    if (unreadCount > 0)
+                      Positioned(
+                        right: -7,
+                        top: -7,
+                        child: Container(
+                          constraints: const BoxConstraints(minWidth: 16),
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          alignment: Alignment.center,
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            unreadCount > 99 ? '99+' : '$unreadCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                onPressed: () {
+                  if (_activeRoute != AppRoutes.notifications) {
+                    Navigator.of(context).pushNamed(AppRoutes.notifications);
+                  }
+                },
+              );
             },
           ),
           Padding(

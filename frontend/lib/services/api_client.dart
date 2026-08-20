@@ -34,10 +34,16 @@ class ApiClient {
   /// Set after login, e.g. `ApiClient.instance.authToken = token;`
   String? authToken;
 
+  String? get _currentAuthToken {
+    final token = authToken?.trim();
+    return token == null || token.isEmpty ? null : token;
+  }
+
   Map<String, String> get _headers => {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        if (authToken != null) 'Authorization': 'Bearer $authToken',
+        if (_currentAuthToken != null)
+          'Authorization': 'Bearer $_currentAuthToken',
       };
 
   Uri _uri(String table, [Map<String, String>? query]) {

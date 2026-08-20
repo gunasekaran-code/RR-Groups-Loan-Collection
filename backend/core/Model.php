@@ -110,11 +110,22 @@ abstract class Model
         return $v;
     }
 
+    public static function normalizeWhere(string $where): string
+    {
+        $trimmed = trim($where);
+        if ($trimmed === '') return '';
+        if (stripos($trimmed, 'WHERE') === 0) {
+            return ' ' . $trimmed;
+        }
+        return ' WHERE ' . $trimmed;
+    }
+
     /** SELECT with pre-built WHERE/ORDER/LIMIT fragments. Returns cast rows. */
     public static function select(string $where, array $binds, string $order = '', string $limit = ''): array
     {
         try {
-            $stmt = Database::pdo()->prepare("SELECT * FROM `" . static::$table . "`$where$order$limit");
+            $whereSql = self::normalizeWhere($where);
+            $stmt = Database::pdo()->prepare("SELECT * FROM `" . static::$table . "`$whereSql$order$limit");
             $stmt->execute($binds);
             return static::castRows($stmt->fetchAll());
         } catch (\Throwable $e) {
@@ -125,7 +136,8 @@ abstract class Model
     /** Raw first row INCLUDING hidden columns (used for auth). */
     public static function firstRaw(string $where, array $binds): ?array
     {
-        $stmt = Database::pdo()->prepare("SELECT * FROM `" . static::$table . "`$where LIMIT 1");
+        $whereSql = self::normalizeWhere($where);
+        $stmt = Database::pdo()->prepare("SELECT * FROM `" . static::$table . "`$whereSql LIMIT 1");
         $stmt->execute($binds);
         return $stmt->fetch() ?: null;
     }
@@ -184,13 +196,15 @@ abstract class Model
         if (!$set) {
             json_error('No valid columns to update', 400);
         }
-        $sql = "UPDATE `" . static::$table . "` SET " . implode(', ', $set) . $where;
+        $whereSql = self::normalizeWhere($where);
+        $sql = "UPDATE `" . static::$table . "` SET " . implode(', ', $set) . $whereSql;
         Database::pdo()->prepare($sql)->execute([...$setBinds, ...$binds]);
-        return static::select($where, $binds);
+        return static::select($whereSql, $binds);
     }
 
     public static function deleteWhere(string $where, array $binds): void
     {
-        Database::pdo()->prepare("DELETE FROM `" . static::$table . "`$where")->execute($binds);
+        $whereSql = self::normalizeWhere($where);
+        Database::pdo()->prepare("DELETE FROM `" . static::$table . "`" . $whereSql)->execute($binds);
     }
 }

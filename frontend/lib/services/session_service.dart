@@ -39,6 +39,7 @@ class SessionService {
     } catch (_) {
       currentUser = null;
       token = null;
+      ApiClient.instance.authToken = null;
     }
   }
 

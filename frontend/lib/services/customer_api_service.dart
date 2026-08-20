@@ -127,12 +127,17 @@ class CustomerApiService {
     String? email,
     String? password,
   }) async {
+    final body = jsonEncode(
+      customer.toRequestBody(email: email, password: password),
+    );
+    final endpoint = email != null || password != null
+        ? Uri.parse('$_customerEndpoint?id=$id')
+        : Uri.parse('$_restEndpoint?table=customers&id=eq.$id');
     final res = await postWithMethodOverride(
-      Uri.parse('$_customerEndpoint?id=$id'),
+      endpoint,
       method: 'PATCH',
       headers: _headers,
-      body:
-          jsonEncode(customer.toRequestBody(email: email, password: password)),
+      body: body,
     );
     final data = _decodeObject(res);
     return Customer.fromJson(data);
@@ -166,8 +171,9 @@ class CustomerApiService {
   // Add this inside CustomerApiService
   Future<List<Map<String, String>>> fetchAllLite() async {
     final res = await _client.get(
-      // The select query ensures we only download the fields we need
-      Uri.parse('$_restEndpoint?table=customers&select=id,full_name,email'),
+      // Use the customers resource directly so the notification recipient
+      // picker always represents every row in the customers table.
+      Uri.parse('$_restEndpoint?table=customers'),
       headers: _headers,
     );
 
