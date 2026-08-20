@@ -66,15 +66,16 @@ class AuthApiService {
   // ---- login -----------------------------------------------------------
 
   /// Returns the decoded response: { token, user, profile }
-  Future<Map<String, dynamic>> login(
-      {required String email, required String password}) async {
-    final data = await _post('login', {'email': email, 'password': password});
-    final token = data['token'] as String?;
-    if (token != null) {
-      await _saveSession(token, data['profile'] as Map<String, dynamic>?);
-    }
-    return data;
+Future<Map<String, dynamic>> login(
+    {required String identifier, required String password}) async {
+  final data =
+      await _post('login', {'identifier': identifier, 'password': password});
+  final token = data['token'] as String?;
+  if (token != null) {
+    await _saveSession(token, data['profile'] as Map<String, dynamic>?);
   }
+  return data;
+}
 
   // ---- forgot password (2-step OTP flow) --------------------------------
 

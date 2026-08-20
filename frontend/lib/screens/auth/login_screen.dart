@@ -42,16 +42,16 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _identifierController = TextEditingController();
   bool _obscure = true;
   bool _loading = false;
   String? _error;
 
   @override
   void dispose() {
-    _emailController.dispose();
     _passwordController.dispose();
+    _identifierController.dispose();
     super.dispose();
   }
 
@@ -67,7 +67,7 @@ class _LoginScreenState extends State<LoginScreen> {
       // and push it into SessionService, so the _guarded() role checks
       // in main.dart work exactly like they did with the static demo users.
       final data = await AuthApiService.instance.login(
-        email: _emailController.text.trim(),
+        identifier: _identifierController.text.trim(),
         password: _passwordController.text,
       );
       final profile = data['profile'] as Map<String, dynamic>? ?? {};
@@ -162,25 +162,38 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 16),
                     ],
-                    const Text('Email',
+                    const Text('Email or Mobile Number',
                         style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                             color: AppColors.kTextDark)),
                     const SizedBox(height: 6),
                     TextFormField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      autofillHints: const [AutofillHints.email],
+                      controller: _identifierController,
+                      keyboardType: TextInputType.text,
+                      autofillHints: const [AutofillHints.username],
                       decoration: const InputDecoration(
-                        hintText: 'you@company.com',
-                        prefixIcon: Icon(Icons.mail_outline, size: 20),
+                        hintText: 'you@gmail.com or Number',
+                        prefixIcon: Icon(Icons.person_outline, size: 20),
                       ),
                       validator: (v) {
-                        if (v == null || v.trim().isEmpty) {
-                          return 'Email is required';
+                        final value = (v ?? '').trim();
+                        if (value.isEmpty)
+                          return 'Email or mobile number is required';
+
+                        final isEmail = value.contains('@');
+                        if (isEmail) {
+                          final emailRegex =
+                              RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+                          if (!emailRegex.hasMatch(value))
+                            return 'Enter a valid email';
+                          return null;
                         }
-                        if (!v.contains('@')) return 'Enter a valid email';
+
+                        final digitsOnly = value.replaceAll(RegExp(r'\D'), '');
+                        if (digitsOnly.length < 10) {
+                          return 'Enter a valid email or 10-digit mobile number';
+                        }
                         return null;
                       },
                     ),
@@ -258,6 +271,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
+
 class _LoginBrandLogo extends StatelessWidget {
   final String? logoUrl;
 

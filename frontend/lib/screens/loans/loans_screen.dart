@@ -67,6 +67,12 @@ DateTime? tryParseFlexibleDate(String input) {
 
 /// Builds the due-date/amount schedule for a loan.
 ///
+/// [collectionType] here is the *frequency* the schedule repeats on —
+/// 'Monthly', 'Weekly', or anything else is treated as 'Daily'. Both the
+/// "Monthly EMI" and "Monthly Interest" products repay monthly, so callers
+/// pass 'Monthly' for either — the distinction only affects how the
+/// installment amount itself was calculated upstream, not the due-date math.
+///
 /// Due-date conventions (matched to the reference screenshots):
 /// - Monthly: due one day before the start date's monthly anniversary
 ///   (start 30 Jul -> first due 29 Aug, then 29 Sep, 29 Oct, ...).
@@ -154,28 +160,39 @@ BadgeTone _scheduleStatusTone(String status) {
 }
 
 const List<String> _kMonthNames = [
-  '',
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec'
+  '',  'Jan',  'Feb',  'Mar',  'Apr',  'May',  'Jun',
+       'Jul',  'Aug',  'Sep',  'Oct',  'Nov',  'Dec',
 ];
 
 String _formatScheduleDate(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')} ${_kMonthNames[d.month]} ${d.year}';
 
-/// Renders a repayment schedule as a table. When [showPaymentColumns] is
-/// true (Loan Detail view), Paid/Balance/Status columns are shown; the
-/// Create/Edit form only shows #, Due Date, and EMI (a pure preview).
-/// Horizontally scrolls on narrow (mobile) widths so nothing gets clipped.
+const String kMonthlyInterestSubtypeMarker = '[[subtype:monthly_interest]]';
+
+bool loanHasMonthlyInterestMarker(String? notes) =>
+    notes != null && notes.contains(kMonthlyInterestSubtypeMarker);
+
+String stripMonthlyInterestMarker(String? notes) =>
+    (notes ?? '').replaceAll(kMonthlyInterestSubtypeMarker, '').trim();
+
+String friendlyCollectionTypeLabel(LoanRecord loan) {
+  switch (loan.collectionType) {
+    case 'Monthly':
+      return loanHasMonthlyInterestMarker(loan.notes)
+          ? 'Monthly Interest'
+          : 'Monthly EMI';
+    case 'Weekly':
+      return 'Weekly';
+    case 'Daily':
+      return 'Daily';
+    default:
+      return loan.collectionType;
+  }
+}
+
+String fmtRate(double v) =>
+    v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
+
 class RepaymentScheduleTable extends StatelessWidget {
   final List<RepaymentEntry> entries;
   final bool showPaymentColumns;
@@ -313,11 +330,7 @@ class _LoansScreenState extends State<LoansScreen> {
   String _selectedFilter = 'All';
 
   final List<String> _filters = [
-    'All',
-    'Active',
-    'Overdue',
-    'Closed',
-    'Pending'
+    'All',    'Active',    'Overdue',    'Closed',    'Pending'
   ];
 
   final LoanService _loanService = LoanService.instance;
@@ -674,8 +687,9 @@ class _LoansScreenState extends State<LoansScreen> {
         fontSize: 12,
       ),
       columns: const [
-        DataColumn(label: Text('LOAN NO')),
+        DataColumn(label: Text('HP NO')),
         DataColumn(label: Text('CUSTOMER')),
+        DataColumn(label: Text('TYPE')),
         DataColumn(label: Text('AMOUNT')),
         DataColumn(label: Text('EMI')),
         DataColumn(label: Text('OUTSTANDING')),
@@ -689,6 +703,7 @@ class _LoansScreenState extends State<LoansScreen> {
           DataCell(Text(loan.loanNumber,
               style: const TextStyle(fontWeight: FontWeight.w600))),
           DataCell(Text(loan.customerName)),
+          DataCell(Text(friendlyCollectionTypeLabel(loan))),
           DataCell(Text(loan.formattedAmount)),
           DataCell(Text(loan.formattedEmi)),
           DataCell(Text(loan.formattedOutstanding,
@@ -745,7 +760,7 @@ class _LoansScreenState extends State<LoansScreen> {
             scrollDirection: Axis.horizontal,
             physics: const ClampingScrollPhysics(),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(minWidth: 980),
+              constraints: const BoxConstraints(minWidth: 1080),
               child: SingleChildScrollView(
                 child: table,
               ),
@@ -757,9 +772,6 @@ class _LoansScreenState extends State<LoansScreen> {
   }
 }
 
-// ==========================================
-// VIEW LOAN DETAIL SHEET
-// ==========================================
 class LoanDetailDialog extends StatefulWidget {
   final LoanRecord loan;
   final VoidCallback? onDelete;
@@ -794,7 +806,9 @@ class _LoanDetailDialogState extends State<LoanDetailDialog> {
       case 'Daily':
         return '${loan.durationUnits} days';
       default:
-        return '${loan.durationUnits} months';
+        return loanHasMonthlyInterestMarker(loan.notes)
+            ? '${loan.durationUnits} months (interest-only)'
+            : '${loan.durationUnits} months';
     }
   }
 
@@ -807,15 +821,27 @@ class _LoanDetailDialogState extends State<LoanDetailDialog> {
     }
 
     final periods = loan.durationUnits;
-    // For Weekly/Daily, interest is deducted upfront so the borrower repays
-    // exactly the principal back over the periods. For Monthly the EMI is
-    // amortized, so total repayment = emi * periods.
-    final totalAmount = loan.collectionType == 'Monthly'
-        ? loan.emiAmount * periods
-        : loan.principalAmount;
+
+    final double totalAmount;
+    switch (loan.collectionType) {
+      case 'Daily':
+        totalAmount =
+            loan.principalAmount + loan.principalAmount * (loan.interestRate / 100);
+        break;
+      case 'Weekly':
+        totalAmount = loan.principalAmount;
+        break;
+      default: // Monthly (EMI or Interest-only)
+        totalAmount = loan.emiAmount * periods;
+    }
+
+    final scheduleFrequency =
+        loan.collectionType == 'Weekly' || loan.collectionType == 'Daily'
+            ? loan.collectionType
+            : 'Monthly';
 
     final entries = buildRepaymentSchedule(
-      collectionType: loan.collectionType,
+      collectionType: scheduleFrequency,
       startDate: startDate,
       periods: periods,
       installment: loan.emiAmount,
@@ -859,6 +885,8 @@ class _LoanDetailDialogState extends State<LoanDetailDialog> {
   @override
   Widget build(BuildContext context) {
     final loan = widget.loan;
+    final isInterestOnly = loan.collectionType == 'Monthly' &&
+        loanHasMonthlyInterestMarker(loan.notes);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
       child: Column(
@@ -888,7 +916,6 @@ class _LoanDetailDialogState extends State<LoanDetailDialog> {
           ),
           const SizedBox(height: 20),
 
-          // Responsive field grid: 1 column on phones, 2 on tablets, 4 on desktop.
           LayoutBuilder(builder: (context, constraints) {
             final width = constraints.maxWidth;
             final cols = width < 420 ? 1 : (width < 700 ? 2 : 4);
@@ -897,10 +924,12 @@ class _LoanDetailDialogState extends State<LoanDetailDialog> {
 
             final fields = <MapEntry<String, String>>[
               MapEntry('Customer', loan.customerName),
+              MapEntry('Loan Type', friendlyCollectionTypeLabel(loan)),
               MapEntry('Loan Amount', loan.formattedAmount),
-              MapEntry('EMI', loan.formattedEmi),
+              MapEntry(isInterestOnly ? 'Monthly Interest' : 'EMI',
+                  loan.formattedEmi),
               MapEntry('Outstanding', loan.formattedOutstanding),
-              MapEntry('Interest', '${loan.interestRate.toStringAsFixed(0)}%'),
+              MapEntry('Interest', '${fmtRate(loan.interestRate)}%'),
               MapEntry('Duration', _durationLabel(loan)),
               MapEntry('Start Date', loan.startDate ?? '-'),
               MapEntry('Agent', loan.agentName),
@@ -980,6 +1009,13 @@ class _LoanDetailDialogState extends State<LoanDetailDialog> {
                 ),
               ],
             ),
+            if (isInterestOnly) ...[
+              const SizedBox(height: 4),
+              const Text(
+                'Interest-only schedule — principal can be repaid separately, anytime.',
+                style: TextStyle(fontSize: 12, color: AppColors.kTextMuted),
+              ),
+            ],
             const SizedBox(height: 4),
             Container(
               decoration: BoxDecoration(
@@ -1000,16 +1036,10 @@ class _LoanDetailDialogState extends State<LoanDetailDialog> {
   }
 }
 
-// ==========================================
-// CREATE / EDIT LOAN SHEET
-// ==========================================
 class LoanFormDialog extends StatefulWidget {
   final LoanRecord? loan;
   final List<Customer> customers;
   final List<Agent> agents;
-
-  /// Called with the payload to send to the backend. Returns the saved
-  /// loan record so the form can create repayment schedule rows afterward.
   final Future<LoanRecord> Function(Map<String, dynamic> data,
       {required bool approve}) onSubmit;
 
@@ -1027,17 +1057,27 @@ class LoanFormDialog extends StatefulWidget {
   State<LoanFormDialog> createState() => _LoanFormDialogState();
 }
 
-class _LoanFormDialogState extends State<LoanFormDialog> {
-  // Collection Type State: 'Monthly' | 'Weekly' | 'Daily'
-  String _collectionType = 'Monthly';
+class _LoanTypeOption {
+  final String key;
+  const _LoanTypeOption(this.key);
+}
 
-  // Specific state presets
-  String _weeklyInterestRate = '10%'; // '10%' or '12%'
-  String _dailyPlan = '60 Days · 20%'; // '60 Days · 20%' or '100 Days · 15%'
+const List<_LoanTypeOption> _kLoanTypeOptions = [
+  _LoanTypeOption('Monthly EMI'),
+  _LoanTypeOption('Monthly Interest'),
+  _LoanTypeOption('Weekly'),
+  _LoanTypeOption('Daily'),
+];
+
+class _LoanFormDialogState extends State<LoanFormDialog> {
+  String _collectionType = 'Monthly EMI';
+  int _dailyDays = 60;
 
   Customer? _selectedCustomer;
   Agent? _selectedAgent;
   bool _saving = false;
+
+  bool _loadingHpNumber = false;
 
   late final TextEditingController _loanNumberController;
   late final TextEditingController _amountController;
@@ -1051,9 +1091,17 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
   void initState() {
     super.initState();
     final loan = widget.loan;
-    _collectionType = loan?.collectionType ?? 'Monthly';
 
     if (loan != null) {
+      _collectionType = loan.collectionType == 'Monthly'
+          ? (loanHasMonthlyInterestMarker(loan.notes)
+              ? 'Monthly Interest'
+              : 'Monthly EMI')
+          : loan.collectionType; // 'Weekly' or 'Daily'
+      if (_collectionType == 'Daily') {
+        _dailyDays = loan.durationUnits == 100 ? 100 : 60;
+      }
+
       Customer? findCustomer() {
         for (final c in widget.customers) {
           if (c.id == loan.customerId) return c;
@@ -1070,30 +1118,24 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
 
       _selectedCustomer = findCustomer();
       _selectedAgent = findAgent();
-
-      if (_collectionType == 'Weekly') {
-        _weeklyInterestRate = '${loan.interestRate.toStringAsFixed(0)}%';
-      } else if (_collectionType == 'Daily') {
-        _dailyPlan =
-            '${loan.durationUnits} Days · ${loan.interestRate.toStringAsFixed(0)}%';
-      }
     }
 
     _loanNumberController = TextEditingController(text: loan?.loanNumber ?? '');
     _amountController = TextEditingController(
         text: loan != null ? loan.principalAmount.toStringAsFixed(0) : '');
     _interestController = TextEditingController(
-        text: loan != null && _collectionType == 'Monthly'
-            ? loan.interestRate.toStringAsFixed(0)
-            : '12');
+        text: loan != null ? fmtRate(loan.interestRate) : _defaultRateFor(_collectionType));
     _durationController = TextEditingController(
-        text: loan != null
+        text: loan != null &&
+                (_collectionType == 'Monthly EMI' ||
+                    _collectionType == 'Monthly Interest')
             ? loan.durationUnits.toString()
-            : (_collectionType == 'Weekly' ? '10' : '12'));
+            : '10');
     _startDateController = TextEditingController(text: loan?.startDate ?? '');
     _feeController = TextEditingController(
         text: loan != null ? loan.processingFee.toStringAsFixed(0) : '');
-    _notesController = TextEditingController(text: loan?.notes ?? '');
+    _notesController =
+        TextEditingController(text: stripMonthlyInterestMarker(loan?.notes));
 
     // Live recalculation: any keystroke in these fields immediately updates
     // the summary cards + schedule preview below via setState.
@@ -1101,9 +1143,47 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
     _interestController.addListener(_rebuild);
     _durationController.addListener(_rebuild);
     _startDateController.addListener(_rebuild);
+
+    if (!widget.isEdit) {
+      _fetchNextHpNumber();
+    }
   }
 
   void _rebuild() => setState(() {});
+
+  String _defaultRateFor(String type) {
+    switch (type) {
+      case 'Weekly':
+        return '10';
+      case 'Daily':
+        return '15';
+      default:
+        return '2.5';
+    }
+  }
+
+  Future<void> _fetchNextHpNumber() async {
+    setState(() => _loadingHpNumber = true);
+    try {
+      final dynamic result = await ApiClient.instance
+          .list('loans', query: {'action': 'next_hp_number'});
+      String? next;
+      if (result is Map && result['next_hp_number'] != null) {
+        next = result['next_hp_number'].toString();
+      } else if (result is List &&
+          result.isNotEmpty &&
+          result.first is Map &&
+          (result.first as Map)['next_hp_number'] != null) {
+        next = (result.first as Map)['next_hp_number'].toString();
+      }
+      if (mounted && next != null && next.isNotEmpty) {
+        setState(() => _loanNumberController.text = next!);
+      }
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _loadingHpNumber = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -1122,11 +1202,40 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
     super.dispose();
   }
 
-  // Helper parsing methods
   double get _principal => double.tryParse(_amountController.text) ?? 0.0;
-  double get _monthlyInterestRate =>
-      double.tryParse(_interestController.text) ?? 0.0;
-  int get _duration => int.tryParse(_durationController.text) ?? 0;
+  double get _interestRate => double.tryParse(_interestController.text) ?? 0.0;
+
+  int get _duration {
+    switch (_collectionType) {
+      case 'Weekly':
+        return 10; // Fixed product: always 10 weeks.
+      case 'Daily':
+        return _dailyDays;
+      default: // Monthly EMI / Monthly Interest
+        return int.tryParse(_durationController.text) ?? 0;
+    }
+  }
+
+  String get _loanTypeForBackend {
+    switch (_collectionType) {
+      case 'Weekly':
+        return 'weekly';
+      case 'Daily':
+        return 'daily';
+      default:
+        return 'monthly'; // Both Monthly products share this enum value.
+    }
+  }
+
+  String _buildNotesForSave() {
+    final base = _notesController.text.trim();
+    if (_collectionType == 'Monthly Interest') {
+      return base.isEmpty
+          ? kMonthlyInterestSubtypeMarker
+          : '$base\n$kMonthlyInterestSubtypeMarker';
+    }
+    return base;
+  }
 
   Future<void> _handleSave({bool approve = false}) async {
     if (_selectedCustomer == null) {
@@ -1164,31 +1273,17 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
     final startDate = tryParseFlexibleDate(_startDateController.text);
     if (startDate == null || _principal <= 0) return;
 
-    int periods;
-    double installment;
-    double totalAmount;
-
-    switch (_collectionType) {
-      case 'Weekly':
-        periods = _duration > 0 ? _duration : 10;
-        installment = _calcWeeklyInstallment();
-        totalAmount = _principal;
-        break;
-      case 'Daily':
-        periods = _getDailyDays();
-        installment = _calcDailyInstallment();
-        totalAmount = _principal;
-        break;
-      default:
-        periods = _duration;
-        installment = _calcMonthlyEmi();
-        totalAmount = installment * periods;
-    }
+    final periods = _duration;
+    final installment = _currentInstallment();
+    final totalAmount = _currentTotalRepaymentAmount();
+    final frequency = (_collectionType == 'Weekly' || _collectionType == 'Daily')
+        ? _collectionType
+        : 'Monthly';
 
     if (periods <= 0 || installment <= 0) return;
 
     final entries = buildRepaymentSchedule(
-      collectionType: _collectionType,
+      collectionType: frequency,
       startDate: startDate,
       periods: periods,
       installment: installment,
@@ -1211,8 +1306,6 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
   }
 
   Map<String, dynamic> _buildPayload({required bool approve}) {
-    /// Converts a 'DD/MM/YYYY' (or 'D/M/YYYY') string to 'YYYY-MM-DD' for the backend.
-    /// Returns null if the input can't be parsed.
     String? toIsoDate(String input) {
       final trimmed = input.trim();
       if (trimmed.isEmpty) return null;
@@ -1233,25 +1326,9 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
       return '$year-$mm-$dd';
     }
 
-    double interestRate;
-    int durationUnits;
-    switch (_collectionType) {
-      case 'Weekly':
-        interestRate = _getWeeklyInterestPercent();
-        durationUnits = _duration > 0 ? _duration : 10;
-        break;
-      case 'Daily':
-        interestRate = _getDailyInterestPercent();
-        durationUnits = _getDailyDays();
-        break;
-      default:
-        interestRate = _monthlyInterestRate;
-        durationUnits = _duration;
-    }
+    final notesForSave = _buildNotesForSave();
 
     return <String, dynamic>{
-      // Omitted on create so the server auto-generates it
-      // (see LoanController::fillLoanNumbers()).
       if (widget.isEdit) 'loan_number': _loanNumberController.text,
       'customer_id': _selectedCustomer?.id,
       if (_selectedCustomer?.name.isNotEmpty == true)
@@ -1260,9 +1337,9 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
       if (_selectedAgent?.name.isNotEmpty == true)
         'agent_name': _selectedAgent!.name,
       'loan_amount': _principal,
-      'interest_percentage': interestRate,
-      'loan_duration': durationUnits,
-      'loan_type': _collectionType.toLowerCase(),
+      'interest_percentage': _interestRate,
+      'loan_duration': _duration,
+      'loan_type': _loanTypeForBackend,
       'start_date':
           toIsoDate(_startDateController.text) ?? _startDateController.text,
       'outstanding_balance': widget.loan?.outstandingBalance ?? _principal,
@@ -1270,74 +1347,64 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
       'processing_fee': double.tryParse(_feeController.text) ?? 0,
       'status':
           approve ? 'active' : (widget.loan?.status.toLowerCase() ?? 'pending'),
-      if (_notesController.text.isNotEmpty) 'notes': _notesController.text,
+      if (notesForSave.isNotEmpty) 'notes': notesForSave,
     };
   }
 
   double _currentInstallment() {
     switch (_collectionType) {
+      case 'Monthly Interest':
+        return _calcMonthlyInterestDue();
       case 'Weekly':
         return _calcWeeklyInstallment();
       case 'Daily':
         return _calcDailyInstallment();
       default:
-        return _calcMonthlyEmi();
+        return _calcMonthlyEmiInstallment();
     }
   }
 
-  // --- Monthly Calculation Logic ---
-  // Standard reducing-balance (amortized) EMI formula:
-  //   EMI = P * r * (1+r)^n / ((1+r)^n - 1)
-  // where r is the *monthly* interest rate (annual % / 12 / 100) and n is
-  // the number of months. This matches how banks/NBFCs actually compute
-  // EMIs — flat interest (P * rate% * years) overstates interest and was
-  // producing the wrong numbers before.
-  double _calcMonthlyEmi() {
-    if (_principal <= 0 || _duration <= 0) return 0;
-    final r = _monthlyInterestRate / 100 / 12;
-    if (r <= 0) return _principal / _duration;
-    final factor = math.pow(1 + r, _duration).toDouble();
-    return _principal * r * factor / (factor - 1);
+  /// The sum every installment in the schedule should add up to.
+  double _currentTotalRepaymentAmount() {
+    switch (_collectionType) {
+      case 'Monthly Interest':
+        return _calcMonthlyInterestDue() * _duration;
+      case 'Weekly':
+        return _principal; // Interest deducted upfront.
+      case 'Daily':
+        return _calcDailyTotalRepayment(); // Interest added on top.
+      default:
+        return _calcMonthlyEmiTotalRepayment();
+    }
   }
 
-  double _calcMonthlyInterest() {
-    if (_principal <= 0 || _duration <= 0) return 0;
-    return _calcMonthlyEmi() * _duration - _principal;
-  }
+  double _calcMonthlyEmiTotalInterest() =>
+      (_principal > 0 && _duration > 0)
+          ? _principal * (_interestRate / 100) * _duration
+          : 0;
 
-  // --- Weekly Calculation Logic ---
-  // Interest is deducted upfront from the disbursed amount; the borrower
-  // repays the full principal back in equal weekly installments.
-  double _getWeeklyInterestPercent() =>
-      _weeklyInterestRate == '10%' ? 10.0 : 12.0;
+  double _calcMonthlyEmiTotalRepayment() =>
+      _principal + _calcMonthlyEmiTotalInterest();
 
-  double _calcWeeklyDeductedInterest() =>
-      _principal * (_getWeeklyInterestPercent() / 100);
+  double _calcMonthlyEmiInstallment() =>
+      _duration > 0 ? _calcMonthlyEmiTotalRepayment() / _duration : 0;
 
-  double _calcWeeklyInstallment() {
-    final weeks = _duration > 0 ? _duration : 10;
-    return _principal > 0 ? _principal / weeks : 0;
-  }
+  double _calcMonthlyInterestDue() => _principal * (_interestRate / 100);
+
+  double _calcWeeklyInstallment() => _principal > 0 ? _principal / 10 : 0;
+
+  double _calcWeeklyDeductedInterest() => _principal * (_interestRate / 100);
 
   double _calcWeeklyDisbursed() =>
       (_principal - _calcWeeklyDeductedInterest()).clamp(0, double.infinity);
 
-  // --- Daily Calculation Logic ---
-  // Same upfront-deduction model as Weekly: installment = principal / days,
-  // interest is deducted from what's disbursed rather than added on top.
-  int _getDailyDays() => _dailyPlan.contains('60') ? 60 : 100;
-  double _getDailyInterestPercent() => _dailyPlan.contains('20%') ? 20.0 : 15.0;
+  double _calcDailyAddedInterest() => _principal * (_interestRate / 100);
 
-  double _calcDailyDeductedInterest() =>
-      _principal * (_getDailyInterestPercent() / 100);
+  double _calcDailyTotalRepayment() =>
+      _principal + _calcDailyAddedInterest();
 
-  double _calcDailyInstallment() {
-    final days = _getDailyDays();
-    return days > 0 && _principal > 0 ? _principal / days : 0;
-  }
-
-  double _calcDailyDisbursed() =>
-      (_principal - _calcDailyDeductedInterest()).clamp(0, double.infinity);
+  double _calcDailyInstallment() =>
+      _dailyDays > 0 ? _calcDailyTotalRepayment() / _dailyDays : 0;
 
   @override
   Widget build(BuildContext context) {
@@ -1381,8 +1448,12 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
                 children: [
                   _responsiveRow(
                     isNarrow,
-                    _buildTextField('LOAN NUMBER',
-                        widget.isEdit ? '' : 'Auto-generated by server',
+                    _buildTextField('HP NUMBER',
+                        widget.isEdit
+                            ? ''
+                            : (_loadingHpNumber
+                                ? 'Loading...'
+                                : 'Auto-generated by server'),
                         enabled: false, controller: _loanNumberController),
                     _buildCustomerField(),
                   ),
@@ -1444,7 +1515,6 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
     );
   }
 
-  // Searchable dropdown for the customer this loan belongs to.
   Widget _buildCustomerField() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1472,6 +1542,7 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
               decoration: const InputDecoration(
                 hintText: 'Select customer...',
                 isDense: true,
+                suffixIcon: Icon(Icons.expand_more, size: 20),
               ),
             );
           },
@@ -1532,6 +1603,7 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
               decoration: const InputDecoration(
                 hintText: 'Unassigned',
                 isDense: true,
+                suffixIcon: Icon(Icons.expand_more, size: 20),
               ),
             );
           },
@@ -1564,225 +1636,311 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
     );
   }
 
-  // Collection Type Selector Bar
   Widget _buildCollectionTypeSelector() {
-    final options = ['Monthly', 'Weekly', 'Daily'];
+    Widget typeChip(_LoanTypeOption option) {
+      final isSelected = _collectionType == option.key;
+      return GestureDetector(
+        onTap: () {
+          setState(() {
+            _collectionType = option.key;
+            _interestController.text = _defaultRateFor(option.key);
+            if (option.key == 'Daily') {
+              _dailyDays = 60;
+            } else if ((option.key == 'Monthly EMI' ||
+                    option.key == 'Monthly Interest') &&
+                _durationController.text.isEmpty) {
+              _durationController.text = '10';
+            }
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.white : AppColors.kBackground,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isSelected ? AppColors.kGold : AppColors.kBorder,
+              width: isSelected ? 1.5 : 1,
+            ),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            option.key,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              color: isSelected ? AppColors.kGold : AppColors.kTextMuted,
+            ),
+          ),
+        ),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('COLLECTION TYPE',
+        const Text('COLLECTION / REPAYMENT TYPE',
             style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: AppColors.kTextMuted)),
+        const SizedBox(height: 8),
+        LayoutBuilder(builder: (context, constraints) {
+          final narrow = constraints.maxWidth < 560;
+          if (narrow) {
+            return GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              childAspectRatio: 2.4,
+              children: _kLoanTypeOptions.map(typeChip).toList(),
+            );
+          }
+          return Row(
+            children: [
+              for (final option in _kLoanTypeOptions)
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: typeChip(option),
+                  ),
+                ),
+            ],
+          );
+        }),
+      ],
+    );
+  }
+
+  // Dynamic Middle Inputs based on Collection / Repayment Type
+  Widget _buildDynamicMiddleInputs(bool isNarrow) {
+    switch (_collectionType) {
+      case 'Monthly EMI':
+        return Column(
+          children: [
+            _responsiveRow(
+              isNarrow,
+              _buildTextField('LOAN AMOUNT *', '₹50,000',
+                  controller: _amountController),
+              _buildTextField('INTEREST RATE (% MONTHLY) *', '2.5',
+                  controller: _interestController),
+            ),
+            const SizedBox(height: 16),
+            _responsiveRow(
+              isNarrow,
+              _buildTextField('DURATION (MONTHS) *', '10',
+                  controller: _durationController),
+              _buildTextField('START DATE *', '10/07/2026',
+                  controller: _startDateController),
+            ),
+          ],
+        );
+
+      case 'Monthly Interest':
+        return Column(
+          children: [
+            _buildTextField('LOAN AMOUNT *', '₹50,000',
+                controller: _amountController),
+            const SizedBox(height: 16),
+            _buildInterestOnlyInfoBox(),
+            const SizedBox(height: 16),
+            _responsiveRow(
+              isNarrow,
+              _buildRateFieldWithChips(
+                  'MONTHLY INTEREST RATE (%) *', const [2, 2.5, 3, 4, 5]),
+              _buildTextField(
+                  'LOAN TENURE / DURATION (MONTHS) *', '10',
+                  controller: _durationController),
+            ),
+            const SizedBox(height: 16),
+            _buildTextField('START DATE *', '10/07/2026',
+                controller: _startDateController),
+          ],
+        );
+
+      case 'Weekly':
+        return Column(
+          children: [
+            _responsiveRow(
+              isNarrow,
+              _buildTextField('LOAN AMOUNT *', '₹50,000',
+                  controller: _amountController),
+              _buildRateFieldWithChips('INTEREST RATE (%) *', const [10, 12]),
+            ),
+            const SizedBox(height: 16),
+            _responsiveRow(
+              isNarrow,
+              _buildDisabledField('DURATION', '10 Weeks'),
+              _buildTextField('START DATE *', '10/07/2026',
+                  controller: _startDateController),
+            ),
+          ],
+        );
+
+      default: // Daily
+        return Column(
+          children: [
+            _responsiveRow(
+              isNarrow,
+              _buildTextField('LOAN AMOUNT *', '₹50,000',
+                  controller: _amountController),
+              _buildRateFieldWithChips('INTEREST RATE (%) *', const [15, 20]),
+            ),
+            const SizedBox(height: 16),
+            _responsiveRow(
+              isNarrow,
+              _buildDailyPlanDropdown(),
+              _buildTextField('START DATE *', '10/07/2026',
+                  controller: _startDateController),
+            ),
+          ],
+        );
+    }
+  }
+
+  Widget _buildRateFieldWithChips(String label, List<num> rates) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: AppColors.kTextMuted)),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _interestController,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(isDense: true),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: rates.map((r) {
+            final rateLabel = fmtRate(r.toDouble());
+            final selected = _interestRate == r.toDouble();
+            return ChoiceChip(
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              label: Text('$rateLabel%'),
+              selected: selected,
+              selectedColor: AppColors.kGold,
+              labelStyle: TextStyle(
+                fontSize: 12,
+                color: selected ? Colors.white : AppColors.kTextDark,
+                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+              ),
+              onSelected: (val) {
+                if (val) setState(() => _interestController.text = rateLabel);
+              },
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  // Disabled/read-only field for the fixed 10-week Weekly duration.
+  Widget _buildDisabledField(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
                 color: AppColors.kTextMuted)),
         const SizedBox(height: 8),
         Container(
           width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
           decoration: BoxDecoration(
             color: AppColors.kBackground,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.kBorder),
           ),
-          padding: const EdgeInsets.all(4),
-          child: Row(
-            children: options.map((type) {
-              final isSelected = _collectionType == type;
-              return Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _collectionType = type;
-                      if (_collectionType == 'Weekly' &&
-                          _durationController.text.isEmpty) {
-                        _durationController.text = '10';
-                      }
-                    });
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(
-                      color: isSelected ? Colors.white : Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: isSelected
-                          ? [
-                              const BoxShadow(
-                                color: Colors.black12,
-                                blurRadius: 4,
-                                offset: Offset(0, 2),
-                              )
-                            ]
-                          : [],
-                    ),
-                    child: Center(
-                      child: Text(
-                        type,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight:
-                              isSelected ? FontWeight.bold : FontWeight.w500,
-                          color: isSelected
-                              ? AppColors.kGold
-                              : AppColors.kTextMuted,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
+          child: Text(value,
+              style: const TextStyle(fontSize: 14, color: AppColors.kTextDark)),
         ),
       ],
     );
   }
 
-  // Dynamic Middle Inputs based on Collection Type
-  Widget _buildDynamicMiddleInputs(bool isNarrow) {
-    if (_collectionType == 'Monthly') {
-      return Column(
-        children: [
-          _responsiveRow(
-            isNarrow,
-            _buildTextField('LOAN AMOUNT *', '₹50,000',
-                controller: _amountController),
-            _buildTextField('INTEREST (% P.A.) *', '12',
-                controller: _interestController),
-          ),
-          const SizedBox(height: 16),
-          _responsiveRow(
-            isNarrow,
-            _buildTextField('DURATION (MONTHS) *', '12',
-                controller: _durationController),
-            _buildTextField('START DATE *', '10/07/2026',
-                controller: _startDateController),
-          ),
-        ],
-      );
-    } else if (_collectionType == 'Weekly') {
-      return Column(
-        children: [
-          _responsiveRow(
-            isNarrow,
-            _buildTextField('LOAN AMOUNT *', '₹50,000',
-                controller: _amountController),
-            _buildWeeklyInterestChips(),
-          ),
-          const SizedBox(height: 16),
-          _responsiveRow(
-            isNarrow,
-            _buildTextField('DURATION (WEEKS) *', '10',
-                controller: _durationController),
-            _buildTextField('START DATE *', '10/07/2026',
-                controller: _startDateController),
-          ),
-        ],
-      );
-    } else {
-      // Daily Scheme
-      return Column(
-        children: [
-          _responsiveRow(
-            isNarrow,
-            _buildTextField('LOAN AMOUNT *', '₹50,000',
-                controller: _amountController),
-            _buildDailyPlanChips(),
-          ),
-          const SizedBox(height: 16),
-          _responsiveRow(
-            isNarrow,
-            _buildTextField('START DATE *', '10/07/2026',
-                controller: _startDateController),
-            Container(), // Spacer placeholder
-          ),
-        ],
-      );
-    }
-  }
-
-  Widget _buildWeeklyInterestChips() {
-    final rates = ['10%', '12%'];
+  // Daily collection plan / duration dropdown (60 or 100 days).
+  Widget _buildDailyPlanDropdown() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('INTEREST RATE *',
+        const Text('COLLECTION PLAN / DURATION *',
             style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
                 color: AppColors.kTextMuted)),
         const SizedBox(height: 8),
-        Row(
-          children: List.generate(rates.length, (index) {
-            final rate = rates[index];
-            final selected = _weeklyInterestRate == rate;
-            return Expanded(
-              child: Padding(
-                padding:
-                    EdgeInsets.only(right: index == rates.length - 1 ? 0 : 8),
-                child: ChoiceChip(
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  label: Center(
-                      child: Text(rate,
-                          maxLines: 1, overflow: TextOverflow.ellipsis)),
-                  selected: selected,
-                  selectedColor: AppColors.kGold,
-                  labelStyle: TextStyle(
-                    fontSize: 12,
-                    color: selected ? Colors.white : AppColors.kTextDark,
-                    fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-                  ),
-                  onSelected: (val) {
-                    if (val) setState(() => _weeklyInterestRate = rate);
-                  },
-                ),
-              ),
-            );
-          }),
+        DropdownButtonFormField<int>(
+          initialValue: _dailyDays,
+          isExpanded: true,
+          decoration: const InputDecoration(isDense: true),
+          items: const [
+            DropdownMenuItem(
+              value: 60,
+              child: Text('60 Days Plan (Interest Added to Repayment)',
+                  overflow: TextOverflow.ellipsis),
+            ),
+            DropdownMenuItem(
+              value: 100,
+              child: Text('100 Days Plan (Interest Added to Repayment)',
+                  overflow: TextOverflow.ellipsis),
+            ),
+          ],
+          onChanged: (v) {
+            if (v != null) setState(() => _dailyDays = v);
+          },
         ),
       ],
     );
   }
 
-  Widget _buildDailyPlanChips() {
-    final plans = ['60 Days · 20%', '100 Days · 15%'];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('COLLECTION PLAN *',
-            style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: AppColors.kTextMuted)),
-        const SizedBox(height: 8),
-        Row(
-          children: List.generate(plans.length, (index) {
-            final plan = plans[index];
-            final selected = _dailyPlan == plan;
-            return Expanded(
-              child: Padding(
-                padding:
-                    EdgeInsets.only(right: index == plans.length - 1 ? 0 : 8),
-                child: ChoiceChip(
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  label: Center(
-                      child: Text(plan,
-                          maxLines: 1, overflow: TextOverflow.ellipsis)),
-                  selected: selected,
-                  selectedColor: AppColors.kGold,
-                  labelStyle: TextStyle(
-                    fontSize: 12,
-                    color: selected ? Colors.white : AppColors.kTextDark,
-                    fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-                  ),
-                  onSelected: (val) {
-                    if (val) setState(() => _dailyPlan = plan);
-                  },
+  Widget _buildInterestOnlyInfoBox() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F0FF),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.kInfo.withOpacity(0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('💡', style: TextStyle(fontSize: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  'Interest-Only Monthly with Flexible Principal Repayment',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: AppColors.kTextDark),
                 ),
-              ),
-            );
-          }),
-        ),
-      ],
+                SizedBox(height: 4),
+                Text(
+                  'Borrowers pay only the interest amount every month. The principal amount can be repaid in flexible installments anytime whenever the borrower has funds available.',
+                  style: TextStyle(fontSize: 12, color: AppColors.kInfo),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1794,78 +1952,119 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
         final isNarrow = constraints.maxWidth < 500;
         List<Widget> cards = [];
 
-        if (_collectionType == 'Monthly') {
-          final totalInterest = _calcMonthlyInterest();
-          final totalRepayment = _principal + totalInterest;
-          final emi = _calcMonthlyEmi();
+        switch (_collectionType) {
+          case 'Monthly EMI':
+            {
+              final totalInterest = _calcMonthlyEmiTotalInterest();
+              final totalRepayment = _calcMonthlyEmiTotalRepayment();
+              final emi = _calcMonthlyEmiInstallment();
+              final perMonth = _duration > 0 ? totalInterest / _duration : 0;
 
-          cards = [
-            _buildSummaryCard('EMI', '₹${emi.toStringAsFixed(0)}',
-                const Color(0xFFF0F5FF), AppColors.kInfo),
-            _buildSummaryCard(
-                'Interest (added)',
-                '₹${totalInterest.toStringAsFixed(0)}',
-                const Color(0xFFFFFBEB),
-                AppColors.kWarning),
-            _buildSummaryCard(
-                'Amount Disbursed to Borrower',
-                '₹${totalRepayment.toStringAsFixed(0)}',
-                const Color(0xFFF0FDF4),
-                AppColors.kSuccess),
-          ];
-        } else if (_collectionType == 'Weekly') {
-          final weeks = _duration > 0 ? _duration : 10;
-          final installment = _calcWeeklyInstallment();
-          final deductedInterest = _calcWeeklyDeductedInterest();
-          final disbursed = _calcWeeklyDisbursed();
+              cards = [
+                _buildSummaryCard('Monthly EMI', '₹${emi.toStringAsFixed(0)}',
+                    const Color(0xFFFFFBEB), AppColors.kWarning,
+                    subtitle: 'Per Month ($_duration Months)'),
+                _buildSummaryCard(
+                    'Total Interest',
+                    '₹${totalInterest.toStringAsFixed(0)}',
+                    const Color(0xFFFFFBEB),
+                    AppColors.kWarning,
+                    subtitle: '₹${perMonth.toStringAsFixed(0)} / month'),
+                _buildSummaryCard(
+                    'Total Repayment',
+                    '₹${totalRepayment.toStringAsFixed(0)}',
+                    const Color(0xFFF0FDF4),
+                    AppColors.kSuccess,
+                    subtitle: 'Principal + Total Interest'),
+              ];
+              break;
+            }
 
-          cards = [
-            _buildSummaryCard(
-                'Weekly Installment',
-                '₹${installment.toStringAsFixed(0)}',
-                const Color(0xFFF0F5FF),
-                AppColors.kInfo,
-                subtitle: '× $weeks weeks = ₹${_principal.toStringAsFixed(0)}'),
-            _buildSummaryCard(
-                'Interest (deducted)',
-                '₹${deductedInterest.toStringAsFixed(0)}',
-                const Color(0xFFFFFBEB),
-                AppColors.kWarning,
-                subtitle: 'Deducted upfront'),
-            _buildSummaryCard(
-                'Amount Disbursed',
-                '₹${disbursed.toStringAsFixed(0)}',
-                const Color(0xFFF0FDF4),
-                AppColors.kSuccess,
-                subtitle: 'Principal − Interest'),
-          ];
-        } else {
-          // Daily Scheme Summary — same upfront-deduction model as Weekly.
-          final days = _getDailyDays();
-          final installment = _calcDailyInstallment();
-          final deductedInterest = _calcDailyDeductedInterest();
-          final disbursed = _calcDailyDisbursed();
+          case 'Monthly Interest':
+            {
+              final due = _calcMonthlyInterestDue();
+              cards = [
+                _buildSummaryCard(
+                    'MONTHLY INTEREST DUE',
+                    '₹${due.toStringAsFixed(0)}',
+                    const Color(0xFFF0F5FF),
+                    AppColors.kInfo,
+                    subtitle:
+                        '${fmtRate(_interestRate)}% of ${LoanRecord.formatRupees(_principal)} / month'),
+                _buildSummaryCard(
+                    'PRINCIPAL REPAYMENT',
+                    'Flexible Installments',
+                    const Color(0xFFF0FDF4),
+                    AppColors.kSuccess,
+                    subtitle: 'Repay anytime whenever funds available'),
+                _buildSummaryCard(
+                    'PRINCIPAL DISBURSED',
+                    LoanRecord.formatRupees(_principal),
+                    const Color(0xFFFFFBEB),
+                    AppColors.kWarning,
+                    subtitle: 'Tenure: $_duration Months'),
+              ];
+              break;
+            }
 
-          cards = [
-            _buildSummaryCard(
-                'Daily Installment',
-                '₹${installment.toStringAsFixed(0)}',
-                const Color(0xFFF0F5FF),
-                AppColors.kInfo,
-                subtitle: '× $days days = ₹${_principal.toStringAsFixed(0)}'),
-            _buildSummaryCard(
-                'Interest (deducted)',
-                '₹${deductedInterest.toStringAsFixed(0)}',
-                const Color(0xFFFFFBEB),
-                AppColors.kWarning,
-                subtitle: 'Deducted upfront'),
-            _buildSummaryCard(
-                'Amount Disbursed to Borrower',
-                '₹${disbursed.toStringAsFixed(0)}',
-                const Color(0xFFF0FDF4),
-                AppColors.kSuccess,
-                subtitle: 'Principal − Interest'),
-          ];
+          case 'Weekly':
+            {
+              final installment = _calcWeeklyInstallment();
+              final deductedInterest = _calcWeeklyDeductedInterest();
+              final disbursed = _calcWeeklyDisbursed();
+
+              cards = [
+                _buildSummaryCard(
+                    'Weekly Installment',
+                    '₹${installment.toStringAsFixed(0)}',
+                    const Color(0xFFF0F5FF),
+                    AppColors.kInfo,
+                    subtitle:
+                        '× 10 weeks = ${LoanRecord.formatRupees(_principal)}'),
+                _buildSummaryCard(
+                    'Interest (deducted)',
+                    '₹${deductedInterest.toStringAsFixed(0)}',
+                    const Color(0xFFFFFBEB),
+                    AppColors.kWarning,
+                    subtitle: 'Deducted upfront'),
+                _buildSummaryCard(
+                    'Amount Disbursed',
+                    '₹${disbursed.toStringAsFixed(0)}',
+                    const Color(0xFFF0FDF4),
+                    AppColors.kSuccess,
+                    subtitle: 'Principal − Interest'),
+              ];
+              break;
+            }
+
+          default: // Daily
+            {
+              final installment = _calcDailyInstallment();
+              final addedInterest = _calcDailyAddedInterest();
+              final totalRepayment = _calcDailyTotalRepayment();
+
+              cards = [
+                _buildSummaryCard(
+                    'Daily Installment',
+                    '₹${installment.toStringAsFixed(0)}',
+                    const Color(0xFFF0F5FF),
+                    AppColors.kInfo,
+                    subtitle:
+                        '× $_dailyDays days = ${LoanRecord.formatRupees(totalRepayment)}'),
+                _buildSummaryCard(
+                    'Interest (added)',
+                    '₹${addedInterest.toStringAsFixed(0)}',
+                    const Color(0xFFFFFBEB),
+                    AppColors.kWarning,
+                    subtitle: 'Added to repayment'),
+                _buildSummaryCard(
+                    'Amount Disbursed to Borrower',
+                    LoanRecord.formatRupees(_principal),
+                    const Color(0xFFF0FDF4),
+                    AppColors.kSuccess,
+                    subtitle: 'Full loan amount'),
+              ];
+            }
         }
 
         if (isNarrow) {
@@ -1891,42 +2090,26 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
     );
   }
 
-  // Repayment Schedule Preview — recomputes live as the amount / interest /
-  // duration / start-date fields change. Pure preview, no payment data
-  // (that only exists once a real loan/repayments record is saved).
   Widget _buildScheduleSection() {
     final startDate = tryParseFlexibleDate(_startDateController.text);
     if (_principal <= 0 || startDate == null) {
       return const SizedBox.shrink();
     }
 
-    int periods;
-    double installment;
-    double totalAmount;
-
-    switch (_collectionType) {
-      case 'Weekly':
-        periods = _duration > 0 ? _duration : 10;
-        installment = _calcWeeklyInstallment();
-        totalAmount = _principal;
-        break;
-      case 'Daily':
-        periods = _getDailyDays();
-        installment = _calcDailyInstallment();
-        totalAmount = _principal;
-        break;
-      default:
-        periods = _duration;
-        installment = _calcMonthlyEmi();
-        totalAmount = installment * periods;
-    }
+    final periods = _duration;
+    final installment = _currentInstallment();
+    final totalAmount = _currentTotalRepaymentAmount();
 
     if (periods <= 0 || installment <= 0) {
       return const SizedBox.shrink();
     }
 
+    final frequency = (_collectionType == 'Weekly' || _collectionType == 'Daily')
+        ? _collectionType
+        : 'Monthly';
+
     final schedule = buildRepaymentSchedule(
-      collectionType: _collectionType,
+      collectionType: frequency,
       startDate: startDate,
       periods: periods,
       installment: installment,
@@ -1946,6 +2129,13 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
                     fontWeight: FontWeight.w600, color: AppColors.kTextDark)),
           ],
         ),
+        if (_collectionType == 'Monthly Interest') ...[
+          const SizedBox(height: 4),
+          const Text(
+            'Interest-only schedule — principal can be repaid separately, anytime.',
+            style: TextStyle(fontSize: 12, color: AppColors.kTextMuted),
+          ),
+        ],
         const SizedBox(height: 12),
         Container(
           decoration: BoxDecoration(
