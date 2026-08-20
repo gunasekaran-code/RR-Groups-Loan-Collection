@@ -21,20 +21,11 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
   String? _loadError; // NEW
 
   final List<String> _periods = const [
-    'Today',
-    'This Week',
-    'This Month',
-    'All'
+    'Today',    'This Week',    'This Month',    'All'
   ];
 
-  static final DateTime _today = DateTime.now(); // was hardcoded 2026-07-10
-
-  // Was: a hardcoded literal list. Now populated from the API.
+  static final DateTime _today = DateTime.now(); 
   List<Map<String, String>> _collections = [];
-
-  // Keep a raw-id map alongside the display map, since the DataTable/UI
-  // works with String fields only (per your existing code), but we still
-  // need the real UUIDs for PATCH/DELETE calls.
   final Map<String, String> _receiptToId = {}; // receipt_number -> id
 
   @override
@@ -46,18 +37,8 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
   // ---------- API <-> UI mapping ----------
 
   static const Map<int, String> _monthNames = {
-    1: 'Jan',
-    2: 'Feb',
-    3: 'Mar',
-    4: 'Apr',
-    5: 'May',
-    6: 'Jun',
-    7: 'Jul',
-    8: 'Aug',
-    9: 'Sep',
-    10: 'Oct',
-    11: 'Nov',
-    12: 'Dec',
+    1: 'Jan',    2: 'Feb',    3: 'Mar',    4: 'Apr',    5: 'May',    6: 'Jun',    7: 'Jul',
+    8: 'Aug',    9: 'Sep',    10: 'Oct',    11: 'Nov',    12: 'Dec',
   };
 
   String _formatApiDate(dynamic raw) {
@@ -128,8 +109,6 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
     return (parts[0].substring(0, 1) + parts[1].substring(0, 1)).toUpperCase();
   }
 
-  /// Maps one raw `collections` table row -> the same String-keyed map
-  /// shape your existing UI code (_buildCollectionsTable etc.) expects.
   Map<String, String> _mapRow(Map<String, dynamic> row) {
     final id = (row['id'] ?? '').toString();
     final receipt = (row['receipt_number'] ?? '').toString();
@@ -143,7 +122,7 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
     }
 
     return {
-      'id': id, // kept for internal use; UI ignores unknown keys
+      'id': id, 
       'customer': customerName.isEmpty ? '-' : customerName,
       'initials': _initials(customerName.isEmpty ? '-' : customerName),
       'receipt': receipt.isEmpty ? '-' : receipt,
@@ -189,18 +168,7 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
       int.tryParse(amount.replaceAll(RegExp(r'[₹,]'), '')) ?? 0;
 
   static const Map<String, int> _months = {
-    'Jan': 1,
-    'Feb': 2,
-    'Mar': 3,
-    'Apr': 4,
-    'May': 5,
-    'Jun': 6,
-    'Jul': 7,
-    'Aug': 8,
-    'Sep': 9,
-    'Oct': 10,
-    'Nov': 11,
-    'Dec': 12,
+    'Jan': 1,    'Feb': 2,    'Mar': 3,    'Apr': 4,    'May': 5,    'Jun': 6,    'Jul': 7,    'Aug': 8,    'Sep': 9,    'Oct': 10,    'Nov': 11,    'Dec': 12,
   };
 
   DateTime? _parseDate(String date) {
@@ -641,10 +609,12 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
     );
   }
 
-  Widget _buildCollectionsTable(bool isNarrow) {
+Widget _buildCollectionsTable(bool isNarrow) {
     final items = _filtered;
 
     final table = DataTable(
+      dataRowMinHeight: 60, 
+      dataRowMaxHeight: 70, 
       headingTextStyle: const TextStyle(
         color: AppColors.kTextMuted,
         fontWeight: FontWeight.bold,
@@ -657,7 +627,7 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
       dividerThickness: 0,
       columns: const [
         DataColumn(label: Text('CUSTOMER')),
-        DataColumn(label: Text('LOAN INFO')),
+        DataColumn(label: Text('LOAN NUMBER')), // Header changed
         DataColumn(label: Text('AMOUNT')),
         DataColumn(label: Text('METHOD')),
         DataColumn(label: Text('DATE')),
@@ -671,7 +641,7 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
             children: [
               CircleAvatar(
                 radius: 16,
-                backgroundColor: AppColors.kInfo,
+                backgroundColor: const Color(0xFFB38222), // Golden-brown matching image
                 child: Text(
                   c['initials']!,
                   style: const TextStyle(
@@ -682,6 +652,7 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
               ),
               const SizedBox(width: 10),
               Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -690,35 +661,49 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
                   Text(c['receipt']!,
                       style: const TextStyle(
                           fontSize: 12, color: AppColors.kTextMuted)),
-                  Text(
-                    '${c['loan']!} • ${c['loan_type']!}',
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.kTextMuted),
-                  ),
+                  // Removed the 3rd line containing loan and loan_type
                 ],
               ),
             ],
           )),
-          DataCell(Text('${c['loan']!}\n${c['loan_type']!}')),
+          DataCell(Text(c['loan']!)), // Removed the newline and loan_type
           DataCell(Text(c['amount']!,
               style: const TextStyle(fontWeight: FontWeight.w700))),
-          DataCell(Text(c['method']!)),
+          DataCell(
+            // Styled as a pill/chip
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE4F0FF), 
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                c['method']!,
+                style: const TextStyle(
+                  color: Color(0xFF4A90E2), 
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
           DataCell(Text(c['date']!)),
           DataCell(Text(c['agent']!)),
           DataCell(Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              IconButton(
-                icon: const Icon(Icons.print_outlined, size: 20),
-                color: AppColors.kTextMuted,
-                onPressed: () => _printReceipt(c),
-                tooltip: 'Print',
-              ),
+              // Reordered to: Edit, Print, Delete
               IconButton(
                 icon: const Icon(Icons.edit_outlined, size: 20),
                 color: AppColors.kTextMuted,
                 onPressed: () => _showEditCollectionDialog(c),
                 tooltip: 'Edit',
+              ),
+              IconButton(
+                icon: const Icon(Icons.print_outlined, size: 20),
+                color: AppColors.kTextMuted,
+                onPressed: () => _printReceipt(c),
+                tooltip: 'Print',
               ),
               IconButton(
                 icon: const Icon(Icons.delete_outline, size: 20),
@@ -795,10 +780,6 @@ class _StatCardData {
     required this.iconBg,
   });
 }
-
-/// -----------------------------------------------------------------------
-/// STAT CARD
-/// -----------------------------------------------------------------------
 class _StatCard extends StatelessWidget {
   final _StatCardData data;
   const _StatCard({required this.data});

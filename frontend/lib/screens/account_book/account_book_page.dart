@@ -5,6 +5,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/app_shell.dart';
 import '../../widgets/page_header.dart';
 import '../../theme/glass_toast.dart';
+import '../../theme/confirm_dialog.dart';
 import '../../models/account_ledger_model.dart';
 import '../../services/account_ledger_service.dart';
 
@@ -172,32 +173,20 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
     );
   }
 
-  // ==========================================
+// ==========================================
   // DELETE
   // ==========================================
   Future<void> _handleDelete(AccountLedgerEntry entry) async {
-    final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Delete Entry'),
-            content: Text(
-                'Are you sure you want to delete "${entry.title}"? This cannot be undone.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text('Delete'),
-              ),
-            ],
-          ),
-        ) ??
-        false;
+    // Replaced default showDialog with AppConfirmDialog
+    final confirmed = await AppConfirmDialog.show(
+      context: context,
+      title: 'Delete Entry',
+      message: 'Are you sure you want to delete "${entry.title}"? This cannot be undone.',
+      confirmLabel: 'Delete',
+      confirmButtonColor: AppColors.kDanger,
+    );
 
-    if (!confirmed) return;
+    if (confirmed != true) return;
 
     final previous = List<AccountLedgerEntry>.from(_transactions);
     setState(() {
