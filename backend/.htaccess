@@ -12,3 +12,9 @@
     SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
     SetEnvIf X-Authorization "(.*)" HTTP_X_AUTHORIZATION=$1
 </IfModule>
+
+# Serve text as UTF-8 so Tamil is never reinterpreted in the host's default codepage
+AddDefaultCharset utf-8
+<IfModule mod_mime.c>
+  AddCharset utf-8 .html .css .js .json .csv .xml .txt
+</IfModule>

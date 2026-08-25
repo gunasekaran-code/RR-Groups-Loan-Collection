@@ -10,6 +10,8 @@ class AgentCollectionItem {
   final String customerName;
   final String loanNumber;
   final double dueAmount;
+  final double installmentAmount;
+  final double penaltyAmount;
   final DateTime? dueDate;
   final String rawStatus;
   final String? contactPhone;
@@ -35,6 +37,8 @@ class AgentCollectionItem {
     required this.customerName,
     required this.loanNumber,
     required this.dueAmount,
+    this.installmentAmount = 0,
+    this.penaltyAmount = 0,
     this.dueDate,
     required this.rawStatus,
     this.contactPhone,
@@ -79,6 +83,8 @@ class AgentCollectionItem {
       customerName: (json['customer_name'] ?? '-').toString(),
       loanNumber: (json['loan_number'] ?? '-').toString(),
       dueAmount: dueAmount,
+      installmentAmount: parseDouble(json['emi_amount']),
+      penaltyAmount: parseDouble(json['penalty_amount']),
       dueDate: _parseDate(json['due_date']),
       rawStatus: (json['status'] ?? 'pending').toString().toLowerCase(),
       contactPhone: (json['contact_phone'] ?? json['phone'])?.toString(),
@@ -141,6 +147,10 @@ class AgentCollectionItem {
   String get statusLabel => _labelFor(status);
 
   String get formattedDueAmount => formatAmount(dueAmount);
+
+  String get formattedPenaltyAmount => formatAmount(penaltyAmount);
+
+  String get formattedTotalDue => formatAmount(dueAmount + penaltyAmount);
 
   String get formattedDueDate => formatDate(dueDate);
 
@@ -252,6 +262,11 @@ class AgentCustomerGroup {
   /// Sum of every currently-payable installment for this customer — this is
   /// what gets prefilled into the Collect form.
   double get totalDue => items.fold(0.0, (sum, i) => sum + i.dueAmount);
+
+  double get totalPenalty =>
+      items.fold(0.0, (sum, i) => sum + i.penaltyAmount);
+
+  double get totalDueWithPenalty => totalDue + totalPenalty;
 
   /// Sum of the full outstanding loan balance(s), de-duplicated per loan.
   /// Falls back to [totalDue] if the backend doesn't send a balance figure.

@@ -7,6 +7,7 @@ class RepaymentInstallment {
   final double emiAmount;
   final double paidAmount;
   final double balance;
+  final double penaltyAmount;
   final String status; // 'paid' | 'partial' | 'overdue' | 'pending'
   final DateTime? createdAt;
 
@@ -18,6 +19,7 @@ class RepaymentInstallment {
     required this.emiAmount,
     required this.paidAmount,
     required this.balance,
+    this.penaltyAmount = 0,
     required this.status,
     this.createdAt,
   });
@@ -43,6 +45,7 @@ factory RepaymentInstallment.fromJson(Map<String, dynamic> json) {
       emiAmount: parseDouble(json['emi_amount']), 
       paidAmount: parseDouble(json['paid_amount']), 
       balance: parseDouble(json['balance']), 
+      penaltyAmount: parseDouble(json['penalty_amount']),
       status: (json['status'] ?? 'pending').toString(),
       createdAt: date(json['created_at']),
     );
@@ -56,6 +59,7 @@ factory RepaymentInstallment.fromJson(Map<String, dynamic> json) {
         'emi_amount': emiAmount,
         'paid_amount': paidAmount,
         'balance': balance,
+        'penalty_amount': penaltyAmount,
         'status': status,
       };
 
@@ -101,6 +105,7 @@ factory RepaymentInstallment.fromJson(Map<String, dynamic> json) {
   String get amountDisplay => _fmtCurrency(emiAmount);
   String get paidDisplay => _fmtCurrency(paidAmount);
   String get balanceDisplay => _fmtCurrency(balance);
+  String get penaltyDisplay => _fmtCurrency(penaltyAmount);
 
   String get dueDateDisplay {
     if (dueDate == null) return '-';

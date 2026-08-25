@@ -13,21 +13,31 @@ class OverdueController extends Controller
         $role   = $claims['role'] ?? '';
         $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
-        switch ($method) {
-            case 'GET':
-                // Keep loan statuses current so time-based overdues appear live.
-                Overdue::recompute();
-                json_out(Overdue::accounts());
-                break;
-            case 'POST':
-                if ($role !== 'admin' && $role !== 'agent') {
-                    json_error('Only admins or agents can recompute overdues', 403);
-                }
-                $changed = Overdue::recompute();
-                json_out(['ok' => true, 'loans_updated' => $changed]);
-                break;
-            default:
-                json_error('Method not allowed', 405);
+        try {
+            switch ($method) {
+                case 'GET':
+                    // Keep loan statuses current so time-based overdues appear live.
+                    try {
+                        Overdue::recompute();
+                    } catch (Throwable $e) {
+                        error_log('Overdue::recompute warning: ' . $e->getMessage());
+                    }
+                    $data = Overdue::accounts();
+                    json_out($data);
+                    break;
+                case 'POST':
+                    if ($role !== 'admin' && $role !== 'agent') {
+                        json_error('Only admins or agents can recompute overdues', 403);
+                    }
+                    $changed = Overdue::recompute();
+                    json_out(['ok' => true, 'loans_updated' => $changed]);
+                    break;
+                default:
+                    json_error('Method not allowed', 405);
+            }
+        } catch (Throwable $e) {
+            error_log('OverdueController error: ' . $e->getMessage());
+            json_error('Failed to load overdue accounts: ' . $e->getMessage(), 500);
         }
     }
 }

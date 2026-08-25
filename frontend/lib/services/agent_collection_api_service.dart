@@ -111,6 +111,7 @@ class AgentCollectionApiService {
                 loan?['balance'],
             'due_amount':
                 row['due_amount'] ?? row['balance'] ?? row['emi_amount'],
+            'penalty_amount': row['penalty_amount'],
           });
         })
         .where((item) => !item.isPaid)

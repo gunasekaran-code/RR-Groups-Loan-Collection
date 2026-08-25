@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'l10n/generated/app_localizations.dart';
 import 'models/user_role.dart';
 import 'routes/app_routes.dart';
 import 'services/session_service.dart';
@@ -6,6 +8,7 @@ import 'services/branding_service.dart';
 import 'theme/app_theme.dart';
 import 'theme/glass_toast.dart';
 import 'theme/theme_controller.dart';
+import 'theme/locale_controller.dart';
 import 'screens/splash/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/dashboard/admin_dashboard.dart';
@@ -46,16 +49,33 @@ class FinCollectApp extends StatelessWidget {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: ThemeController.mode,
       builder: (context, themeMode, _) {
-        return MaterialApp(
-          navigatorKey: ToastService.navigatorKey,
-          title: 'FinCollect',
-          debugShowCheckedModeBanner: false,
-          theme: AppTheme.light,
-          darkTheme: AppTheme.dark,
-          themeMode: themeMode,
-          // initialRoute: AppRoutes.login,
-          initialRoute: AppRoutes.splash,
-          onGenerateRoute: _onGenerateRoute,
+        return ValueListenableBuilder<Locale>(
+          valueListenable: LocaleController.locale,
+          builder: (context, locale, __) {
+            return MaterialApp(
+              navigatorKey: ToastService.navigatorKey,
+              onGenerateTitle: (context) =>
+                  AppLocalizations.of(context).appTitle,
+              debugShowCheckedModeBanner: false,
+              theme: AppTheme.light,
+              darkTheme: AppTheme.dark,
+              themeMode: themeMode,
+
+              // --- Localization wiring ---
+              locale: locale,
+              localizationsDelegates: const [
+                AppLocalizations.delegate,
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              supportedLocales: AppLocalizations.supportedLocales,
+
+              // initialRoute: AppRoutes.login,
+              initialRoute: AppRoutes.splash,
+              onGenerateRoute: _onGenerateRoute,
+            );
+          },
         );
       },
     );

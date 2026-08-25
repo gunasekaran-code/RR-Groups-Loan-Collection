@@ -186,19 +186,28 @@ class AccountLedger extends Model
         $pdo = Database::pdo();
         $queries = [];
 
-        // 1. Account Ledger Entries (Custom / Chit adjustments)
+        // 1. Account Ledger Entries.
+        //    A chit contribution lives here too, so the module has to come from
+        //    the category — hardcoding 'ledger' filed every chit receipt under
+        //    Custom/Expenses and left the Chit Groups filter empty.
         $queries[] = "
             SELECT 
                 id,
                 entry_date as txn_date,
                 entry_date,
                 title,
-                'ledger' as module,
+                CASE
+                    WHEN LOWER(category) LIKE '%chit%' THEN 'chit'
+                    WHEN LOWER(category) LIKE '%fund%' THEN 'fund'
+                    WHEN LOWER(category) LIKE '%loan%' THEN 'loan'
+                    ELSE 'ledger'
+                END as module,
                 category,
                 entry_type as txn_type,
                 entry_type,
                 amount,
                 notes,
+                agent_name as collector,
                 1 as is_custom,
                 created_at
             FROM account_ledger
@@ -217,6 +226,7 @@ class AccountLedger extends Model
                 'cash_in' as entry_type,
                 collection_amount as amount,
                 CONCAT('Receipt: ', IFNULL(receipt_number, 'N/A'), ' | Method: ', UPPER(IFNULL(payment_method, 'CASH')), ' | Collector: ', IFNULL(agent_name, 'Direct')) as notes,
+                agent_name as collector,
                 0 as is_custom,
                 created_at
             FROM collections
@@ -235,6 +245,7 @@ class AccountLedger extends Model
                 'cash_in' as entry_type,
                 amount,
                 CONCAT('Method: ', UPPER(IFNULL(payment_method, 'CASH')), ' | Collector: ', IFNULL(agent_name, 'Direct')) as notes,
+                agent_name as collector,
                 0 as is_custom,
                 created_at
             FROM fund_payments

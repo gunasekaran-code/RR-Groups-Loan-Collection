@@ -5,6 +5,8 @@ import '../../models/agent_collection.dart';
 import '../../services/agent_collection_api_service.dart';
 import '../../utils/location_launcher.dart';
 import '../../widgets/collect_payment_sheet.dart';
+import '../../widgets/app_shell.dart';
+import '../../routes/app_routes.dart';
 
 const Color _kGold = Color(0xFFA9791F);
 
@@ -34,7 +36,8 @@ class _AgentCollectionDetailScreenState
     _items = [...widget.group.items];
   }
 
-  double get _totalDue => _items.fold(0.0, (sum, i) => sum + i.dueAmount);
+  double get _totalDue =>
+      _items.fold(0.0, (sum, i) => sum + i.dueAmount + i.penaltyAmount);
 
   void _showCollectSheet(AgentCollectionItem item) {
     showModalBottomSheet(
@@ -46,7 +49,12 @@ class _AgentCollectionDetailScreenState
         customerName: widget.group.customerName,
         subtitleLabel: 'Loan',
         subtitleValue: item.loanNumber,
-        prefillAmount: item.dueAmount,
+        prefillAmount: item.dueAmount + item.penaltyAmount,
+        installmentAmount: item.installmentAmount,
+        dueAmount: item.dueAmount,
+        penaltyAmount: item.penaltyAmount,
+        outstandingBalance: item.outstandingBalance,
+        dueCount: 1,
         onSubmit: (amount, method, date, notes) =>
             _collectItem(item, amount, method, date, notes),
       ),
@@ -56,7 +64,8 @@ class _AgentCollectionDetailScreenState
   Future<void> _collectItem(AgentCollectionItem item, double amount,
       String method, DateTime date, String? notes) async {
     try {
-      final fullyCovered = amount >= (item.dueAmount - 0.01);
+      final payableAmount = item.dueAmount + item.penaltyAmount;
+      final fullyCovered = amount >= (payableAmount - 0.01);
       await AgentCollectionApiService.collectPayment(
         item: item,
         amount: amount,
@@ -77,7 +86,7 @@ class _AgentCollectionDetailScreenState
         } else {
           final idx = _items.indexWhere((i) => i.id == item.id);
           if (idx != -1) {
-            final remaining = item.dueAmount - amount;
+            final remaining = payableAmount - amount;
             _items[idx] = AgentCollectionItem(
               id: item.id,
               scheduleId: item.scheduleId,
@@ -88,6 +97,8 @@ class _AgentCollectionDetailScreenState
               customerName: item.customerName,
               loanNumber: item.loanNumber,
               dueAmount: remaining < 0 ? 0 : remaining,
+              installmentAmount: item.installmentAmount,
+              penaltyAmount: item.penaltyAmount,
               dueDate: item.dueDate,
               rawStatus: item.rawStatus,
               contactPhone: item.contactPhone,
@@ -114,14 +125,11 @@ class _AgentCollectionDetailScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.kBackground,
-      appBar: AppBar(
-        backgroundColor: AppColors.kSurface,
-        elevation: 0,
-        foregroundColor: AppColors.kTextDark,
-        title: Text(widget.group.customerName),
-      ),
+    return AppShell(
+      currentRoute: AppRoutes.collections,
+      title: widget.group.customerName,
+      showBackButton: true,
+      onBack: () => Navigator.of(context).pop(),
       body: Column(
         children: [
           _buildSummaryHeader(),
@@ -177,6 +185,13 @@ class _AgentCollectionDetailScreenState
                   label: 'Due Now',
                   value: AgentCollectionItem.formatAmount(_totalDue),
                   highlight: true,
+                ),
+              ),
+              Expanded(
+                child: _SummaryStat(
+                  label: 'Penalty',
+                  value: AgentCollectionItem.formatAmount(
+                      _items.fold(0.0, (sum, item) => sum + item.penaltyAmount)),
                 ),
               ),
             ],
@@ -315,17 +330,21 @@ class _LoanRow extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text('Due: ${item.formattedDueAmount}',
+                child: Text('Due Amount: ${item.formattedDueAmount}',
                     style: const TextStyle(
-                        color: AppColors.kTextMuted, fontSize: 13)),
+                        color: AppColors.kDanger, fontSize: 13)),
               ),
-              Expanded(
-                child: Text('On: ${item.formattedDueDate}',
-                    style: const TextStyle(
-                        color: AppColors.kTextMuted, fontSize: 13)),
-              ),
+              if (item.penaltyAmount > 0)
+                Expanded(
+                  child: Text('Penalty: ${item.formattedPenaltyAmount}',
+                      style: const TextStyle(
+                          color: AppColors.kDanger, fontSize: 13)),
+                ),
             ],
           ),
+          const SizedBox(height: 4),
+          Text('Due date: ${item.formattedDueDate} • Total due: ${item.formattedTotalDue}',
+              style: const TextStyle(color: AppColors.kTextMuted, fontSize: 13)),
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,

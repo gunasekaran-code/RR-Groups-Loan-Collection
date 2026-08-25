@@ -4,6 +4,9 @@
 --  Select your database (e.g. cwhycofr_RRgroups) > Import > Choose schema.sql > Go
 -- ============================================================
 
+-- Store every text column as utf8mb4 so Tamil / Unicode is never replaced by '?'.
+ALTER DATABASE CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
 -- Drop in dependency order (safe re-run during development)
 SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS promo_popups;
@@ -46,7 +49,7 @@ CREATE TABLE profiles (
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_profiles_role (role),
   INDEX idx_profiles_customer (customer_id)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------- customers ----------
 CREATE TABLE customers (
@@ -71,7 +74,7 @@ CREATE TABLE customers (
   INDEX idx_customers_agent (assigned_agent),
   CONSTRAINT fk_customers_agent FOREIGN KEY (assigned_agent)
     REFERENCES profiles(id) ON DELETE SET NULL
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------- loans ----------
 CREATE TABLE loans (
@@ -82,7 +85,7 @@ CREATE TABLE loans (
   loan_amount         DECIMAL(14,2) NOT NULL DEFAULT 0,
   interest_percentage DECIMAL(8,2)  NOT NULL DEFAULT 0,
   loan_duration       INT           NOT NULL DEFAULT 0,
-  loan_type           ENUM('monthly','weekly','daily') NOT NULL DEFAULT 'monthly',
+  loan_type           VARCHAR(32)   NOT NULL DEFAULT 'monthly',
   start_date          DATE          NULL,
   assigned_agent      CHAR(36)      NULL,
   agent_name          VARCHAR(191)  NULL,
@@ -91,6 +94,10 @@ CREATE TABLE loans (
   total_interest      DECIMAL(14,2) NOT NULL DEFAULT 0,
   total_repayment     DECIMAL(14,2) NOT NULL DEFAULT 0,
   outstanding_balance DECIMAL(14,2) NOT NULL DEFAULT 0,
+  penalty_amount      DECIMAL(14,2) NOT NULL DEFAULT 0,
+  penalty_enabled     TINYINT(1)   NOT NULL DEFAULT 0,
+  penalty_rate_per_day DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  penalty_per_week    DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   status              ENUM('active','overdue','closed','pending') NOT NULL DEFAULT 'pending',
   notes               TEXT          NULL,
   created_at          DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -101,7 +108,7 @@ CREATE TABLE loans (
     REFERENCES customers(id) ON DELETE SET NULL,
   CONSTRAINT fk_loans_agent FOREIGN KEY (assigned_agent)
     REFERENCES profiles(id) ON DELETE SET NULL
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------- repayment_schedule ----------
 CREATE TABLE repayment_schedule (
@@ -112,12 +119,13 @@ CREATE TABLE repayment_schedule (
   emi_amount     DECIMAL(14,2) NOT NULL DEFAULT 0,
   paid_amount    DECIMAL(14,2) NOT NULL DEFAULT 0,
   balance        DECIMAL(14,2) NOT NULL DEFAULT 0,
+  penalty_amount DECIMAL(14,2) NOT NULL DEFAULT 0,
   status         ENUM('paid','partial','overdue','pending') NOT NULL DEFAULT 'pending',
   created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_sched_loan (loan_id),
   CONSTRAINT fk_sched_loan FOREIGN KEY (loan_id)
     REFERENCES loans(id) ON DELETE CASCADE
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------- collections ----------
 CREATE TABLE collections (
@@ -139,9 +147,9 @@ CREATE TABLE collections (
   INDEX idx_collections_loan (loan_id),
   INDEX idx_collections_agent (agent_id),
   INDEX idx_collections_date (collection_date)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ---------- chit_groups ----------
+------------ chit_groups ----------
 CREATE TABLE chit_groups (
   id                   CHAR(36)     NOT NULL PRIMARY KEY,
   group_name           VARCHAR(191) NOT NULL,
@@ -158,7 +166,7 @@ CREATE TABLE chit_groups (
   draw_days            VARCHAR(191) NULL DEFAULT '1',
   draw_dates           TEXT         NULL,
   created_at           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------- chit_members ----------
 CREATE TABLE chit_members (
@@ -173,7 +181,7 @@ CREATE TABLE chit_members (
   INDEX idx_members_group (group_id),
   CONSTRAINT fk_members_group FOREIGN KEY (group_id)
     REFERENCES chit_groups(id) ON DELETE CASCADE
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------- chit_schedules ----------
 CREATE TABLE chit_schedules (
@@ -189,7 +197,7 @@ CREATE TABLE chit_schedules (
   INDEX idx_chit_sched_group (group_id),
   CONSTRAINT fk_chit_sched_group FOREIGN KEY (group_id)
     REFERENCES chit_groups(id) ON DELETE CASCADE
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------- funds (daily-deposit savings scheme) ----------
 CREATE TABLE funds (
@@ -214,7 +222,7 @@ CREATE TABLE funds (
   INDEX idx_funds_agent (assigned_agent),
   CONSTRAINT fk_funds_agent FOREIGN KEY (assigned_agent)
     REFERENCES profiles(id) ON DELETE SET NULL
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------- fund_payments (passbook — one row per collection) ----------
 CREATE TABLE fund_payments (
@@ -236,7 +244,7 @@ CREATE TABLE fund_payments (
   INDEX idx_fund_payments_customer (customer_id),
   CONSTRAINT fk_fund_payments_fund FOREIGN KEY (fund_id)
     REFERENCES funds(id) ON DELETE CASCADE
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------- handovers (agent cash/UPI settlement to office) ----------
 CREATE TABLE handovers (
@@ -253,7 +261,7 @@ CREATE TABLE handovers (
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_handovers_agent (agent_id),
   INDEX idx_handovers_date (handover_date)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------- notifications ----------
 CREATE TABLE notifications (
@@ -265,7 +273,7 @@ CREATE TABLE notifications (
   `read`     TINYINT(1)   NOT NULL DEFAULT 0,
   created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_notifications_user (user_id)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------- settings ----------
 CREATE TABLE settings (
@@ -292,8 +300,10 @@ CREATE TABLE settings (
   popup_enabled            TINYINT(1)   NOT NULL DEFAULT 0,
   popup_image_url          LONGTEXT     NULL,
   popup_target_url         TEXT         NULL,
+  monthly_penalty_enabled  TINYINT(1)   NOT NULL DEFAULT 0,
+  monthly_penalty_per_day  DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   updated_at               DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------- push_subscriptions ----------
 CREATE TABLE push_subscriptions (
@@ -304,7 +314,7 @@ CREATE TABLE push_subscriptions (
   auth       TEXT         NULL,
   created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uniq_push_endpoint (endpoint(255))
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------- biometric_credentials (WebAuthn / passkeys) ----------
 CREATE TABLE biometric_credentials (
@@ -317,7 +327,7 @@ CREATE TABLE biometric_credentials (
   last_used_at  DATETIME     NULL,
   INDEX idx_biocred_user (user_id),
   UNIQUE KEY uniq_biocred (credential_id)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------- account_ledger (custom ledger entries / adjustments) ----------
 CREATE TABLE account_ledger (
@@ -328,10 +338,14 @@ CREATE TABLE account_ledger (
   category     VARCHAR(128) NOT NULL DEFAULT 'General',
   entry_date   DATE         NULL,
   notes        TEXT         NULL,
+  agent_id     CHAR(36)     NULL,
+  agent_name   VARCHAR(191) NULL,
+  payment_method VARCHAR(32) NULL,
   created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_account_ledger_type (entry_type),
-  INDEX idx_account_ledger_date (entry_date)
-) ENGINE=InnoDB;
+  INDEX idx_account_ledger_date (entry_date),
+  INDEX idx_account_ledger_agent (agent_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------- promo_popups ----------
 CREATE TABLE promo_popups (
@@ -343,7 +357,7 @@ CREATE TABLE promo_popups (
   created_by   VARCHAR(191) NULL,
   created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
 --  Seed accounts

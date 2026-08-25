@@ -393,4 +393,151 @@ try {
     // ignore if already created
 }
 
+// 20. Ensure loans.loan_type supports monthly_interest.
+try {
+    $pdo->exec("ALTER TABLE loans MODIFY COLUMN loan_type VARCHAR(32) NOT NULL DEFAULT 'monthly'");
+    echo "loans.loan_type modified to VARCHAR(32) for monthly_interest support.\n";
+} catch (\Throwable $e) {
+    // ignore if already updated
+}
+
+// 21. Recover loans whose loan_type was blanked by the old ENUM.
+// Until step 20 ran, saving an interest-only loan against the original
+// ENUM('monthly','weekly','daily') stored '' instead of 'monthly_interest' —
+// MySQL's invalid-value fallback when strict mode is off. Those loans then
+// rendered as ordinary EMI loans with no type.
+//
+// The repair is evidence-based rather than a blanket rewrite: an interest-only
+// loan's emi IS the monthly interest on its principal. Test against both the
+// original principal (an untouched loan) and the outstanding balance (one that
+// has had principal part-payments, where the monthly interest has since been
+// recalculated downwards). Anything else with a blank type is reported for a
+// human to look at instead of being guessed at.
+try {
+    $blank = $pdo->query(
+        "SELECT id, loan_number, loan_amount, interest_percentage, emi, outstanding_balance
+           FROM loans WHERE loan_type = '' OR loan_type IS NULL"
+    )->fetchAll();
+
+    if (!$blank) {
+        echo "loan_type repair: nothing to fix.\n";
+    } else {
+        $fixed = [];
+        $unsure = [];
+        foreach ($blank as $l) {
+            $rate = (float)$l['interest_percentage'];
+            $emi  = (float)$l['emi'];
+            $onPrincipal  = round(((float)$l['loan_amount'] * $rate) / 100, 2);
+            $onOutstanding = round(((float)$l['outstanding_balance'] * $rate) / 100, 2);
+            if ($rate > 0 && $emi > 0
+                && (abs($emi - $onPrincipal) < 1.0 || abs($emi - $onOutstanding) < 1.0)) {
+                $fixed[] = $l;
+            } else {
+                $unsure[] = $l;
+            }
+        }
+
+        foreach ($fixed as $l) {
+            $pdo->prepare("UPDATE loans SET loan_type = 'monthly_interest' WHERE id = ?")
+                ->execute([$l['id']]);
+            echo "  repaired {$l['loan_number']}: blank -> monthly_interest"
+               . " (principal {$l['loan_amount']} @ {$l['interest_percentage']}%/mo, emi {$l['emi']})\n";
+        }
+        echo 'loan_type repair: ' . count($fixed) . " loan(s) restored to monthly_interest.\n";
+
+        foreach ($unsure as $l) {
+            echo "  NEEDS REVIEW {$l['loan_number']}: blank loan_type but emi {$l['emi']} does not match"
+               . " interest-only maths — set its type by hand in the Loans screen.\n";
+        }
+
+        // Settle the repaired loans' figures under the correct loan type.
+        if ($fixed) {
+            LoanRecalc::syncMany(array_column($fixed, 'id'));
+            echo "Recalculated repaired loans (outstanding principal + monthly interest).\n";
+        }
+    }
+} catch (\Throwable $e) {
+    echo 'loan_type repair FAILED: ' . $e->getMessage() . "\n";
+}
+
+// 22. Ensure penalty_amount column exists on loans and repayment_schedule.
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM loans LIKE 'penalty_amount'");
+    if ($stmt && $stmt->rowCount() === 0) {
+        $pdo->exec("ALTER TABLE loans ADD COLUMN penalty_amount DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER outstanding_balance");
+        echo "loans.penalty_amount column added.\n";
+    }
+} catch (\Throwable $e) {
+    // ignore if already added
+}
+
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM repayment_schedule LIKE 'penalty_amount'");
+    if ($stmt && $stmt->rowCount() === 0) {
+        $pdo->exec("ALTER TABLE repayment_schedule ADD COLUMN penalty_amount DECIMAL(14,2) NOT NULL DEFAULT 0.00 AFTER balance");
+        echo "repayment_schedule.penalty_amount column added.\n";
+    }
+} catch (\Throwable $e) {
+    // ignore if already added
+}
+
+// 23. Run a global recalculation to populate live weekly penalties and outstanding balances.
+try {
+    $allLoans = $pdo->query("SELECT id FROM loans WHERE status <> 'closed'")->fetchAll(PDO::FETCH_COLUMN);
+    if ($allLoans) {
+        LoanRecalc::syncMany($allLoans);
+        echo "All active/overdue loans recalculated with live penalty logic.\n";
+    }
+} catch (\Throwable $e) {
+    // ignore
+}
+
+// 24. Ensure configurable monthly penalty columns exist on settings and loans.
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM settings LIKE 'monthly_penalty_enabled'");
+    if ($stmt && $stmt->rowCount() === 0) {
+        $pdo->exec("ALTER TABLE settings ADD COLUMN monthly_penalty_enabled TINYINT(1) NOT NULL DEFAULT 0, ADD COLUMN monthly_penalty_per_day DECIMAL(10,2) NOT NULL DEFAULT 0.00");
+        echo "settings.monthly_penalty columns added.\n";
+    }
+} catch (\Throwable $e) {
+    // ignore if already added
+}
+
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM loans LIKE 'penalty_enabled'");
+    if ($stmt && $stmt->rowCount() === 0) {
+        $pdo->exec("ALTER TABLE loans ADD COLUMN penalty_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER penalty_amount, ADD COLUMN penalty_rate_per_day DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER penalty_enabled");
+        echo "loans.penalty_enabled & penalty_rate_per_day columns added.\n";
+    }
+} catch (\Throwable $e) {
+    // ignore if already added
+}
+
+// 24b. Manual weekly penalty override. 0 keeps the automatic
+//      1%-of-principal-per-missed-week default used before this column existed.
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM loans LIKE 'penalty_per_week'");
+    if ($stmt && $stmt->rowCount() === 0) {
+        $pdo->exec("ALTER TABLE loans ADD COLUMN penalty_per_week DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER penalty_rate_per_day");
+        echo "loans.penalty_per_week column added.
+";
+    }
+} catch (\Throwable $e) {
+    // ignore if already added
+}
+
+// 25. Ensure full UTF-8 (utf8mb4) support for Tamil / Unicode text rendering
+try {
+    $dbName = config('db')['name'] ?? 'rrgroups';
+    $pdo->exec("ALTER DATABASE `{$dbName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    
+    $tables = $pdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
+    foreach ($tables as $table) {
+        $pdo->exec("ALTER TABLE `{$table}` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    }
+    echo "All tables and database converted to utf8mb4_unicode_ci for Tamil Unicode support.\n";
+} catch (\Throwable $e) {
+    echo "utf8mb4 table conversion: " . $e->getMessage() . "\n";
+}
+
 echo "Migration complete.\n";

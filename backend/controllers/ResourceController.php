@@ -41,10 +41,13 @@ class ResourceController extends Controller
         $rows = $isList ? $body : [$body];
         $upsert = ($_GET['upsert'] ?? '') === '1';
         try {
-            json_out($model::insertRows($rows, $upsert), 201);
+            $saved = $model::insertRows($rows, $upsert);
         } catch (PDOException $e) {
             json_error('Insert failed: ' . $e->getMessage(), 400);
+            return;
         }
+        $this->afterWrite('POST', $saved);
+        json_out($saved, 201);
     }
 
     protected function update(): void
@@ -55,10 +58,13 @@ class ResourceController extends Controller
             json_error('Refusing to update without a filter', 400);
         }
         try {
-            json_out($model::updateWhere($this->body(), $where, $binds));
+            $saved = $model::updateWhere($this->body(), $where, $binds);
         } catch (PDOException $e) {
             json_error('Update failed: ' . $e->getMessage(), 400);
+            return;
         }
+        $this->afterWrite('PATCH', $saved);
+        json_out($saved);
     }
 
     protected function destroy(): void
@@ -68,7 +74,20 @@ class ResourceController extends Controller
         if ($where === '') {
             json_error('Refusing to delete without a filter', 400);
         }
+        // Snapshot the rows first — a subclass hook may need what they pointed at.
+        $doomed = $model::select($where, $binds);
         $model::deleteWhere($where, $binds);
+        $this->afterWrite('DELETE', $doomed);
         json_out([]);
+    }
+
+    /**
+     * Hook that runs after a successful write but *before* the response is
+     * sent, so a client that refetches immediately reads the settled state.
+     * $rows are the rows written (or, for DELETE, the rows just removed).
+     */
+    protected function afterWrite(string $method, array $rows): void
+    {
+        // no-op by default
     }
 }

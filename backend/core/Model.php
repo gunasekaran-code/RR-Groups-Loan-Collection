@@ -85,7 +85,7 @@ abstract class Model
     private static function coerce($v)
     {
         if (is_bool($v)) return $v ? 1 : 0;
-        if (is_array($v)) return json_encode($v);
+        if (is_array($v)) return json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         return $v;
     }
 

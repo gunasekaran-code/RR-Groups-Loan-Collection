@@ -131,7 +131,6 @@ class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return LayoutBuilder(
       builder: (context, constraints) {
         final isNarrow = constraints.maxWidth < 700;
@@ -200,10 +199,9 @@ class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
 
   // Header
   Widget _buildHeader(BuildContext context, bool isNarrow) {
-    final scheme = Theme.of(context).colorScheme;
     final subtitle = Text(
       'Track installment-wise EMI collections and outstanding balances',
-      style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 14),
+      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 14),
     );
 
     final downloadButton = Align(
@@ -340,6 +338,9 @@ class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
         _installments.fold<double>(0, (sum, i) => sum + i.emiAmount);
     final outstanding =
         _installments.fold<double>(0, (sum, i) => sum + i.balance);
+    final totalPenalty =
+        _installments.fold<double>(0, (sum, i) => sum + i.penaltyAmount);
+    final totalDueWithPenalty = outstanding + totalPenalty;
 
     final nextDue = _installments
         .where((i) => i.status != 'paid' && i.dueDate != null)
@@ -370,6 +371,10 @@ class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
           icon: Icons.summarize_outlined),
       _buildStatCard('OUTSTANDING', fmt(outstanding),
           icon: Icons.warning_amber_outlined, textColor: AppColors.kDanger),
+      _buildStatCard('PENALTY', fmt(totalPenalty),
+          icon: Icons.currency_rupee, textColor: AppColors.kWarning),
+      _buildStatCard('TOTAL DUE + PENALTY', fmt(totalDueWithPenalty),
+          icon: Icons.account_balance, textColor: AppColors.kDanger),
       _buildStatCard('TOTAL INST.', '$total',
           icon: Icons.format_list_numbered),
       _buildStatCard('PAID', '$paidCount',
@@ -495,6 +500,7 @@ class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
         DataColumn(label: Text('EMI AMOUNT')),
         DataColumn(label: Text('PAID')),
         DataColumn(label: Text('BALANCE')),
+        DataColumn(label: Text('PENALTY')),
         DataColumn(label: Text('STATUS')),
       ],
       rows: _installments.map((inst) {
@@ -505,6 +511,8 @@ class _RepaymentScheduleScreenState extends State<RepaymentScheduleScreen> {
           DataCell(Text(inst.amountDisplay)),
           DataCell(Text(inst.paidDisplay)),
           DataCell(Text(inst.balanceDisplay,
+              style: const TextStyle(fontWeight: FontWeight.w600))),
+          DataCell(Text(inst.penaltyDisplay,
               style: const TextStyle(fontWeight: FontWeight.w600))),
           DataCell(StatusBadge(
               label: inst.statusLabel, tone: _toneFor(inst.statusLabel))),

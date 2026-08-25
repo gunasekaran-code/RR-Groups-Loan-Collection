@@ -1,12 +1,3 @@
-/// Wraps a raw `loans` row (see `Loan extends Model` / `LoanController` on
-/// the server) together with the customer/agent names resolved client-side,
-/// since the generic rest.php endpoint doesn't join tables.
-///
-/// ASSUMPTION: the column names below (`principal_amount`, `interest_rate`,
-/// `duration_months`, `collection_type`, `outstanding_balance`,
-/// `emi_amount`, `processing_fee`, `start_date`, `customer_id`, `agent_id`)
-/// are guesses at your `loans` schema — rename them in [fromJson]/[toJson]
-/// to match your actual columns.
 class LoanRecord {
   final String id;
   final String loanNumber;
@@ -20,6 +11,10 @@ class LoanRecord {
   final double outstandingBalance;
   final double emiAmount;
   final double processingFee;
+  final bool penaltyEnabled;
+  final double penaltyRatePerDay;
+  final double penaltyPerWeek;
+  final double penaltyAmount;
   final String status; // 'Active' | 'Overdue' | 'Closed' | 'Pending'
   final String? notes;
 
@@ -39,6 +34,10 @@ class LoanRecord {
     required this.outstandingBalance,
     required this.emiAmount,
     required this.processingFee,
+    this.penaltyEnabled = false,
+    this.penaltyRatePerDay = 0,
+    this.penaltyPerWeek = 0,
+    this.penaltyAmount = 0,
     required this.status,
     this.notes,
     this.customerName = 'Unknown',
@@ -52,6 +51,12 @@ class LoanRecord {
     int asInt(dynamic v) => v == null
         ? 0
         : (v is num ? v.toInt() : int.tryParse(v.toString()) ?? 0);
+    bool asBool(dynamic v) {
+      if (v is bool) return v;
+      if (v is num) return v != 0;
+      final s = v?.toString().trim().toLowerCase();
+      return s == '1' || s == 'true' || s == 'yes';
+    }
 
     final customerId = (j['customer_id'] ?? j['customerId'])?.toString();
     final agentId =
@@ -86,6 +91,10 @@ class LoanRecord {
       outstandingBalance: asDouble(j['outstanding_balance']),
       emiAmount: asDouble(j['emi'] ?? j['emi_amount']),
       processingFee: asDouble(j['processing_fee']),
+      penaltyEnabled: asBool(j['penalty_enabled']),
+      penaltyRatePerDay: asDouble(j['penalty_rate_per_day']),
+      penaltyPerWeek: asDouble(j['penalty_per_week']),
+      penaltyAmount: asDouble(j['penalty_amount']),
       status: status,
       notes: j['notes']?.toString(),
       customerName: customerName.isNotEmpty ? customerName : 'Unknown',
@@ -107,13 +116,49 @@ class LoanRecord {
         'outstanding_balance': outstandingBalance,
         'emi': emiAmount,
         'processing_fee': processingFee,
+        'penalty_enabled': penaltyEnabled,
+        'penalty_rate_per_day': penaltyRatePerDay,
+        'penalty_per_week': penaltyPerWeek,
+        'penalty_amount': penaltyAmount,
         'status': status.toLowerCase(),
         if (notes != null) 'notes': notes,
       };
 
+  LoanRecord copyWith({
+    String? status,
+    double? outstandingBalance,
+    double? penaltyAmount,
+    String? customerName,
+    String? agentName,
+  }) => LoanRecord(
+        id: id,
+        loanNumber: loanNumber,
+        customerId: customerId,
+        agentId: agentId,
+        principalAmount: principalAmount,
+        interestRate: interestRate,
+        durationUnits: durationUnits,
+        collectionType: collectionType,
+        startDate: startDate,
+        outstandingBalance: outstandingBalance ?? this.outstandingBalance,
+        emiAmount: emiAmount,
+        processingFee: processingFee,
+        penaltyEnabled: penaltyEnabled,
+        penaltyRatePerDay: penaltyRatePerDay,
+        penaltyPerWeek: penaltyPerWeek,
+        penaltyAmount: penaltyAmount ?? this.penaltyAmount,
+        status: status ?? this.status,
+        notes: notes,
+        customerName: customerName ?? this.customerName,
+        agentName: agentName ?? this.agentName,
+      );
+
   String get formattedAmount => formatRupees(principalAmount);
   String get formattedEmi => formatRupees(emiAmount);
   String get formattedOutstanding => formatRupees(outstandingBalance);
+  String get formattedPenalty => formatRupees(penaltyAmount);
+  String get formattedOutstandingWithPenalty =>
+      formatRupees(outstandingBalance + penaltyAmount);
 
   /// Indian-style grouping: 1,00,000 instead of 100,000.
   static String formatRupees(double v) {

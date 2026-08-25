@@ -38,7 +38,7 @@ try {
             created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_profiles_role (role),
             INDEX idx_profiles_customer (customer_id)
-        ) ENGINE=InnoDB",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
         "customers" => "CREATE TABLE IF NOT EXISTS customers (
             id             CHAR(36)     NOT NULL PRIMARY KEY,
@@ -60,7 +60,7 @@ try {
             assigned_agent CHAR(36)     NULL,
             created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_customers_agent (assigned_agent)
-        ) ENGINE=InnoDB",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
         "loans" => "CREATE TABLE IF NOT EXISTS loans (
             id                  CHAR(36)     NOT NULL PRIMARY KEY,
@@ -85,7 +85,7 @@ try {
             INDEX idx_loans_customer (customer_id),
             INDEX idx_loans_agent (assigned_agent),
             INDEX idx_loans_status (status)
-        ) ENGINE=InnoDB",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
         "repayment_schedule" => "CREATE TABLE IF NOT EXISTS repayment_schedule (
             id             CHAR(36)     NOT NULL PRIMARY KEY,
@@ -98,7 +98,7 @@ try {
             status         ENUM('paid','partial','overdue','pending') NOT NULL DEFAULT 'pending',
             created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_sched_loan (loan_id)
-        ) ENGINE=InnoDB",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
         "collections" => "CREATE TABLE IF NOT EXISTS collections (
             id               CHAR(36)     NOT NULL PRIMARY KEY,
@@ -119,7 +119,7 @@ try {
             INDEX idx_collections_loan (loan_id),
             INDEX idx_collections_agent (agent_id),
             INDEX idx_collections_date (collection_date)
-        ) ENGINE=InnoDB",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
         "chit_groups" => "CREATE TABLE IF NOT EXISTS chit_groups (
             id                   CHAR(36)     NOT NULL PRIMARY KEY,
@@ -137,7 +137,7 @@ try {
             draw_days            VARCHAR(191) NULL DEFAULT '1',
             draw_dates           TEXT         NULL,
             created_at           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
         "chit_members" => "CREATE TABLE IF NOT EXISTS chit_members (
             id                  CHAR(36)     NOT NULL PRIMARY KEY,
@@ -149,7 +149,7 @@ try {
             payment_status      ENUM('paid','partial','overdue','pending') NOT NULL DEFAULT 'pending',
             created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_members_group (group_id)
-        ) ENGINE=InnoDB",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
         "chit_schedules" => "CREATE TABLE IF NOT EXISTS chit_schedules (
             id             CHAR(36)     NOT NULL PRIMARY KEY,
@@ -162,7 +162,7 @@ try {
             notes          VARCHAR(255) NULL,
             created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_chit_sched_group (group_id)
-        ) ENGINE=InnoDB",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
         "funds" => "CREATE TABLE IF NOT EXISTS funds (
             id               CHAR(36)     NOT NULL PRIMARY KEY,
@@ -184,7 +184,7 @@ try {
             created_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_funds_customer (customer_id),
             INDEX idx_funds_agent (assigned_agent)
-        ) ENGINE=InnoDB",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
         "fund_payments" => "CREATE TABLE IF NOT EXISTS fund_payments (
             id             CHAR(36)     NOT NULL PRIMARY KEY,
@@ -203,7 +203,7 @@ try {
             created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_fund_payments_fund (fund_id),
             INDEX idx_fund_payments_customer (customer_id)
-        ) ENGINE=InnoDB",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
         "handovers" => "CREATE TABLE IF NOT EXISTS handovers (
             id            CHAR(36)     NOT NULL PRIMARY KEY,
@@ -219,7 +219,7 @@ try {
             created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_handovers_agent (agent_id),
             INDEX idx_handovers_date (handover_date)
-        ) ENGINE=InnoDB",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
         "notifications" => "CREATE TABLE IF NOT EXISTS notifications (
             id         CHAR(36)     NOT NULL PRIMARY KEY,
@@ -230,7 +230,7 @@ try {
             `read`     TINYINT(1)   NOT NULL DEFAULT 0,
             created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_notifications_user (user_id)
-        ) ENGINE=InnoDB",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
         "settings" => "CREATE TABLE IF NOT EXISTS settings (
             id                       CHAR(36)     NOT NULL PRIMARY KEY,
@@ -257,7 +257,7 @@ try {
             popup_image_url          LONGTEXT     NULL,
             popup_target_url         TEXT         NULL,
             updated_at               DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
         "push_subscriptions" => "CREATE TABLE IF NOT EXISTS push_subscriptions (
             id         CHAR(36)     NOT NULL PRIMARY KEY,
@@ -267,7 +267,7 @@ try {
             auth       TEXT         NULL,
             created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
             UNIQUE KEY uniq_push_endpoint (endpoint(255))
-        ) ENGINE=InnoDB",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
         "biometric_credentials" => "CREATE TABLE IF NOT EXISTS biometric_credentials (
             id            CHAR(36)     NOT NULL PRIMARY KEY,
@@ -279,7 +279,7 @@ try {
             last_used_at  DATETIME     NULL,
             INDEX idx_biocred_user (user_id),
             UNIQUE KEY uniq_biocred (credential_id)
-        ) ENGINE=InnoDB",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
         "account_ledger" => "CREATE TABLE IF NOT EXISTS account_ledger (
             id           CHAR(36)     NOT NULL PRIMARY KEY,
@@ -292,7 +292,7 @@ try {
             created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_account_ledger_type (entry_type),
             INDEX idx_account_ledger_date (entry_date)
-        ) ENGINE=InnoDB",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
         "promo_popups" => "CREATE TABLE IF NOT EXISTS promo_popups (
             id           CHAR(36)     NOT NULL PRIMARY KEY,
@@ -303,7 +303,7 @@ try {
             created_by   VARCHAR(191) NULL,
             created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB"
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
 
     foreach ($tables as $name => $sql) {

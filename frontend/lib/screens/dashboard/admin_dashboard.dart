@@ -612,18 +612,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildQuickActionsCard(BuildContext context) {
     final actions = <_QuickAction>[
       _QuickAction('Add Customer', Icons.person_add_alt_outlined,
-          AppColors.kInfo, () => _quickAction(context, 'Add Customer')),
-      _QuickAction(
-          'Create Loan',
-          Icons.account_balance_outlined,
-          AppColors.kSuccess,
-          () => Navigator.of(context).pushNamed(AppRoutes.loans)),
+          AppColors.kInfo, ()  => Navigator.of(context).pushNamed(AppRoutes.customers)),
+      _QuickAction('Create Loan',  Icons.account_balance_outlined,
+          AppColors.kSuccess, () => Navigator.of(context).pushNamed(AppRoutes.loans)),
       _QuickAction('Chit Group', Icons.groups_outlined, const Color(0xFF7C3AED),
           () => Navigator.of(context).pushNamed(AppRoutes.chitGroups)),
       _QuickAction('Add Agent', Icons.badge_outlined, AppColors.kWarning,
-          () => _quickAction(context, 'Add Agent')),
+          () => Navigator.of(context).pushNamed(AppRoutes.agent)),
       _QuickAction('Reports', Icons.description_outlined, AppColors.kInfo,
-          () => _quickAction(context, 'Reports')),
+          () => Navigator.of(context).pushNamed(AppRoutes.reports)),
     ];
     return _glassCard(
       child: Column(

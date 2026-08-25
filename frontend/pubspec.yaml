@@ -1,9 +1,6 @@
 name: fincollect
-
 description: FinCollect — Loan & Collection management app (Flutter frontend).
-
 publish_to: 'none'
-
 version: 1.0.0+1
 
 environment:
@@ -12,10 +9,14 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
+  flutter_localizations:
+    sdk: flutter
+  
+  # Set to 'any' to avoid SDK version conflicts
+  intl: any
+  
   cupertino_icons: ^1.0.8
   image_picker: ^1.1.2
-  intl: ^0.19.0
   http: ^1.2.2
   shared_preferences: ^2.5.5
   geolocator: ^13.0.1
@@ -32,7 +33,10 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-
+  
+  # Code generation is correctly turned on
+  generate: true
+  
   assets:
     - assets/images/logo.png
 

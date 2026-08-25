@@ -5,7 +5,14 @@ import '../../widgets/app_shell.dart';
 import '../../theme/confirm_dialog.dart';
 import '../../widgets/page_header.dart';
 import '../../theme/glass_toast.dart';
-import '../../services/collection_api_service.dart'; // NEW
+import '../../services/collection_api_service.dart';
+import '../../services/loan_service.dart';
+import '../../models/customer.dart';
+import '../../models/loan_record.dart';
+import '../../models/repayment_installment.dart';
+import 'dart:convert';
+import 'package:image_picker/image_picker.dart';
+import '../../widgets/app_upload.dart';
 
 class CollectionsScreen extends StatefulWidget {
   const CollectionsScreen({super.key});
@@ -27,6 +34,10 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
   static final DateTime _today = DateTime.now(); 
   List<Map<String, String>> _collections = [];
   final Map<String, String> _receiptToId = {}; // receipt_number -> id
+  List<Customer> _customers = [];
+  List<LoanRecord> _allLoans = [];
+  List<String> _agentNames = [];
+  Map<String, List<RepaymentInstallment>> _schedulesByLoan = {};
 
   @override
   void initState() {
@@ -123,15 +134,19 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
 
     return {
       'id': id, 
+      'customer_id': (row['customer_id'] ?? '').toString(),
       'customer': customerName.isEmpty ? '-' : customerName,
       'initials': _initials(customerName.isEmpty ? '-' : customerName),
       'receipt': receipt.isEmpty ? '-' : receipt,
       'loan': loanNumber,
+      'loan_id': (row['loan_id'] ?? '').toString(),
       'loan_type': loanType.isEmpty ? '-' : loanType,
       'amount': _formatAmount(row['collection_amount']),
       'date': _formatApiDate(row['collection_date']),
       'method': _formatMethod(row['payment_method']),
       'agent': (row['agent_name'] ?? 'Unassigned').toString(),
+      'agent_id': (row['agent_id'] ?? '').toString(),
+      'notes': (row['notes'] ?? '').toString(),
       'status': 'Collected',
     };
   }
@@ -143,10 +158,25 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
     });
 
     try {
+      final customers = await LoanService.instance.fetchCustomers();
+      final agents = await LoanService.instance.fetchAgents();
+      final loans = await LoanService.instance.fetchLoans(
+        customers: customers,
+        agents: agents,
+      );
+      final schedules = <String, List<RepaymentInstallment>>{};
+      for (final loan in loans) {
+        schedules[loan.id] =
+            await LoanService.instance.fetchRepaymentSchedule(loan.id);
+      }
       final rows = await CollectionApiService.fetchCollections();
       final mapped = rows.map(_mapRow).toList();
       if (!mounted) return;
       setState(() {
+        _customers = customers;
+        _allLoans = loans;
+        _agentNames = agents.map((agent) => agent.name).toList()..sort();
+        _schedulesByLoan = schedules;
         _collections = mapped;
         _isLoading = false;
       });
@@ -172,6 +202,19 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
   };
 
   DateTime? _parseDate(String date) {
+    final isoDate = DateTime.tryParse(date);
+    if (isoDate != null) {
+      return DateTime(isoDate.year, isoDate.month, isoDate.day);
+    }
+    final slashParts = date.split('/');
+    if (slashParts.length == 3) {
+      final day = int.tryParse(slashParts[0]);
+      final month = int.tryParse(slashParts[1]);
+      final year = int.tryParse(slashParts[2]);
+      if (day != null && month != null && year != null) {
+        return DateTime(year, month, day);
+      }
+    }
     final parts = date.split(' ');
     if (parts.length != 3) return null;
     final day = int.tryParse(parts[0]);
@@ -261,6 +304,32 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
     );
   }
 
+  Map<String, List<LoanRecord>> get _loansByCustomerId {
+    final byCustomerId = <String, List<LoanRecord>>{};
+    for (final customer in _customers) {
+      byCustomerId.putIfAbsent(customer.id, () => <LoanRecord>[]);
+    }
+    for (final loan in _allLoans) {
+      final customer = _customers.where((item) =>
+          item.id == loan.customerId || item.customerId == loan.customerId ||
+          item.fullName == loan.customerName).firstOrNull;
+      if (customer != null) {
+        byCustomerId.putIfAbsent(customer.id, () => <LoanRecord>[]);
+        byCustomerId[customer.id]!.add(loan);
+        continue;
+      }
+      final customerId = loan.customerId;
+      if (customerId != null && customerId.isNotEmpty) {
+        byCustomerId.putIfAbsent(customerId, () => <LoanRecord>[]);
+        byCustomerId[customerId]!.add(loan);
+      }
+    }
+    for (final entry in byCustomerId.entries) {
+      entry.value.sort((a, b) => a.loanNumber.compareTo(b.loanNumber));
+    }
+    return byCustomerId;
+  }
+
   void _showAddCollectionDialog() {
     showModalBottomSheet(
       context: context,
@@ -269,9 +338,11 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
       barrierColor: Colors.black.withValues(alpha: 0.4),
       builder: (context) => _buildGlobalSheetFrame(
         child: AddCollectionDialog(
-          customers: _collections.map((c) => c['customer']!).toSet().toList()
-            ..sort(),
-          onSaved: (record) => _createCollectionOnBackend(record), // CHANGED
+          customers: _customers,
+          loansByCustomer: _loansByCustomerId,
+          agents: _agentNames,
+          schedulesByLoan: _schedulesByLoan,
+          onSaved: (record) => _createCollectionOnBackend(record),
         ),
       ),
     );
@@ -285,11 +356,13 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
       barrierColor: Colors.black.withValues(alpha: 0.4),
       builder: (context) => _buildGlobalSheetFrame(
         child: AddCollectionDialog(
-          customers: _collections.map((c) => c['customer']!).toSet().toList()
-            ..sort(),
+          customers: _customers,
+          loansByCustomer: _loansByCustomerId,
+          agents: _agentNames,
+          schedulesByLoan: _schedulesByLoan,
           existing: record,
           onSaved: (updated) =>
-              _updateCollectionOnBackend(record, updated), // CHANGED
+              _updateCollectionOnBackend(record, updated),
         ),
       ),
     );
@@ -299,13 +372,22 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
   Future<void> _createCollectionOnBackend(Map<String, String> record) async {
     try {
       final payload = {
+        'receipt_number': record['receipt'],
+        'customer_id': record['customer_id'],
         'customer_name': record['customer'],
+        'loan_id': record['loan_id'],
         'loan_number': record['loan'] == '-' ? null : record['loan'],
         'loan_type': record['loan_type'] == '-' ? null : record['loan_type'],
         'collection_amount': _parseAmount(record['amount'] ?? '0'),
         'payment_method': _apiMethodValue(record['method'] ?? 'Cash'),
         'collection_date': _toIsoDate(record['date']),
+        'agent_id': record['agent_id'],
         'agent_name': record['agent'],
+        'notes': record['notes'],
+        if (record['payment_screenshot'] != null)
+          'payment_screenshot': record['payment_screenshot'],
+        if (record['customer_signature'] != null)
+          'customer_signature': record['customer_signature'],
       };
       await CollectionApiService.createCollection(payload);
       await _loadCollections(); // refresh from source of truth
@@ -324,10 +406,10 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
   }
 
   // NEW: PATCH by real id (looked up via receipt number)
-  Future<void> _updateCollectionOnBackend(
+ Future<void> _updateCollectionOnBackend(
       Map<String, String> original, Map<String, String> updated) async {
-    final id = _receiptToId[original['receipt']];
-    if (id == null) {
+    final id = original['id'];
+    if (id == null || id.isEmpty) {
       ToastService.show(
         title: 'Update failed',
         message: 'Could not find record id',
@@ -337,13 +419,22 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
     }
     try {
       final payload = {
+        'receipt_number': updated['receipt'],
+        'customer_id': updated['customer_id'],
         'customer_name': updated['customer'],
+        'loan_id': updated['loan_id'],
         'loan_number': updated['loan'] == '-' ? null : updated['loan'],
         'loan_type': updated['loan_type'] == '-' ? null : updated['loan_type'],
         'collection_amount': _parseAmount(updated['amount'] ?? '0'),
         'payment_method': _apiMethodValue(updated['method'] ?? 'Cash'),
         'collection_date': _toIsoDate(updated['date']),
+        'agent_id': updated['agent_id'],
         'agent_name': updated['agent'],
+        'notes': updated['notes'],
+        if (updated['payment_screenshot'] != null)
+          'payment_screenshot': updated['payment_screenshot'],
+        if (updated['customer_signature'] != null)
+          'customer_signature': updated['customer_signature'],
       };
       await CollectionApiService.updateCollection(id, payload);
       await _loadCollections();
@@ -379,9 +470,9 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
       confirmButtonColor: AppColors.kDanger,
     );
 
-    if (confirmed == true && mounted) {
-      final id = _receiptToId[record['receipt']];
-      if (id == null) {
+        if (confirmed == true && mounted) {
+      final id = record['id'];
+      if (id == null || id.isEmpty) {
         ToastService.show(
           title: 'Delete failed',
           message: 'Could not find record id',
@@ -405,14 +496,6 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
         );
       }
     }
-  }
-
-  void _printReceipt(Map<String, String> record) {
-    ToastService.show(
-      title: 'Printing receipt',
-      message: record['receipt'],
-      type: ToastType.info,
-    );
   }
 
   @override
@@ -699,12 +782,12 @@ Widget _buildCollectionsTable(bool isNarrow) {
                 onPressed: () => _showEditCollectionDialog(c),
                 tooltip: 'Edit',
               ),
-              IconButton(
-                icon: const Icon(Icons.print_outlined, size: 20),
-                color: AppColors.kTextMuted,
-                onPressed: () => _printReceipt(c),
-                tooltip: 'Print',
-              ),
+              // IconButton(
+              //   icon: const Icon(Icons.print_outlined, size: 20),
+              //   color: AppColors.kTextMuted,
+              //   onPressed: () => _printReceipt(c),
+              //   tooltip: 'Print',
+              // ),
               IconButton(
                 icon: const Icon(Icons.delete_outline, size: 20),
                 color: AppColors.kDanger,
@@ -854,12 +937,22 @@ class _StatCard extends StatelessWidget {
 // ADD / EDIT COLLECTION SHEET (Removed Dialog Wrapping)
 // ==========================================
 class AddCollectionDialog extends StatefulWidget {
-  final List<String> customers;
+  final List<Customer> customers;
+  final Map<String, List<LoanRecord>> loansByCustomer;
+  final List<String> agents;
+  final Map<String, List<RepaymentInstallment>> schedulesByLoan;
   final ValueChanged<Map<String, String>>? onSaved;
   final Map<String, String>? existing;
 
-  const AddCollectionDialog(
-      {super.key, this.customers = const [], this.onSaved, this.existing});
+  const AddCollectionDialog({
+    super.key,
+    this.customers = const [],
+    this.loansByCustomer = const {},
+    this.agents = const [],
+    this.schedulesByLoan = const {},
+    this.onSaved,
+    this.existing,
+  });
 
   @override
   State<AddCollectionDialog> createState() => _AddCollectionDialogState();
@@ -872,47 +965,106 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
     'Bank Transfer',
     'Cheque'
   ];
-  static const List<String> _agents = [
-    'Arjun Mehta',
-    'Sneha Reddy',
-    'Unassigned'
-  ];
-  static const Map<String, List<String>> _loansByCustomer = {
-    'Lakshmi Iyer': ['LN-232037', 'LN-627299', 'LN-DE34F5'],
-    'Anjali Singh': ['LN-GH6718'],
-    'Ramesh Gowda': ['LN-MN2304'],
-    'Vikram Naidu': ['LN-AB12C3'],
-  };
-
   bool get _isEdit => widget.existing != null;
 
-  String? _customer;
+  String? _customerId;
   String? _loanNumber;
   final TextEditingController _amountController = TextEditingController();
   String _paymentMethod = 'Cash';
-  final TextEditingController _dateController =
-      TextEditingController(text: '10/07/2026');
+  final TextEditingController _dateController = TextEditingController();
   String? _agent;
+  String? _paymentPurpose;
   final TextEditingController _notesController = TextEditingController();
   String? _screenshotFileName;
   String? _signatureFileName;
+  XFile? _screenshotFile;
+  XFile? _signatureFile;
+
+  Customer? get _selectedCustomer {
+    for (final customer in widget.customers) {
+      if (customer.id == _customerId) return customer;
+    }
+    return null;
+  }
+
+  List<LoanRecord> get _availableLoans => _customerId == null
+      ? const []
+      : (widget.loansByCustomer[_customerId] ?? const []);
+
+  LoanRecord? get _selectedLoan {
+    for (final loan in _availableLoans) {
+      if (loan.loanNumber == _loanNumber) return loan;
+    }
+    return null;
+  }
+
+  List<RepaymentInstallment> _scheduleFor(LoanRecord loan) =>
+      widget.schedulesByLoan[loan.id] ?? const [];
+
+  List<RepaymentInstallment> _unpaidScheduleFor(LoanRecord loan) =>
+      _scheduleFor(loan)
+          .where((item) => item.balance > 0 || item.status != 'paid')
+          .toList();
+
+  double _nextInstallmentAmount(LoanRecord loan) {
+    final unpaid = _unpaidScheduleFor(loan);
+    return unpaid.isNotEmpty ? unpaid.first.balance : loan.emiAmount;
+  }
+
+  double _overdueDueAmount(LoanRecord loan) {
+    final now = DateTime.now();
+    final overdue = _unpaidScheduleFor(loan).where((item) {
+      final dueDate = item.dueDate;
+      return item.status.toLowerCase() == 'overdue' ||
+          (dueDate != null && dueDate.isBefore(now));
+    });
+    return overdue.fold<double>(
+        0, (total, item) => total + item.balance + item.penaltyAmount);
+  }
+
+  double _fullBalance(LoanRecord loan) {
+    final schedule = _scheduleFor(loan);
+    if (schedule.isEmpty) return loan.outstandingBalance + loan.penaltyAmount;
+    return schedule.fold<double>(
+        0, (total, item) => total + item.balance + item.penaltyAmount);
+  }
+
+  String get _customerName => _selectedCustomer?.fullName ?? '';
 
   bool get _canSave =>
-      _customer != null &&
+      _customerId != null &&
       _amountController.text.trim().isNotEmpty &&
       (int.tryParse(_amountController.text.trim()) ?? 0) > 0;
 
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    _dateController.text =
+        '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}';
     final e = widget.existing;
     if (e != null) {
-      _customer = e['customer'];
+      final existingCustomerId = e['customer_id'];
+      if (existingCustomerId != null && existingCustomerId.isNotEmpty) {
+        final match = widget.customers
+            .where((c) => c.id == existingCustomerId)
+            .firstOrNull;
+        if (match != null) _customerId = match.id;
+      }
+      if (_customerId == null) {
+        for (final customer in widget.customers) {
+          if (customer.fullName == e['customer']) {
+            _customerId = customer.id;
+            break;
+          }
+        }
+      }
       _loanNumber = (e['loan'] != null && e['loan'] != '-') ? e['loan'] : null;
       _amountController.text = _parseAmount(e['amount'] ?? '').toString();
       _paymentMethod = e['method'] ?? 'Cash';
       _dateController.text = e['date'] ?? _dateController.text;
       _agent = e['agent'];
+      _notesController.text = e['notes'] ?? '';
     }
   }
 
@@ -934,24 +1086,57 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
     return (parts[0].substring(0, 1) + parts[1].substring(0, 1)).toUpperCase();
   }
 
-  void _save() {
+  Future<void> _save() async {
     if (!_canSave) return;
+    final customer = _selectedCustomer;
+    if (customer == null) {
+      ToastService.show(
+        title: 'Select a customer',
+        message: 'Please choose a customer before saving.',
+        type: ToastType.error,
+      );
+      return;
+    }
     final amountValue = int.tryParse(_amountController.text.trim()) ?? 0;
+    final selectedDate = _dateController.text.isEmpty
+        ? _formatCurrentDate()
+        : _dateController.text;
+
+    final screenshotBase64 = _screenshotFile != null
+        ? base64Encode(await _screenshotFile!.readAsBytes())
+        : null;
+    final signatureBase64 = _signatureFile != null
+        ? base64Encode(await _signatureFile!.readAsBytes())
+        : null;
+
     final record = <String, String>{
-      'customer': _customer!,
-      'initials': _initials(_customer!),
+      'customer_id': customer.id,
+      'customer': _customerName,
+      'initials': _initials(_customerName),
       'receipt': _isEdit
           ? widget.existing!['receipt']!
-          : 'RCT-${DateTime.now().millisecondsSinceEpoch % 100000000}',
+          : 'RCP-${(DateTime.now().millisecondsSinceEpoch % 100000000).toString().padLeft(8, '0')}',
+      if (_isEdit && widget.existing!['id'] != null) 'id': widget.existing!['id']!,
       'loan': _loanNumber ?? '-',
+      if (_selectedLoan != null) ...{
+        'loan_id': _selectedLoan!.id,
+        'loan_type': _selectedLoan!.collectionType.toLowerCase(),
+      },
       'amount':
           '₹${amountValue.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',')}',
-      'date':
-          _dateController.text.isEmpty ? '10 Jul 2026' : _dateController.text,
+      'date': selectedDate,
       'method': _paymentMethod,
       'agent': _agent ?? 'Unassigned',
+      if (_selectedLoan?.agentId != null) 'agent_id': _selectedLoan!.agentId!,
       'status': _isEdit ? widget.existing!['status']! : 'Collected',
+      'notes': [
+        if (_paymentPurpose != null) _paymentPurpose!,
+        if (_notesController.text.trim().isNotEmpty) _notesController.text.trim(),
+      ].join(' | '),
+      if (screenshotBase64 != null) 'payment_screenshot': screenshotBase64,
+      if (signatureBase64 != null) 'customer_signature': signatureBase64,
     };
+    if (!mounted) return;
     widget.onSaved?.call(record);
     Navigator.of(context).pop();
     ToastService.show(
@@ -959,6 +1144,11 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
       message: record['customer'],
       type: ToastType.success,
     );
+  }
+
+  String _formatCurrentDate() {
+    final now = DateTime.now();
+    return '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}';
   }
 
   void _generateReceipt() {
@@ -969,22 +1159,164 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
   }
 
   Future<void> _pickFile({required bool isSignature}) async {
+    final XFile? picked = await AppUpload.showImagePickerModal(
+      context,
+      title: isSignature ? 'Add Customer Signature' : 'Upload Payment Screenshot',
+    );
+    if (picked == null) return;
     setState(() {
       if (isSignature) {
-        _signatureFileName =
-            'signature_${DateTime.now().millisecondsSinceEpoch}.png';
+        _signatureFile = picked;
+        _signatureFileName = picked.name;
       } else {
-        _screenshotFileName =
-            'screenshot_${DateTime.now().millisecondsSinceEpoch}.png';
+        _screenshotFile = picked;
+        _screenshotFileName = picked.name;
       }
     });
   }
 
+  Future<void> _selectCollectionDate() async {
+    final current = _parseCollectionDate(_dateController.text) ?? DateTime.now();
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: current,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      _dateController.text =
+          '${selected.day.toString().padLeft(2, '0')}/${selected.month.toString().padLeft(2, '0')}/${selected.year}';
+    });
+  }
+
+  DateTime? _parseCollectionDate(String value) {
+    final iso = DateTime.tryParse(value);
+    if (iso != null) return DateTime(iso.year, iso.month, iso.day);
+    final slash = value.split('/');
+    if (slash.length == 3) {
+      final day = int.tryParse(slash[0]);
+      final month = int.tryParse(slash[1]);
+      final year = int.tryParse(slash[2]);
+      if (day != null && month != null && year != null) {
+        return DateTime(year, month, day);
+      }
+    }
+    const months = {
+      'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+      'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12,
+    };
+    final parts = value.split(' ');
+    if (parts.length == 3) {
+      final day = int.tryParse(parts[0]);
+      final month = months[parts[1]];
+      final year = int.tryParse(parts[2]);
+      if (day != null && month != null && year != null) {
+        return DateTime(year, month, day);
+      }
+    }
+    return null;
+  }
+
+  String _loanTypeLabel(LoanRecord loan) {
+    if (loan.collectionType == 'Monthly' &&
+        (loan.notes ?? '').contains('[[subtype:monthly_interest]]')) {
+      return 'Monthly Interest';
+    }
+    return loan.collectionType == 'Monthly' ? 'Monthly EMI' : loan.collectionType;
+  }
+
+  void _setAmountWithPurpose(double amount, String? purpose) {
+    _amountController.text = amount.round().toString();
+    _paymentPurpose = purpose;
+    _amountController.selection = TextSelection.fromPosition(
+      TextPosition(offset: _amountController.text.length),
+    );
+    setState(() {});
+  }
+
+  Widget _buildLoanSummary(LoanRecord loan) {
+    final totalDue = _fullBalance(loan);
+    final overdueDue = _overdueDueAmount(loan);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.kBackground,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.kBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('${_loanTypeLabel(loan)} • ${loan.status}',
+              style: const TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 6),
+          Text('Agent: ${loan.agentName}'),
+          Text('Principal: ${loan.formattedAmount}'),
+          Text('Installment: ${LoanRecord.formatRupees(_nextInstallmentAmount(loan))}'),
+          Text('Outstanding: ${loan.formattedOutstanding}'),
+          Text('Overdue due: ${LoanRecord.formatRupees(overdueDue)}'),
+          Text('Penalty: ${loan.formattedPenalty}'),
+          Text('Total due: ${LoanRecord.formatRupees(totalDue)}',
+              style: const TextStyle(fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAmountPresets(LoanRecord loan) {
+    final installment = _nextInstallmentAmount(loan);
+    final principalPartPayment = loan.outstandingBalance;
+    final fullBalance = _fullBalance(loan);
+    final overdueDue = _overdueDueAmount(loan);
+    final isInterestOnly = _loanTypeLabel(loan) == 'Monthly Interest';
+
+    Widget preset(String label, double amount, IconData icon,
+        [String? purpose]) {
+      return OutlinedButton.icon(
+        onPressed: () => _setAmountWithPurpose(amount, purpose),
+        icon: Icon(icon, size: 16),
+        label: Text('$label (${LoanRecord.formatRupees(amount)})'),
+      );
+    }
+
+    final entered = _parseAmount(_amountController.text).toDouble();
+    final remaining = (fullBalance - entered).clamp(0, double.infinity).toDouble();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            preset(isInterestOnly ? 'Fill Interest' : '1 EMI', installment,
+              Icons.bolt,
+              isInterestOnly ? 'Monthly Interest Payment' : null),
+            if (overdueDue > 0)
+              preset('Pay Due Amount', overdueDue, Icons.warning_amber_outlined),
+            preset('Principal Part-Payment', principalPartPayment,
+              Icons.payments_outlined, 'Principal Part-Payment'),
+            preset('Full Balance', fullBalance, Icons.bolt),
+          ],
+        ),
+        if (entered > 0) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Payment: ${LoanRecord.formatRupees(entered)} • Remaining balance: ${LoanRecord.formatRupees(remaining)}',
+            style: const TextStyle(fontSize: 12, color: AppColors.kTextMuted),
+          ),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final availableLoans = _customer != null
-        ? (_loansByCustomer[_customer] ?? const [])
-        : const <String>[];
+    final customerOptions = [...widget.customers]
+      ..sort((a, b) => a.fullName.compareTo(b.fullName));
+    final availableLoans = _availableLoans;
+    final selectedLoan = _selectedLoan;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
@@ -1012,15 +1344,19 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
           _label('CUSTOMER *'),
           DropdownButtonFormField<String>(
             isExpanded: true,
-            initialValue: _customer,
+            initialValue: _customerId,
             decoration: const InputDecoration(
                 hintText: 'Select customer', isDense: true),
-            items: widget.customers
-                .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+            items: customerOptions
+                .map((customer) => DropdownMenuItem(
+                    value: customer.id,
+                    child: Text('${customer.fullName} (${customer.customerId})')))
                 .toList(),
             onChanged: (v) => setState(() {
-              _customer = v;
+              _customerId = v;
               _loanNumber = null;
+              _agent = null;
+              _amountController.clear();
             }),
           ),
           const SizedBox(height: 16),
@@ -1030,19 +1366,38 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
             initialValue: _loanNumber,
             decoration: InputDecoration(
               hintText:
-                  _customer == null ? 'Select customer first' : 'Select loan',
+                  _customerId == null ? 'Select customer first' : 'Select loan',
               isDense: true,
             ),
             items: availableLoans
-                .map((l) => DropdownMenuItem(value: l, child: Text(l)))
+                .map((loan) => DropdownMenuItem(
+                    value: loan.loanNumber,
+                    child: Text(
+                      '${loan.loanNumber} • ${LoanRecord.formatRupees(loan.principalAmount)} • '
+                      '${_loanTypeLabel(loan)}: ${LoanRecord.formatRupees(loan.emiAmount)} • '
+                      'Out: ${loan.formattedOutstandingWithPenalty} (${loan.status})',
+                    ),
+                  ))
                 .toList(),
-            onChanged: _customer == null
+            onChanged: _customerId == null
                 ? null
-                : (v) => setState(() => _loanNumber = v),
+                : (v) => setState(() {
+                    _loanNumber = v;
+                    _agent = _selectedLoan?.agentName;
+                  }),
           ),
           const SizedBox(height: 6),
-          const Text('Linked to the selected customer',
+          Text(
+              selectedLoan == null
+                  ? 'Select a loan to view its live details'
+                  : '${availableLoans.length} loan${availableLoans.length == 1 ? '' : 's'} linked to the selected customer',
               style: TextStyle(fontSize: 12, color: AppColors.kTextMuted)),
+          if (selectedLoan != null) ...[
+            const SizedBox(height: 12),
+            _buildLoanSummary(selectedLoan),
+            const SizedBox(height: 12),
+            _buildAmountPresets(selectedLoan),
+          ],
           const SizedBox(height: 16),
           _label('AMOUNT RECEIVED *'),
           TextField(
@@ -1067,7 +1422,12 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
           _label('COLLECTION DATE *'),
           TextField(
             controller: _dateController,
-            decoration: const InputDecoration(isDense: true),
+            readOnly: true,
+            onTap: _selectCollectionDate,
+            decoration: const InputDecoration(
+              isDense: true,
+              suffixIcon: Icon(Icons.calendar_today_outlined, size: 18),
+            ),
           ),
           const SizedBox(height: 16),
           _label('AGENT'),
@@ -1076,7 +1436,12 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
             initialValue: _agent,
             decoration:
                 const InputDecoration(hintText: 'Select agent', isDense: true),
-            items: _agents
+            items: {
+              ...widget.agents,
+              'Unassigned',
+              if (selectedLoan?.agentName.isNotEmpty == true)
+                selectedLoan!.agentName,
+            }
                 .map((a) => DropdownMenuItem(value: a, child: Text(a)))
                 .toList(),
             onChanged: (v) => setState(() => _agent = v),

@@ -1,0 +1,11 @@
+arb-dir: lib/l10n
+template-arb-file: app_en.arb
+output-localization-file: app_localizations.dart
+output-class: AppLocalizations
+output-dir: lib/l10n/generated
+nullable-getter: false
+
+# Translation configuration. Keep the API key out of version control:
+# export ARB_TRANSLATE_API_KEY='your Gemini API key'
+arb-translate-model: gemini-2.5-flash
+arb-translate-context: Loan and collection management mobile app

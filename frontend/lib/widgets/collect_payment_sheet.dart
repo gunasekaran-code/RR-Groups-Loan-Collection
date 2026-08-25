@@ -1,7 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../../theme/app_theme.dart';
+import '../theme/app_theme.dart';
+import '../models/agent_collection.dart';
 
 const Color kCollectGold = Color(0xFFA9791F);
 
@@ -16,6 +17,11 @@ class CollectPaymentSheet extends StatefulWidget {
   final String subtitleLabel;
   final String subtitleValue;
   final double prefillAmount;
+  final double? installmentAmount;
+  final double? dueAmount;
+  final double? penaltyAmount;
+  final double? outstandingBalance;
+  final int? dueCount;
   final void Function(
     double amount,
     String method,
@@ -29,6 +35,11 @@ class CollectPaymentSheet extends StatefulWidget {
     required this.subtitleLabel,
     required this.subtitleValue,
     required this.prefillAmount,
+    this.installmentAmount,
+    this.dueAmount,
+    this.penaltyAmount,
+    this.outstandingBalance,
+    this.dueCount,
     required this.onSubmit,
   });
 
@@ -78,6 +89,15 @@ class _CollectPaymentSheetState extends State<CollectPaymentSheet> {
   }
 
   double get _amount => double.tryParse(_amountController.text.trim()) ?? 0;
+
+    double get _emi =>
+      widget.installmentAmount != null && widget.installmentAmount! > 0
+        ? widget.installmentAmount!
+        : (widget.dueAmount ?? widget.prefillAmount);
+    double get _due => widget.dueAmount ?? widget.prefillAmount;
+    double get _penalty => widget.penaltyAmount ?? 0;
+    double get _fullBalance =>
+      widget.outstandingBalance ?? (_due + _penalty);
 
   bool get _canSave => _amount > 0 && !_submitting;
 
@@ -160,6 +180,30 @@ class _CollectPaymentSheetState extends State<CollectPaymentSheet> {
   String _formatDate(DateTime d) {
     return '${d.day.toString().padLeft(2, '0')}-'
         '${d.month.toString().padLeft(2, '0')}-${d.year}';
+  }
+
+  void _setAmount(double amount) {
+    _amountController.text = amount.round().toString();
+    _amountController.selection = TextSelection.fromPosition(
+      TextPosition(offset: _amountController.text.length),
+    );
+    setState(() {});
+  }
+
+  Widget _amountAction(String label, double amount, Color color) {
+    return ElevatedButton(
+      onPressed: () => _setAmount(amount),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: color == const Color(0xFFFFF0C2)
+            ? const Color(0xFF8A5A00)
+            : Colors.white,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      child: Text('$label (${AgentCollectionItem.formatAmount(amount)})'),
+    );
   }
 
   @override
@@ -278,6 +322,45 @@ class _CollectPaymentSheetState extends State<CollectPaymentSheet> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _amountAction('⚡ 1 EMI', _emi, const Color(0xFFFFF0C2)),
+                    _amountAction(
+                      '⚡ Pay Dues${widget.dueCount != null ? ' · ${widget.dueCount} Due' : ''}',
+                      _due,
+                      const Color(0xFFC8103D),
+                    ),
+                    _amountAction(
+                      '⚡ Due + Penalty', _due + _penalty,
+                      const Color(0xFFFFE1E7),
+                    ),
+                    _amountAction(
+                      '⚡ Full Balance', _fullBalance,
+                      const Color(0xFFC9F5DF),
+                    ),
+                  ],
+                ),
+                if (_penalty > 0) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF9E6),
+                      border: Border.all(color: const Color(0xFFFFD45C)),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '⚠ Penalty: ${AgentCollectionItem.formatAmount(_penalty)}\n'
+                      'Overdue due: ${AgentCollectionItem.formatAmount(_due)} · '
+                      'Total due: ${AgentCollectionItem.formatAmount(_due + _penalty)}',
+                      style: const TextStyle(color: Color(0xFF7A4311)),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 _label('COLLECTION DATE'),
                 InkWell(

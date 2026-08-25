@@ -8,6 +8,7 @@ import '../../theme/glass_toast.dart';
 import '../../theme/confirm_dialog.dart';
 import '../../models/account_ledger_model.dart';
 import '../../services/account_ledger_service.dart';
+import '../../l10n/generated/app_localizations.dart';
 
 class AccountBookScreen extends StatefulWidget {
   const AccountBookScreen({super.key});
@@ -143,7 +144,7 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withOpacity(0.5),
+      barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (context) => _buildGlobalSheetFrame(
         child: AddLedgerEntrySheet(
           service: _service,
@@ -178,11 +179,13 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
   // ==========================================
   Future<void> _handleDelete(AccountLedgerEntry entry) async {
     // Replaced default showDialog with AppConfirmDialog
+    final l10n = AppLocalizations.of(context);
     final confirmed = await AppConfirmDialog.show(
       context: context,
-      title: 'Delete Entry',
-      message: 'Are you sure you want to delete "${entry.title}"? This cannot be undone.',
-      confirmLabel: 'Delete',
+      title: l10n.deleteEntry,
+      message:
+          'Are you sure you want to delete "${entry.title}"? This cannot be undone.',
+      confirmLabel: l10n.delete,
       confirmButtonColor: AppColors.kDanger,
     );
 
@@ -244,9 +247,10 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return AppShell(
       currentRoute: AppRoutes.accountBook,
-      title: 'Account Book',
+      title: l10n.accountBook,
       body: LayoutBuilder(
         builder: (context, constraints) {
           final isNarrow = constraints.maxWidth < 700;
@@ -259,28 +263,28 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 PageHeader(
-                  title: 'Account Book',
+                  title: l10n.accountBook,
                   subtitle:
                       'Home / RR Groups Branch / Real-Time Working Capital',
-                  actions: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: ElevatedButton.icon(
-                        onPressed: () {},
-                        icon: const Icon(Icons.print,
-                            color: Colors.white, size: 18),
-                        label: const Text('Print Statement'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFB8860B),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                  // actions: [
+                  //   Align(
+                  //     alignment: Alignment.centerLeft,
+                  //     child: ElevatedButton.icon(
+                  //       onPressed: () {},
+                  //       icon: const Icon(Icons.print,
+                  //           color: Colors.white, size: 18),
+                  //       // label: Text(l10n.printStatement),
+                  //       style: ElevatedButton.styleFrom(
+                  //         backgroundColor: const Color(0xFFB8860B),
+                  //         padding: const EdgeInsets.symmetric(
+                  //             horizontal: 16, vertical: 12),
+                  //         shape: RoundedRectangleBorder(
+                  //           borderRadius: BorderRadius.circular(8),
+                  //         ),
+                  //       ),
+                  //     ),
+                  //   ),
+                  // ],
                 ),
                 Padding(
                   padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
@@ -369,7 +373,7 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.08),
+              color: Colors.white.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0xFFB8860B), width: 1),
             ),
@@ -421,7 +425,7 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -519,7 +523,7 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
         border: Border(left: BorderSide(color: accentColor, width: 4)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -648,7 +652,7 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
                           boxShadow: isSelected
                               ? [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
+                                    color: Colors.black.withValues(alpha: 0.05),
                                     blurRadius: 4,
                                     offset: const Offset(0, 2),
                                   )
@@ -1238,6 +1242,7 @@ class _AddLedgerEntrySheetState extends State<AddLedgerEntrySheet> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: Column(
@@ -1430,8 +1435,10 @@ class _AddLedgerEntrySheetState extends State<AddLedgerEntrySheet> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                child: const Text('Cancel',
-                    style: TextStyle(color: Colors.black87)),
+                child: Text(
+                  l10n.cancel,
+                  style: const TextStyle(color: Colors.black87),
+                ),
               ),
               const SizedBox(width: 12),
               ElevatedButton.icon(

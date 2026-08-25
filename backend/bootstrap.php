@@ -73,11 +73,19 @@ function send_cors(): void
     }
 }
 
+// Set default character encoding to UTF-8
+if (function_exists('mb_internal_encoding')) {
+    mb_internal_encoding('UTF-8');
+}
+if (function_exists('mb_http_output')) {
+    mb_http_output('UTF-8');
+}
+
 function json_out($data, int $status = 200): void
 {
     http_response_code($status);
-    header('Content-Type: application/json');
-    echo json_encode($data);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
 
@@ -239,7 +247,7 @@ function ensure_chit_schedules_table(): void
                   INDEX idx_chit_sched_group (group_id),
                   CONSTRAINT fk_chit_sched_group FOREIGN KEY (group_id)
                     REFERENCES chit_groups(id) ON DELETE CASCADE
-                ) ENGINE=InnoDB
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
             ");
         }
         // Ensure every_10_days is supported in draw_frequency enum
@@ -277,9 +285,82 @@ function ensure_popup_settings_columns() {
     }
 }
 
+/**
+ * Penalty columns on `loans`.
+ *
+ * `penalty_per_week` lets an operator type the weekly-loan penalty by hand.
+ * Left at 0 the recalculator falls back to the original automatic rate
+ * (1% of principal per missed week, minimum ₹100), so loans created before
+ * this column existed keep behaving exactly as they did.
+ */
+function ensure_loan_penalty_columns(): void
+{
+    static $ran = false;
+    if ($ran) return;
+    $ran = true;
+
+    try {
+        $pdo = Database::pdo();
+        $add = [];
+        foreach ([
+            'penalty_amount'       => "DECIMAL(14,2) NOT NULL DEFAULT 0.00",
+            'penalty_enabled'      => "TINYINT(1) NOT NULL DEFAULT 0",
+            'penalty_rate_per_day' => "DECIMAL(10,2) NOT NULL DEFAULT 0.00",
+            'penalty_per_week'     => "DECIMAL(10,2) NOT NULL DEFAULT 0.00",
+        ] as $col => $def) {
+            $stmt = $pdo->query("SHOW COLUMNS FROM loans LIKE '$col'");
+            if ($stmt && $stmt->rowCount() === 0) {
+                $add[] = "ADD COLUMN `$col` $def";
+            }
+        }
+        if ($add) {
+            $pdo->exec("ALTER TABLE loans " . implode(', ', $add));
+        }
+    } catch (\Throwable $e) {
+        // Silently ignore schema check errors
+    }
+}
+
 ensure_chit_schedules_table();
 ensure_funds_units_column();
 ensure_popup_settings_columns();
+/**
+ * Attribution columns on `account_ledger`.
+ *
+ * A chit contribution is recorded only as a ledger receipt, so without an
+ * agent_id there is no way to tell who took the money — which kept agent chit
+ * collections out of the Cash Handover tally. payment_method lets the same
+ * screen split cash from UPI instead of parsing it out of the notes text.
+ */
+function ensure_ledger_agent_columns(): void
+{
+    static $ran = false;
+    if ($ran) return;
+    $ran = true;
+
+    try {
+        $pdo = Database::pdo();
+        $add = [];
+        foreach ([
+            'agent_id'       => "CHAR(36) NULL",
+            'agent_name'     => "VARCHAR(191) NULL",
+            'payment_method' => "VARCHAR(32) NULL",
+        ] as $col => $def) {
+            $stmt = $pdo->query("SHOW COLUMNS FROM account_ledger LIKE '$col'");
+            if ($stmt && $stmt->rowCount() === 0) {
+                $add[] = "ADD COLUMN `$col` $def";
+            }
+        }
+        if ($add) {
+            $pdo->exec("ALTER TABLE account_ledger " . implode(', ', $add));
+        }
+    } catch (\Throwable $e) {
+        // Silently ignore schema check errors
+    }
+}
+
+ensure_loan_penalty_columns();
+ensure_ledger_agent_columns();
 
 function ensure_promo_popups_table() {
     try {
@@ -293,9 +374,167 @@ function ensure_promo_popups_table() {
           created_by   VARCHAR(191) NULL,
           created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB");
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
     } catch (\Throwable $e) {
         // Silently ignore schema check errors
     }
 }
 ensure_promo_popups_table();
+
+/**
+ * Self-healing UTF-8 migration.
+ *
+ * Tamil (and any non-Latin) text is stored as "?" whenever the database, table
+ * or column charset is latin1 — MySQL replaces every character it cannot encode.
+ * Shared hosts often default new schemas to latin1, so the tables created there
+ * silently lose Tamil even though the PDO connection already speaks utf8mb4.
+ *
+ * This walks the current schema once and converts anything that is not utf8mb4.
+ * A marker file keeps it from re-running information_schema on every request.
+ */
+function ensure_utf8mb4_charset(): void
+{
+    static $ran = false;
+    if ($ran) return;
+    $ran = true;
+
+    $report = ['status' => 'skipped', 'converted' => [], 'fks_restored' => 0, 'errors' => []];
+
+    $marker = sys_get_temp_dir() . '/rrgroups_utf8mb4_' . md5(__DIR__) . '.ok';
+    if (is_file($marker)) {
+        $report['status'] = 'already-done';
+        $GLOBALS['utf8mb4_migration'] = $report;
+        return;
+    }
+
+    try {
+        $pdo = Database::pdo();
+    } catch (\Throwable $e) {
+        $report['status'] = 'no-db';
+        $GLOBALS['utf8mb4_migration'] = $report;
+        return;
+    }
+
+    // Any text column that is not utf8mb4 will mangle Tamil and the rupee sign.
+    try {
+        $bad = $pdo->query(
+            "SELECT DISTINCT TABLE_NAME FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND CHARACTER_SET_NAME IS NOT NULL
+               AND CHARACTER_SET_NAME <> 'utf8mb4'"
+        )->fetchAll(PDO::FETCH_COLUMN);
+    } catch (\Throwable $e) {
+        $report['status'] = 'inspect-failed';
+        $report['errors']['inspect'] = $e->getMessage();
+        $GLOBALS['utf8mb4_migration'] = $report;
+        return;
+    }
+
+    if (!$bad) {
+        $report['status'] = 'ok';
+        $GLOBALS['utf8mb4_migration'] = $report;
+        @file_put_contents($marker, date('c'));
+        return;
+    }
+
+    // Shared hosts often withhold schema-level ALTER. That only changes the
+    // default for FUTURE tables, so it must never block the conversion below.
+    try {
+        $dbDefault = $pdo->query(
+            "SELECT DEFAULT_CHARACTER_SET_NAME FROM information_schema.SCHEMATA
+             WHERE SCHEMA_NAME = DATABASE()"
+        )->fetchColumn();
+        if ($dbDefault !== 'utf8mb4') {
+            $pdo->exec('ALTER DATABASE `' . $pdo->query('SELECT DATABASE()')->fetchColumn()
+                . '` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
+        }
+    } catch (\Throwable $e) {
+        $report['errors']['alter_database'] = $e->getMessage();
+    }
+
+    // MariaDB refuses to re-charset a column that sits in a foreign key
+    // (errno 1832/1833) and SET FOREIGN_KEY_CHECKS=0 does NOT waive it — unlike
+    // MySQL 8. So capture every constraint, drop them, convert, put them back.
+    $fks = [];
+    try {
+        $rows = $pdo->query(
+            "SELECT rc.CONSTRAINT_NAME, rc.TABLE_NAME, rc.REFERENCED_TABLE_NAME,
+                    rc.UPDATE_RULE, rc.DELETE_RULE
+             FROM information_schema.REFERENTIAL_CONSTRAINTS rc
+             WHERE rc.CONSTRAINT_SCHEMA = DATABASE()"
+        )->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as $r) {
+            $cols = $pdo->prepare(
+                "SELECT COLUMN_NAME, REFERENCED_COLUMN_NAME
+                 FROM information_schema.KEY_COLUMN_USAGE
+                 WHERE CONSTRAINT_SCHEMA = DATABASE()
+                   AND CONSTRAINT_NAME = ? AND TABLE_NAME = ?
+                 ORDER BY ORDINAL_POSITION"
+            );
+            $cols->execute([$r['CONSTRAINT_NAME'], $r['TABLE_NAME']]);
+            $pairs = $cols->fetchAll(PDO::FETCH_ASSOC);
+            if (!$pairs) continue;
+            $r['cols'] = array_column($pairs, 'COLUMN_NAME');
+            $r['refs'] = array_column($pairs, 'REFERENCED_COLUMN_NAME');
+            $fks[] = $r;
+        }
+    } catch (\Throwable $e) {
+        $report['errors']['read_foreign_keys'] = $e->getMessage();
+    }
+
+    $quote = function (array $names): string {
+        return '`' . implode('`, `', $names) . '`';
+    };
+
+    // Drop first so every table below is free to change charset.
+    $dropped = [];
+    foreach ($fks as $fk) {
+        try {
+            $pdo->exec("ALTER TABLE `{$fk['TABLE_NAME']}` DROP FOREIGN KEY `{$fk['CONSTRAINT_NAME']}`");
+            $dropped[] = $fk;
+        } catch (\Throwable $e) {
+            $report['errors']['drop_fk_' . $fk['CONSTRAINT_NAME']] = $e->getMessage();
+        }
+    }
+
+    $failed = false;
+    try {
+        foreach ($bad as $table) {
+            try {
+                // CONVERT TO rewrites every text column in the table in one pass.
+                $pdo->exec("ALTER TABLE `$table` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+                $report['converted'][] = $table;
+            } catch (\Throwable $e) {
+                // One stubborn table must not strand the rest.
+                $report['errors'][$table] = $e->getMessage();
+                $failed = true;
+            }
+        }
+    } finally {
+        // Always put the constraints back, even if a conversion threw.
+        foreach ($dropped as $fk) {
+            try {
+                $pdo->exec(
+                    "ALTER TABLE `{$fk['TABLE_NAME']}` ADD CONSTRAINT `{$fk['CONSTRAINT_NAME']}`"
+                    . " FOREIGN KEY (" . $quote($fk['cols']) . ")"
+                    . " REFERENCES `{$fk['REFERENCED_TABLE_NAME']}` (" . $quote($fk['refs']) . ")"
+                    . " ON DELETE {$fk['DELETE_RULE']} ON UPDATE {$fk['UPDATE_RULE']}"
+                );
+                $report['fks_restored']++;
+            } catch (\Throwable $e) {
+                $report['errors']['restore_fk_' . $fk['CONSTRAINT_NAME']] = $e->getMessage();
+                $failed = true;
+            }
+        }
+    }
+
+    $report['status'] = $failed ? 'partial' : 'ok';
+    $GLOBALS['utf8mb4_migration'] = $report;
+
+    // Only stop re-checking once everything came out clean.
+    if (!$failed) {
+        @file_put_contents($marker, date('c'));
+    }
+}
+
+ensure_utf8mb4_charset();

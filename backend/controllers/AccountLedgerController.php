@@ -35,9 +35,20 @@ class AccountLedgerController extends ResourceController
         }
 
         // 2. Strict Role Enforcement for Writes
-        if ($method === 'POST' || $method === 'PATCH' || $method === 'PUT' || $method === 'DELETE') {
+        //    Agents collect chit / fund / loan money in the field, and that
+        //    receipt IS the payment record the passbook and account book read.
+        //    Blocking it outright made an agent's collection vanish silently, so
+        //    they may POST a cash-in collection receipt — and nothing else.
+        if ($method === 'PATCH' || $method === 'PUT' || $method === 'DELETE') {
             if ($role !== 'admin') {
-                json_error('Only administrators can create, modify, or delete account book ledger entries', 403);
+                json_error('Only administrators can modify or delete account book ledger entries', 403);
+            }
+        } elseif ($method === 'POST') {
+            if ($role === 'agent') {
+                $this->assertAgentCollectionOnly();
+                $this->pinAgentToSelf($claims);
+            } elseif ($role !== 'admin') {
+                json_error('Only administrators can create account book ledger entries', 403);
             }
         }
 
@@ -47,6 +58,64 @@ class AccountLedgerController extends ResourceController
         }
 
         parent::handle();
+    }
+
+    /** Field-collection categories an agent is allowed to record. */
+    private const AGENT_COLLECTION_CATEGORIES = [
+        'chit collection',
+        'fund collection',
+        'loan collection',
+    ];
+
+    /**
+     * Stamp the receipt with the agent who is actually recording it.
+     *
+     * Cash Handover holds an agent accountable for what they collected, so the
+     * attribution must come from the token, not from whatever the client sent.
+     */
+    private function pinAgentToSelf(array $claims): void
+    {
+        $agentId = $claims['sub'] ?? null;
+        if (!$agentId) return;
+
+        $profile = Profile::findPublic($agentId);
+        $agentName = $profile['full_name'] ?? null;
+
+        $body = $this->body();
+        $isList = $body !== [] && array_keys($body) === range(0, count($body) - 1);
+        $rows = $isList ? $body : [$body];
+
+        foreach ($rows as &$row) {
+            if (!is_array($row)) continue;
+            $row['agent_id'] = $agentId;
+            $row['agent_name'] = $agentName;
+        }
+        unset($row);
+
+        set_json_body($isList ? $rows : $rows[0]);
+    }
+
+    /**
+     * An agent may only file money *coming in* from a field collection.
+     * Anything else — expenses, capital movements, custom lending — stays admin-only.
+     */
+    private function assertAgentCollectionOnly(): void
+    {
+        $body = $this->body();
+        $isList = $body !== [] && array_keys($body) === range(0, count($body) - 1);
+        $rows = $isList ? $body : [$body];
+
+        foreach ($rows as $row) {
+            if (!is_array($row)) continue;
+
+            if (($row['entry_type'] ?? '') !== 'cash_in') {
+                json_error('Agents can only record incoming collection receipts', 403);
+            }
+            $category = strtolower(trim((string)($row['category'] ?? '')));
+            if (!in_array($category, self::AGENT_COLLECTION_CATEGORIES, true)) {
+                json_error('Agents can only record chit, fund or loan collection receipts', 403);
+            }
+        }
     }
 
     /**

@@ -1,5 +1,3 @@
-/// Save as: lib/services/chit_group_api_service.dart  (replaces existing file)
-
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
@@ -7,6 +5,7 @@ import 'method_override_http.dart';
 import 'session_service.dart';
 import '../models/chit_group.dart';
 import '../models/chit_member.dart';
+import '../models/chit_passbook.dart';
 
 class ChitGroupApiService {
   static String get _restEndpoint => '${ApiConfig.normalizedBaseUrl}/rest.php';
@@ -23,6 +22,38 @@ class ChitGroupApiService {
     final res = await http.get(uri, headers: _headers);
     _throwIfError(res);
     return _listFrom(res).map((e) => ChitGroup.fromJson(e)).toList();
+  }
+
+  /// Returns only the groups in which the signed-in customer has a member row.
+  static Future<List<ChitGroup>> fetchMyGroups() async {
+    final customerId = SessionService.instance.currentUser?.customerId;
+    if (customerId == null || customerId.isEmpty) return const [];
+
+    final membershipUri = Uri.parse(_restEndpoint).replace(
+      queryParameters: {
+        'table': 'chit_members',
+        'customer_id': customerId,
+      },
+    );
+    final membershipRes = await http.get(membershipUri, headers: _headers);
+    _throwIfError(membershipRes);
+
+    final groupIds = _listFrom(membershipRes)
+        .map((member) => member['group_id']?.toString() ?? '')
+        .where((groupId) => groupId.isNotEmpty)
+        .toSet()
+        .toList();
+    if (groupIds.isEmpty) return const [];
+
+    final groupUri = Uri.parse(_restEndpoint).replace(
+      queryParameters: {
+        'table': 'chit_groups',
+        'id': 'in.(${groupIds.join(',')})',
+      },
+    );
+    final groupRes = await http.get(groupUri, headers: _headers);
+    _throwIfError(groupRes);
+    return _listFrom(groupRes).map((e) => ChitGroup.fromJson(e)).toList();
   }
 
   // ---- GROUPS: CREATE (admin only — enforced server-side) ----
@@ -53,8 +84,6 @@ class ChitGroupApiService {
   // ---- GROUPS: UPDATE (admin or agent — collection fields only,
   // per the PHP allow-list). Called after a member's payment is
   // recorded so the group's running totals + status stay in sync.
-  // NOTE: previously this sent `pending_amount: null` — fixed to send
-  // the real computed value so the backend actually persists it.
   static Future<ChitGroup> recordCollection({
     required String groupId,
     required double collectedAmount,
@@ -94,6 +123,29 @@ class ChitGroupApiService {
     final res = await http.get(uri, headers: _headers);
     _throwIfError(res);
     return _listFrom(res).map((e) => ChitMember.fromJson(e)).toList();
+  }
+
+  // ---- MEMBERS: find the signed-in customer's own row in a group ----
+  // The customer id is stored on the current AppUser in SessionService.
+  // The backend supports filtering chit_members by both group_id and
+  // customer_id.
+  // Returns null if the current user isn't a member of this group.
+  static Future<ChitMember?> fetchMyMembership(String groupId) async {
+    final customerId = SessionService.instance.currentUser?.customerId;
+    if (customerId == null || customerId.isEmpty) return null;
+
+    final uri = Uri.parse(_restEndpoint).replace(
+      queryParameters: {
+        'table': 'chit_members',
+        'group_id': groupId,
+        'customer_id': customerId,
+      },
+    );
+    final res = await http.get(uri, headers: _headers);
+    _throwIfError(res);
+    final rows = _listFrom(res);
+    if (rows.isEmpty) return null;
+    return ChitMember.fromJson(rows.first);
   }
 
   // ---- MEMBERS: CREATE ----
@@ -163,6 +215,68 @@ class ChitGroupApiService {
     final res = await http.get(uri, headers: _headers);
     _throwIfError(res);
     return _listFrom(res).map((e) => ChitCustomerOption.fromJson(e)).toList();
+  }
+
+  // ---- PASSBOOK: the member's group schedule ----
+  // There is no `chit_passbook` table in the schema. A member belongs to a
+  // group through `chit_members`, and `chit_schedules` holds that group's
+  // installment schedule. `chit_members.payment_status` is the only payment
+  // state stored for a member, so it is used for the schedule status.
+  //
+  // The schema has no per-payment receipt table for chits; therefore receipts
+  // remain empty until such a table is added and populated when a collection
+  // is recorded.
+  static Future<ChitPassbookData> fetchPassbook(String memberId) async {
+    final memberUri = Uri.parse(_restEndpoint).replace(
+      queryParameters: {
+        'table': 'chit_members',
+        'id': memberId,
+        'limit': '1',
+      },
+    );
+    final memberRes = await http.get(memberUri, headers: _headers);
+    _throwIfError(memberRes);
+    final memberRows = _listFrom(memberRes);
+    if (memberRows.isEmpty) {
+      throw ChitGroupApiException('Chit member not found', 404);
+    }
+
+    final member = memberRows.first;
+    final groupId = member['group_id']?.toString();
+    if (groupId == null || groupId.isEmpty) {
+      throw ChitGroupApiException('Chit member has no group', 400);
+    }
+
+    final scheduleUri = Uri.parse(_restEndpoint).replace(
+      queryParameters: {
+        'table': 'chit_schedules',
+        'group_id': groupId,
+        'order': 'installment_no.asc',
+      },
+    );
+    final scheduleRes = await http.get(scheduleUri, headers: _headers);
+    _throwIfError(scheduleRes);
+
+    final paymentStatus = member['payment_status']?.toString() ?? 'pending';
+    final isPaid = paymentStatus.toLowerCase() == 'paid';
+    final draws = _listFrom(scheduleRes)
+        .map(
+          (schedule) => ChitDraw.fromJson({
+            'draw_number': schedule['installment_no'],
+            'scheduled_date': schedule['due_date'],
+            'payable_contribution': schedule['payable_amount'],
+            'dividend_pool_value': schedule['pool_amount'],
+            'payment_status': paymentStatus,
+            'amount_paid': isPaid ? schedule['payable_amount'] : 0,
+          }),
+        )
+        .toList();
+
+    return ChitPassbookData(
+      draws: draws,
+      receipts: const [],
+      totalDraws: draws.length,
+    );
   }
 
   // ---- helpers ----

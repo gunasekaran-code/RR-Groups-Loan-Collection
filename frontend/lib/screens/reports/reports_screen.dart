@@ -183,30 +183,31 @@ class _ReportsScreenState extends State<ReportsScreen> {
     _loadData();
   }
 
-  Future<void> _exportPdf() async {
-    ToastService.show(
-      title: 'Exporting PDF',
-      message: 'Your report is being prepared...',
-      type: ToastType.info,
-    );
+  // Future<void> _exportPdf() async {
+  //   ToastService.show(
+  //     title: 'Exporting PDF',
+  //     message: 'Your report is being prepared...',
+  //     type: ToastType.info,
+  //   );
 
-    try {
-      // TODO(backend): Hook up real PDF export here
-      // Example: await backendService.generatePdf();
+  //   try {
+  
+  //     // Example: await backendService.generatePdf();
 
-      ToastService.show(
-        title: 'Export Complete',
-        message: 'PDF has been downloaded successfully.',
-        type: ToastType.success,
-      );
-    } catch (error) {
-      ToastService.show(
-        title: 'Export Failed',
-        message: error.toString(),
-        type: ToastType.error,
-      );
-    }
-  }
+  //     // ToastService.show(
+  //     //   title: 'Export Complete',
+  //     //   message: 'PDF has been downloaded successfully.',
+  //     //   type: ToastType.success,
+  //     // );
+  //   }
+  //    catch (error) {
+  //     ToastService.show(
+  //       title: 'Export Failed',
+  //       message: error.toString(),
+  //       type: ToastType.error,
+  //     );
+  //   }
+  // }
 
   Future<void> _exportExcel() async {
     ToastService.show(

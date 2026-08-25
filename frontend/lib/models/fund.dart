@@ -2,6 +2,7 @@
 
 enum FundStatus { active, matured, settled }
 
+// models/fund.dart
 extension FundStatusX on FundStatus {
   String get label {
     switch (this) {
@@ -10,7 +11,7 @@ extension FundStatusX on FundStatus {
       case FundStatus.matured:
         return 'matured';
       case FundStatus.settled:
-        return 'settled';
+        return 'closed'; // was 'settled'
     }
   }
 
@@ -18,7 +19,7 @@ extension FundStatusX on FundStatus {
     switch (v) {
       case 'matured':
         return FundStatus.matured;
-      case 'settled':
+      case 'closed': // was 'settled'
         return FundStatus.settled;
       default:
         return FundStatus.active;
@@ -30,6 +31,7 @@ class FundEntry {
   final int week;
   final DateTime date;
   final double amount;
+  final double? balanceAfter;
   final String? method;
   final bool paid;
 
@@ -37,6 +39,7 @@ class FundEntry {
     required this.week,
     required this.date,
     required this.amount,
+    this.balanceAfter,
     this.method,
     required this.paid,
   });
@@ -46,15 +49,23 @@ class FundEntry {
     // `payment_method` and `amount`. Some older responses may vary,
     // so fall back to alternative keys when present.
     final weekVal = (json['week_no'] ?? json['week']) as dynamic;
-    final dateStr = (json['payment_date'] ?? json['due_date'] ?? json['payment_at'] ?? json['created_at'])?.toString();
+    final dateStr = (json['payment_date'] ??
+            json['due_date'] ??
+            json['payment_at'] ??
+            json['created_at'])
+        ?.toString();
     final amt = _toDouble(json['amount'] ?? json['payment_amount']);
     final methodVal = (json['payment_method'] ?? json['method'])?.toString();
-    final paidFlag = (json['paid'] == true || json['paid'] == 1 || json['paid'] == '1');
+    final paidFlag =
+        (json['paid'] == true || json['paid'] == 1 || json['paid'] == '1');
 
     return FundEntry(
-      week: (weekVal as num?)?.toInt() ?? 0,
+        week: weekVal is num
+          ? weekVal.toInt()
+          : int.tryParse(weekVal?.toString() ?? '') ?? 0,
       date: DateTime.tryParse(dateStr ?? '') ?? DateTime.now(),
       amount: amt,
+      balanceAfter: _toDoubleOrNull(json['balance_after']),
       method: methodVal,
       // Treat an entry as paid when a payment_date exists, amount > 0,
       // or an explicit paid flag is present.
@@ -63,11 +74,20 @@ class FundEntry {
   }
 }
 
+double? _toDoubleOrNull(dynamic v) {
+  if (v == null) return null;
+  if (v is num) return v.toDouble();
+  return double.tryParse(v.toString());
+}
+
 class Fund {
   final String id;
   final String code;
   final String customerId;
   final String customerName;
+  final String? assignedAgentId;
+  final String? agentName;
+  final double units;
   final FundStatus status;
   final double weeklyAmount;
   final int numberOfWeeks;
@@ -84,6 +104,9 @@ class Fund {
     required this.code,
     required this.customerId,
     required this.customerName,
+    this.assignedAgentId,
+    this.agentName,
+    this.units = 1,
     required this.status,
     required this.weeklyAmount,
     required this.numberOfWeeks,
@@ -110,20 +133,22 @@ class Fund {
       code: json['fund_number']?.toString() ?? json['code']?.toString() ?? '',
       customerId: json['customer_id']?.toString() ?? '',
       customerName: json['customer_name']?.toString() ?? 'Unknown Customer',
+      assignedAgentId: json['assigned_agent']?.toString(),
+      agentName: json['agent_name']?.toString(),
+      units: _toDouble(json['units']) == 0 ? 1 : _toDouble(json['units']),
       status: FundStatusX.fromString(json['status']?.toString()),
       weeklyAmount: _toDouble(json['weekly_amount']),
       numberOfWeeks: (json['weeks'] as num?)?.toInt() ??
           (json['number_of_weeks'] as num?)?.toInt() ??
           0,
-      maturityBonus:
-          _toDouble(json['bonus'] ?? json['maturity_bonus']),
+      maturityBonus: _toDouble(json['bonus'] ?? json['maturity_bonus']),
       startDate: DateTime.tryParse(json['start_date']?.toString() ?? '') ??
           DateTime.now(),
       maturityDate:
           DateTime.tryParse(json['maturity_date']?.toString() ?? '') ??
               DateTime.now(),
-      depositedAmount: _toDouble(
-          json['collected_amount'] ?? json['deposited_amount']),
+      depositedAmount:
+          _toDouble(json['collected_amount'] ?? json['deposited_amount']),
       entriesPaid: (json['entries_paid'] as num?)?.toInt() ?? 0,
     );
   }
@@ -134,6 +159,9 @@ class Fund {
       'fund_number': code,
       'customer_id': customerId,
       'customer_name': customerName,
+      'assigned_agent': assignedAgentId,
+      'agent_name': agentName,
+      'units': units,
       'weekly_amount': weeklyAmount,
       'weeks': numberOfWeeks,
       'bonus': maturityBonus,
@@ -151,6 +179,9 @@ class Fund {
     String? code,
     String? customerId,
     String? customerName,
+    String? assignedAgentId,
+    String? agentName,
+    double? units,
     FundStatus? status,
     double? weeklyAmount,
     int? numberOfWeeks,
@@ -165,6 +196,9 @@ class Fund {
       code: code ?? this.code,
       customerId: customerId ?? this.customerId,
       customerName: customerName ?? this.customerName,
+      assignedAgentId: assignedAgentId ?? this.assignedAgentId,
+      agentName: agentName ?? this.agentName,
+      units: units ?? this.units,
       status: status ?? this.status,
       weeklyAmount: weeklyAmount ?? this.weeklyAmount,
       numberOfWeeks: numberOfWeeks ?? this.numberOfWeeks,

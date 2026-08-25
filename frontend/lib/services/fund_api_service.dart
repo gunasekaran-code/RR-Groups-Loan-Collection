@@ -132,6 +132,12 @@ class FundApiService {
     String id, {
     required double collectedAmount,
     required String status,
+    double? paymentAmount,
+    String? paymentMethod,
+    DateTime? paymentDate,
+    String? fundCode,
+    String? customerId,
+    String? customerName,
   }) async {
     final res = await postWithMethodOverride(
       _uri('funds', {'id': id}),
@@ -145,32 +151,79 @@ class FundApiService {
     if (res.statusCode != 200) _throwFromResponse(res);
     final data = jsonDecode(res.body);
     final row = _normalizeRow(data);
+
+    if (paymentAmount != null && paymentAmount > 0) {
+      try {
+        final dateStr = (paymentDate ?? DateTime.now()).toIso8601String().substring(0, 10);
+        await http.post(
+          _uri('fund_payments'),
+          headers: _headers,
+          body: jsonEncode({
+            'fund_id': id,
+            'fund_number': fundCode ?? '',
+            'customer_id': customerId ?? '',
+            'customer_name': customerName ?? '',
+            'amount': paymentAmount,
+            'balance_after': collectedAmount,
+            'payment_method': (paymentMethod ?? 'Cash').toLowerCase(),
+            'payment_date': dateStr,
+            'agent_name': SessionService.instance.currentUser?.name ?? 'Admin',
+          }),
+        );
+      } catch (_) {}
+    }
+
     return Fund.fromJson(row);
   }
 
-  /// Settles the fund in full: collects the remaining balance,
-  /// credits the full maturity bonus, and marks the fund matured.
-  /// Admin-only — the FundController lets admins send any fields, so this
-  /// is unaffected by the agent allow-list restriction.
+  /// Settles the fund in full: sets collected_amount to totalDeposit,
+  /// marks status matured, and records a passbook entry.
   static Future<Fund> settleInFull(
     String id, {
     required String paymentMethod,
     required DateTime settlementDate,
+    required double totalDeposit,
+    double depositedAmount = 0,
+    String? fundCode,
+    String? customerId,
+    String? customerName,
   }) async {
+    final remaining = totalDeposit - depositedAmount;
     final res = await postWithMethodOverride(
       _uri('funds', {'id': id}),
       method: 'PATCH',
       headers: _headers,
       body: jsonEncode({
-        'action': 'settle_in_full',
-        'payment_method': paymentMethod,
-        'settlement_date':
-            '${settlementDate.year.toString().padLeft(4, '0')}-${settlementDate.month.toString().padLeft(2, '0')}-${settlementDate.day.toString().padLeft(2, '0')}',
+        'collected_amount': totalDeposit,
+        'status': FundStatus.matured.label,
       }),
     );
     if (res.statusCode != 200) _throwFromResponse(res);
     final data = jsonDecode(res.body);
     final row = _normalizeRow(data);
+
+    if (remaining > 0) {
+      try {
+        final dateStr = settlementDate.toIso8601String().substring(0, 10);
+        await http.post(
+          _uri('fund_payments'),
+          headers: _headers,
+          body: jsonEncode({
+            'fund_id': id,
+            'fund_number': fundCode ?? '',
+            'customer_id': customerId ?? '',
+            'customer_name': customerName ?? '',
+            'amount': remaining,
+            'balance_after': totalDeposit,
+            'payment_method': paymentMethod.toLowerCase(),
+            'payment_date': dateStr,
+            'agent_name': SessionService.instance.currentUser?.name ?? 'Admin',
+            'notes': 'Settled in full',
+          }),
+        );
+      } catch (_) {}
+    }
+
     return Fund.fromJson(row);
   }
 

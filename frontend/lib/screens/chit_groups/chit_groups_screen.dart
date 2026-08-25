@@ -11,6 +11,7 @@ import '../../models/chit_member.dart';
 import '../../models/user_role.dart';
 import '../../services/chit_group_api_service.dart';
 import '../../services/session_service.dart';
+import 'chit_passbook_screen.dart';
 import 'package:intl/intl.dart';
 
 String formatIndianCurrency(double? amount) {
@@ -40,6 +41,7 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
   UserRole? get _role => SessionService.instance.role;
   bool get _isAdmin => _role == UserRole.admin || _role == UserRole.owner;
   bool get _isAgent => _role == UserRole.agent;
+  bool get _isCustomer => _role == UserRole.customer;
 
   @override
   void initState() {
@@ -48,9 +50,42 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
   }
 
   Future<void> _openGroupDetails(ChitGroup group) async {
+    if (_isCustomer) {
+      await _openCustomerPassbook(group);
+      return;
+    }
     final updated = await showChitGroupDetailsSheet(context, group);
     if (updated != null && mounted) {
       await _loadGroups();
+    }
+  }
+
+  /// Customers only ever see their own passbook — never the admin/agent
+  /// member-management sheet.
+  Future<void> _openCustomerPassbook(ChitGroup group) async {
+    try {
+      final member = await ChitGroupApiService.fetchMyMembership(group.id);
+      if (!mounted) return;
+      if (member == null) {
+        ToastService.show(
+          title: 'Not a member',
+          message: 'You are not part of this chit group yet.',
+          type: ToastType.error,
+        );
+        return;
+      }
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ChitPassbookScreen(group: group, member: member),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ToastService.show(
+        title: 'Failed to open passbook',
+        message: e.toString(),
+        type: ToastType.error,
+      );
     }
   }
 
@@ -60,7 +95,9 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
       _loadError = null;
     });
     try {
-      final groups = await ChitGroupApiService.fetchAll();
+      final groups = _isCustomer
+          ? await ChitGroupApiService.fetchMyGroups()
+          : await ChitGroupApiService.fetchAll();
       if (!mounted) return;
       setState(() {
         _groups = groups;
@@ -171,9 +208,15 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
                   ],
                 )
               else if (_groups.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 40),
-                  child: Center(child: Text('No chit groups found.')),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 40),
+                  child: Center(
+                    child: Text(
+                      _isCustomer
+                          ? 'You have not been added to a chit group yet.'
+                          : 'No chit groups found.',
+                    ),
+                  ),
                 )
               else
                 ..._groups.map((group) => _buildGroupCard(group)).toList(),
@@ -273,6 +316,22 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
                       ),
                       icon: const Icon(Icons.currency_rupee, size: 16),
                       label: const Text('Collect'),
+                    ),
+                  ),
+                if (_isCustomer)
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _openGroupDetails(group),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.kGold,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                      icon: const Icon(Icons.menu_book_rounded, size: 16),
+                      label: const Text('View Passbook'),
                     ),
                   ),
                 if (_isAdmin) ...[

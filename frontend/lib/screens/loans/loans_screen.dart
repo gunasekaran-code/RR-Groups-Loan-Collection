@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_shell.dart';
@@ -160,8 +159,19 @@ BadgeTone _scheduleStatusTone(String status) {
 }
 
 const List<String> _kMonthNames = [
-  '',  'Jan',  'Feb',  'Mar',  'Apr',  'May',  'Jun',
-       'Jul',  'Aug',  'Sep',  'Oct',  'Nov',  'Dec',
+  '',
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
 ];
 
 String _formatScheduleDate(DateTime d) =>
@@ -330,7 +340,11 @@ class _LoansScreenState extends State<LoansScreen> {
   String _selectedFilter = 'All';
 
   final List<String> _filters = [
-    'All',    'Active',    'Overdue',    'Closed',    'Pending'
+    'All',
+    'Active',
+    'Overdue',
+    'Closed',
+    'Pending'
   ];
 
   final LoanService _loanService = LoanService.instance;
@@ -431,8 +445,9 @@ class _LoansScreenState extends State<LoansScreen> {
           loan: loan,
           onDelete: () {
             Navigator.of(context).pop();
-            _showCloseLoanDialog(loan);
+            _showLoanActionDialog(loan);
           },
+          actionLabel: loan.status == 'Active' ? 'Close' : 'Delete',
         ),
       ),
     );
@@ -503,9 +518,18 @@ class _LoansScreenState extends State<LoansScreen> {
 
     if (confirmed == true && mounted) {
       try {
-        await _loanService.closeLoan(loan.id);
-        await _loadAll();
+        final closedLoan = await _loanService.closeLoan(loan.id);
+        final closedIndex = _loans.indexWhere((item) => item.id == loan.id);
         if (!mounted) return;
+        if (closedIndex != -1) {
+          setState(() {
+            _loans[closedIndex] = closedLoan.copyWith(
+              status: 'Closed',
+              customerName: loan.customerName,
+              agentName: loan.agentName,
+            );
+          });
+        }
         ToastService.show(
           title: 'Loan closed',
           message: '${loan.loanNumber} outstanding balance set to zero',
@@ -515,6 +539,45 @@ class _LoansScreenState extends State<LoansScreen> {
         if (!mounted) return;
         ToastService.show(
           title: 'Could not close loan',
+          message: e.toString(),
+          type: ToastType.error,
+        );
+      }
+    }
+  }
+
+  void _showLoanActionDialog(LoanRecord loan) {
+    if (loan.status == 'Active') {
+      _showCloseLoanDialog(loan);
+    } else {
+      _showDeleteLoanDialog(loan);
+    }
+  }
+
+  Future<void> _showDeleteLoanDialog(LoanRecord loan) async {
+    final confirmed = await AppConfirmDialog.show(
+      context: context,
+      title: 'Delete Loan',
+      message:
+          'Are you sure you want to permanently delete loan ${loan.loanNumber}?',
+      confirmLabel: 'Delete Loan',
+      confirmButtonColor: AppColors.kDanger,
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        await _loanService.deleteLoan(loan.id);
+        await _loadAll();
+        if (!mounted) return;
+        ToastService.show(
+          title: 'Loan deleted',
+          message: '${loan.loanNumber} was deleted successfully',
+          type: ToastType.success,
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ToastService.show(
+          title: 'Could not delete loan',
           message: e.toString(),
           type: ToastType.error,
         );
@@ -729,10 +792,15 @@ class _LoansScreenState extends State<LoansScreen> {
                   tooltip: 'Edit',
                 ),
                 IconButton(
-                  icon: const Icon(Icons.block_outlined, size: 20),
+                  icon: Icon(
+                    loan.status == 'Active'
+                        ? Icons.close
+                        : Icons.delete_outline,
+                    size: 20,
+                  ),
                   color: AppColors.kDanger,
-                  onPressed: () => _showCloseLoanDialog(loan),
-                  tooltip: 'Block/Delete',
+                  onPressed: () => _showLoanActionDialog(loan),
+                  tooltip: loan.status == 'Active' ? 'Close' : 'Delete',
                 ),
               ],
             ],
@@ -775,8 +843,14 @@ class _LoansScreenState extends State<LoansScreen> {
 class LoanDetailDialog extends StatefulWidget {
   final LoanRecord loan;
   final VoidCallback? onDelete;
+  final String actionLabel;
 
-  const LoanDetailDialog({super.key, required this.loan, this.onDelete});
+  const LoanDetailDialog({
+    super.key,
+    required this.loan,
+    this.onDelete,
+    this.actionLabel = 'Delete',
+  });
 
   @override
   State<LoanDetailDialog> createState() => _LoanDetailDialogState();
@@ -825,8 +899,8 @@ class _LoanDetailDialogState extends State<LoanDetailDialog> {
     final double totalAmount;
     switch (loan.collectionType) {
       case 'Daily':
-        totalAmount =
-            loan.principalAmount + loan.principalAmount * (loan.interestRate / 100);
+        totalAmount = loan.principalAmount +
+            loan.principalAmount * (loan.interestRate / 100);
         break;
       case 'Weekly':
         totalAmount = loan.principalAmount;
@@ -915,7 +989,6 @@ class _LoanDetailDialogState extends State<LoanDetailDialog> {
             ],
           ),
           const SizedBox(height: 20),
-
           LayoutBuilder(builder: (context, constraints) {
             final width = constraints.maxWidth;
             final cols = width < 420 ? 1 : (width < 700 ? 2 : 4);
@@ -929,6 +1002,8 @@ class _LoanDetailDialogState extends State<LoanDetailDialog> {
               MapEntry(isInterestOnly ? 'Monthly Interest' : 'EMI',
                   loan.formattedEmi),
               MapEntry('Outstanding', loan.formattedOutstanding),
+              MapEntry('Penalty', loan.formattedPenalty),
+              MapEntry('Total Due + Penalty', loan.formattedOutstandingWithPenalty),
               MapEntry('Interest', '${fmtRate(loan.interestRate)}%'),
               MapEntry('Duration', _durationLabel(loan)),
               MapEntry('Start Date', loan.startDate ?? '-'),
@@ -944,7 +1019,6 @@ class _LoanDetailDialogState extends State<LoanDetailDialog> {
                   .toList(),
             );
           }),
-
           const SizedBox(height: 24),
           Wrap(
             alignment: WrapAlignment.spaceBetween,
@@ -966,30 +1040,34 @@ class _LoanDetailDialogState extends State<LoanDetailDialog> {
                         size: 18),
                     label: Text(_showSchedule ? 'Hide Schedule' : 'Schedule'),
                   ),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                            content: Text('Downloading ${loan.loanNumber}')),
-                      );
-                    },
-                    icon: const Icon(Icons.download_outlined, size: 18),
-                    label: const Text('Download'),
-                  ),
+                  // OutlinedButton.icon(
+                  //   onPressed: () {
+                  //     ScaffoldMessenger.of(context).showSnackBar(
+                  //       SnackBar(
+                  //           content: Text('Downloading ${loan.loanNumber}')),
+                  //     );
+                  //   },
+                  //   icon: const Icon(Icons.download_outlined, size: 18),
+                  //   label: const Text('Download'),
+                  // ),
                   OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.kDanger,
                       side: const BorderSide(color: AppColors.kDanger),
                     ),
                     onPressed: widget.onDelete,
-                    icon: const Icon(Icons.delete_outline, size: 18),
-                    label: const Text('Delete'),
+                    icon: Icon(
+                      widget.actionLabel == 'Close'
+                          ? Icons.close
+                          : Icons.delete_outline,
+                      size: 18,
+                    ),
+                    label: Text(widget.actionLabel),
                   ),
                 ],
               ),
             ],
           ),
-
           if (_showSchedule) ...[
             const SizedBox(height: 20),
             Row(
@@ -1076,6 +1154,9 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
   Customer? _selectedCustomer;
   Agent? _selectedAgent;
   bool _saving = false;
+  bool _penaltyEnabled = false;
+  final TextEditingController _penaltyRateController = TextEditingController();
+  final TextEditingController _weeklyPenaltyController = TextEditingController();
 
   bool _loadingHpNumber = false;
 
@@ -1098,6 +1179,9 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
               ? 'Monthly Interest'
               : 'Monthly EMI')
           : loan.collectionType; // 'Weekly' or 'Daily'
+      _penaltyEnabled = loan.penaltyEnabled;
+      _penaltyRateController.text = loan.penaltyRatePerDay.toStringAsFixed(0);
+      _weeklyPenaltyController.text = loan.penaltyPerWeek.toStringAsFixed(0);
       if (_collectionType == 'Daily') {
         _dailyDays = loan.durationUnits == 100 ? 100 : 60;
       }
@@ -1124,18 +1208,28 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
     _amountController = TextEditingController(
         text: loan != null ? loan.principalAmount.toStringAsFixed(0) : '');
     _interestController = TextEditingController(
-        text: loan != null ? fmtRate(loan.interestRate) : _defaultRateFor(_collectionType));
+        text: loan != null
+            ? fmtRate(loan.interestRate)
+            : _defaultRateFor(_collectionType));
     _durationController = TextEditingController(
         text: loan != null &&
                 (_collectionType == 'Monthly EMI' ||
                     _collectionType == 'Monthly Interest')
             ? loan.durationUnits.toString()
             : '10');
-    _startDateController = TextEditingController(text: loan?.startDate ?? '');
+    final today = DateTime.now();
+    final defaultStartDate =
+        '${today.day.toString().padLeft(2, '0')}/${today.month.toString().padLeft(2, '0')}/${today.year}';
+    _startDateController =
+        TextEditingController(text: loan?.startDate ?? defaultStartDate);
     _feeController = TextEditingController(
         text: loan != null ? loan.processingFee.toStringAsFixed(0) : '');
     _notesController =
         TextEditingController(text: stripMonthlyInterestMarker(loan?.notes));
+    if (loan == null) {
+      _penaltyRateController.text = '';
+      _weeklyPenaltyController.text = '';
+    }
 
     // Live recalculation: any keystroke in these fields immediately updates
     // the summary cards + schedule preview below via setState.
@@ -1191,6 +1285,9 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
     _interestController.removeListener(_rebuild);
     _durationController.removeListener(_rebuild);
     _startDateController.removeListener(_rebuild);
+
+    _penaltyRateController.dispose();
+    _weeklyPenaltyController.dispose();
 
     _loanNumberController.dispose();
     _amountController.dispose();
@@ -1276,9 +1373,10 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
     final periods = _duration;
     final installment = _currentInstallment();
     final totalAmount = _currentTotalRepaymentAmount();
-    final frequency = (_collectionType == 'Weekly' || _collectionType == 'Daily')
-        ? _collectionType
-        : 'Monthly';
+    final frequency =
+        (_collectionType == 'Weekly' || _collectionType == 'Daily')
+            ? _collectionType
+            : 'Monthly';
 
     if (periods <= 0 || installment <= 0) return;
 
@@ -1328,6 +1426,9 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
 
     final notesForSave = _buildNotesForSave();
 
+    final penaltyRate = double.tryParse(_penaltyRateController.text) ?? 0;
+    final weeklyPenalty = double.tryParse(_weeklyPenaltyController.text) ?? 0;
+
     return <String, dynamic>{
       if (widget.isEdit) 'loan_number': _loanNumberController.text,
       'customer_id': _selectedCustomer?.id,
@@ -1345,6 +1446,10 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
       'outstanding_balance': widget.loan?.outstandingBalance ?? _principal,
       'emi': _currentInstallment(),
       'processing_fee': double.tryParse(_feeController.text) ?? 0,
+      'penalty_enabled': _penaltyEnabled,
+      'penalty_rate_per_day': penaltyRate,
+      'penalty_per_week': weeklyPenalty,
+      'penalty_amount': 0,
       'status':
           approve ? 'active' : (widget.loan?.status.toLowerCase() ?? 'pending'),
       if (notesForSave.isNotEmpty) 'notes': notesForSave,
@@ -1378,10 +1483,9 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
     }
   }
 
-  double _calcMonthlyEmiTotalInterest() =>
-      (_principal > 0 && _duration > 0)
-          ? _principal * (_interestRate / 100) * _duration
-          : 0;
+  double _calcMonthlyEmiTotalInterest() => (_principal > 0 && _duration > 0)
+      ? _principal * (_interestRate / 100) * _duration
+      : 0;
 
   double _calcMonthlyEmiTotalRepayment() =>
       _principal + _calcMonthlyEmiTotalInterest();
@@ -1401,10 +1505,15 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
   double _calcDailyAddedInterest() => _principal * (_interestRate / 100);
 
   double _calcDailyTotalRepayment() =>
-      _principal + _calcDailyAddedInterest();
+      _dailyDays == 100 ? _principal : _principal + _calcDailyAddedInterest();
 
-  double _calcDailyInstallment() =>
-      _dailyDays > 0 ? _calcDailyTotalRepayment() / _dailyDays : 0;
+  double _calcDailyInstallment() => _dailyDays == 100
+      ? (_dailyDays > 0 ? _principal / _dailyDays : 0)
+      : (_dailyDays > 0 ? _calcDailyTotalRepayment() / _dailyDays : 0);
+
+  double _calcDailyDisbursed() => _dailyDays == 100
+      ? (_principal - _calcDailyAddedInterest()).clamp(0, double.infinity)
+      : _principal;
 
   @override
   Widget build(BuildContext context) {
@@ -1448,13 +1557,15 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
                 children: [
                   _responsiveRow(
                     isNarrow,
-                    _buildTextField('HP NUMBER',
+                    _buildTextField(
+                        'HP NUMBER',
                         widget.isEdit
                             ? ''
                             : (_loadingHpNumber
                                 ? 'Loading...'
                                 : 'Auto-generated by server'),
-                        enabled: false, controller: _loanNumberController),
+                        enabled: false,
+                        controller: _loanNumberController),
                     _buildCustomerField(),
                   ),
                   const SizedBox(height: 16),
@@ -1470,6 +1581,8 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
               );
             },
           ),
+          const SizedBox(height: 16),
+          _buildPenaltyConfiguration(),
           const SizedBox(height: 16),
           _buildTextField('NOTES', 'Optional notes...',
               maxLines: 2, controller: _notesController),
@@ -1735,8 +1848,7 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
               isNarrow,
               _buildTextField('DURATION (MONTHS) *', '10',
                   controller: _durationController),
-              _buildTextField('START DATE *', '10/07/2026',
-                  controller: _startDateController),
+              _buildStartDateField(),
             ),
           ],
         );
@@ -1753,13 +1865,11 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
               isNarrow,
               _buildRateFieldWithChips(
                   'MONTHLY INTEREST RATE (%) *', const [2, 2.5, 3, 4, 5]),
-              _buildTextField(
-                  'LOAN TENURE / DURATION (MONTHS) *', '10',
+              _buildTextField('LOAN TENURE / DURATION (MONTHS) *', '10',
                   controller: _durationController),
             ),
             const SizedBox(height: 16),
-            _buildTextField('START DATE *', '10/07/2026',
-                controller: _startDateController),
+            _buildStartDateField(),
           ],
         );
 
@@ -1776,8 +1886,7 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
             _responsiveRow(
               isNarrow,
               _buildDisabledField('DURATION', '10 Weeks'),
-              _buildTextField('START DATE *', '10/07/2026',
-                  controller: _startDateController),
+              _buildStartDateField(),
             ),
           ],
         );
@@ -1795,8 +1904,7 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
             _responsiveRow(
               isNarrow,
               _buildDailyPlanDropdown(),
-              _buildTextField('START DATE *', '10/07/2026',
-                  controller: _startDateController),
+              _buildStartDateField(),
             ),
           ],
         );
@@ -1946,6 +2054,106 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
 
   // Dynamic Calculation Display Section — rebuilds on every keystroke because
   // the amount/interest/duration controllers call setState via _rebuild().
+  Widget _buildPenaltyConfiguration() {
+    final bool showDaily = _collectionType == 'Monthly EMI' || _collectionType == 'Monthly Interest';
+    final bool showWeekly = _collectionType == 'Weekly';
+
+    if (!showDaily && !showWeekly) {
+      return const SizedBox.shrink();
+    }
+
+    final String title = showWeekly ? 'Weekly Default Penalty' : 'Overdue Daily Penalty';
+    final String helper = showWeekly
+        ? 'Charged for every week the installment stays unpaid past due date'
+        : 'Apply a custom daily penalty amount for every day a monthly payment is overdue';
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF8E7),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.kGold.withOpacity(0.7)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: AppColors.kWarning, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: AppColors.kTextDark,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Spacer(),
+              Switch(
+                value: _penaltyEnabled,
+                onChanged: (value) => setState(() => _penaltyEnabled = value),
+                activeColor: AppColors.kGold,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            helper,
+            style: const TextStyle(fontSize: 12, color: AppColors.kTextMuted),
+          ),
+          const SizedBox(height: 12),
+          if (showDaily)
+            Row(
+              children: [
+                Expanded(
+                  child: _buildTextField('DAILY PENALTY RATE (₹ / DAY) *', '₹ 10',
+                      controller: _penaltyRateController),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.kBackground,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'e.g., if overdue by 10 days, late penalty = 10 × ₹10 = ₹100',
+                      style: const TextStyle(fontSize: 12, color: AppColors.kTextMuted),
+                    ),
+                  ),
+                ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: _buildTextField('PENALTY PER MISSED WEEK (₹)', 'e.g. 100',
+                      controller: _weeklyPenaltyController),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.kBackground,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'Leave blank to use the automatic rate.',
+                      style: TextStyle(fontSize: 12, color: AppColors.kTextMuted),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDynamicSummarySection() {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -2040,8 +2248,9 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
           default: // Daily
             {
               final installment = _calcDailyInstallment();
-              final addedInterest = _calcDailyAddedInterest();
+              final interest = _calcDailyAddedInterest();
               final totalRepayment = _calcDailyTotalRepayment();
+              final isUpfrontDeduction = _dailyDays == 100;
 
               cards = [
                 _buildSummaryCard(
@@ -2052,17 +2261,23 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
                     subtitle:
                         '× $_dailyDays days = ${LoanRecord.formatRupees(totalRepayment)}'),
                 _buildSummaryCard(
-                    'Interest (added)',
-                    '₹${addedInterest.toStringAsFixed(0)}',
+                    isUpfrontDeduction
+                        ? 'Interest (deducted)'
+                        : 'Interest (added)',
+                    '₹${interest.toStringAsFixed(0)}',
                     const Color(0xFFFFFBEB),
                     AppColors.kWarning,
-                    subtitle: 'Added to repayment'),
+                    subtitle: isUpfrontDeduction
+                        ? 'Deducted upfront'
+                        : 'Added to repayment'),
                 _buildSummaryCard(
                     'Amount Disbursed to Borrower',
-                    LoanRecord.formatRupees(_principal),
+                    LoanRecord.formatRupees(_calcDailyDisbursed()),
                     const Color(0xFFF0FDF4),
                     AppColors.kSuccess,
-                    subtitle: 'Full loan amount'),
+                    subtitle: isUpfrontDeduction
+                        ? 'Principal − Interest'
+                        : 'Full loan amount'),
               ];
             }
         }
@@ -2104,9 +2319,10 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
       return const SizedBox.shrink();
     }
 
-    final frequency = (_collectionType == 'Weekly' || _collectionType == 'Daily')
-        ? _collectionType
-        : 'Monthly';
+    final frequency =
+        (_collectionType == 'Weekly' || _collectionType == 'Daily')
+            ? _collectionType
+            : 'Monthly';
 
     final schedule = buildRepaymentSchedule(
       collectionType: frequency,
@@ -2162,10 +2378,36 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
     );
   }
 
+  Future<void> _selectStartDate() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate:
+          tryParseFlexibleDate(_startDateController.text) ?? DateTime.now(),
+      firstDate: DateTime(1900),
+      lastDate: DateTime(2100),
+    );
+    if (selected == null || !mounted) return;
+
+    _startDateController.text =
+        '${selected.day.toString().padLeft(2, '0')}/${selected.month.toString().padLeft(2, '0')}/${selected.year}';
+  }
+
+  Widget _buildStartDateField() {
+    return _buildTextField(
+      'START DATE *',
+      '10/07/2026',
+      controller: _startDateController,
+      readOnly: true,
+      onTap: _selectStartDate,
+    );
+  }
+
   Widget _buildTextField(String label, String hint,
       {bool enabled = true,
       TextEditingController? controller,
-      int maxLines = 1}) {
+      int maxLines = 1,
+      bool readOnly = false,
+      VoidCallback? onTap}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2178,6 +2420,8 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
         TextField(
           controller: controller,
           enabled: enabled,
+          readOnly: readOnly,
+          onTap: onTap,
           maxLines: maxLines,
           keyboardType: label.contains('AMOUNT') ||
                   label.contains('INTEREST') ||
@@ -2187,6 +2431,7 @@ class _LoanFormDialogState extends State<LoanFormDialog> {
           decoration: InputDecoration(
             hintText: hint,
             isDense: true,
+            suffixIcon: onTap != null ? const Icon(Icons.calendar_today) : null,
           ),
         ),
       ],

@@ -16,14 +16,14 @@ class AppBranding {
   });
 
   const AppBranding.fallback()
-      : companyName = 'FinCollect',
+      : companyName = 'RR Groups',
         logoUrl = null;
 
   factory AppBranding.fromJson(Map<String, dynamic> json) {
     final name = (json['company_name'] ?? '').toString().trim();
     final rawLogo = (json['logo_url'] ?? '').toString().trim();
     return AppBranding(
-      companyName: name.isEmpty ? 'FinCollect' : name,
+      companyName: name.isEmpty ? 'RR Groups' : name,
       logoUrl: _resolveLogoUrl(rawLogo),
     );
   }

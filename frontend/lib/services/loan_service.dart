@@ -1,6 +1,7 @@
 import '../models/loan_record.dart';
 import '../models/customer.dart';
 import '../models/agent.dart';
+import '../models/repayment_installment.dart';
 import 'api_client.dart';
 
 /// Loan-specific data access. Resolves `customer_id` / `agent_id` into
@@ -29,23 +30,44 @@ class LoanService {
     List<Agent> agents = const [],
   }) async {
     final rows = await _api.list('loans');
-    final customerById = {for (final c in customers) c.id: c.name};
-    final agentById = {for (final a in agents) a.id: a.name};
+    final customerById = <String, Customer>{};
+    for (final customer in customers) {
+      customerById[customer.id] = customer;
+      if (customer.customerId.isNotEmpty) {
+        customerById[customer.customerId] = customer;
+      }
+    }
+    final agentById = {for (final agent in agents) agent.id: agent};
 
     return rows.map((row) {
       final loan = LoanRecord.fromJson(row);
-      if (loan.customerId != null &&
-          customerById.containsKey(loan.customerId) &&
+      final customer = loan.customerId == null
+          ? null
+          : customerById[loan.customerId!];
+      if (customer != null &&
           (loan.customerName.isEmpty || loan.customerName == 'Unknown')) {
-        loan.customerName = customerById[loan.customerId]!;
+        loan.customerName = customer.name;
       }
       if (loan.agentId != null &&
           agentById.containsKey(loan.agentId) &&
           (loan.agentName.isEmpty || loan.agentName == 'Unassigned')) {
-        loan.agentName = agentById[loan.agentId]!;
+        loan.agentName = agentById[loan.agentId!]!.name;
+      }
+      if ((loan.agentId == null || loan.agentId!.isEmpty) &&
+          (loan.agentName.isEmpty || loan.agentName == 'Unassigned') &&
+          customer?.assignedAgent != null) {
+        loan.agentName = customer!.assignedAgentName ??
+            agentById[customer.assignedAgent!]?.name ?? 'Unassigned';
       }
       return loan;
     }).toList();
+  }
+
+  Future<List<RepaymentInstallment>> fetchRepaymentSchedule(String loanId) async {
+    final rows = await _api.list('repayment_schedule', query: {'loan_id': loanId});
+    final schedule = rows.map(RepaymentInstallment.fromJson).toList();
+    schedule.sort((a, b) => a.installmentNo.compareTo(b.installmentNo));
+    return schedule;
   }
 
   Future<LoanRecord> createLoan(Map<String, dynamic> data) async {
@@ -60,7 +82,7 @@ class LoanService {
 
   Future<LoanRecord> closeLoan(String id) async {
     final row = await _api.update('loans', id, {
-      'status': 'Closed',
+      'status': 'closed',
       'outstanding_balance': 0,
     });
     return LoanRecord.fromJson(row);

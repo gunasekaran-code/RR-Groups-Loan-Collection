@@ -38,6 +38,8 @@ class AppShell extends StatefulWidget {
   final Widget body;
   final List<Widget>? actions;
   final Widget? floatingActionButton;
+  final bool showBackButton;
+  final VoidCallback? onBack;
 
   const AppShell({
     super.key,
@@ -47,6 +49,8 @@ class AppShell extends StatefulWidget {
     required this.body,
     this.actions,
     this.floatingActionButton,
+    this.showBackButton = false,
+    this.onBack,
   });
 
   static const Map<String, String> _tabTitles = {
@@ -111,6 +115,13 @@ class _AppShellState extends State<AppShell> {
             fontSize: 18,
           ),
         ),
+        leading: widget.showBackButton
+            ? IconButton(
+                tooltip: 'Back to collections',
+                icon: const Icon(Icons.arrow_back),
+                onPressed: widget.onBack ?? () => Navigator.of(context).pop(),
+              )
+            : null,
         actions: [
           AnimatedBuilder(
             animation: NotificationState.instance,
@@ -178,7 +189,9 @@ class _AppShellState extends State<AppShell> {
           ),
         ],
       ),
-      drawer: AppDrawer(currentRoute: currentRoute),
+        drawer: widget.showBackButton
+          ? null
+          : AppDrawer(currentRoute: currentRoute),
       body: SafeArea(
         child: _buildActiveBody(),
       ),

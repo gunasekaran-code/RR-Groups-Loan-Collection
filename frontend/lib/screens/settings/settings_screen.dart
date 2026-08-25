@@ -3,14 +3,13 @@ import '../../routes/app_routes.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_shell.dart';
 import '../../theme/glass_toast.dart';
+import '../../theme/locale_controller.dart';
 import '../../theme/theme_controller.dart';
+import '../../l10n/generated/app_localizations.dart';
 import '../../screens/help/contact_support_screen.dart';
 import '../../screens/help/faq_screen.dart';
 
 
-/// Settings screen — simple grouped menu (Profile, Notifications, Security,
-/// Preferences, Help, Logout). Replaces the old 3-tab (Company/System/SMS)
-/// settings layout with a single scrollable list of sections.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -19,26 +18,20 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  // Notifications — TODO(backend): load/save via GET|PUT /api/settings/notifications.
   bool _paymentReminders = true;
   bool _groupUpdates = true;
-
-  // Security — TODO(backend): load/save via GET|PUT /api/settings/security.
   bool _biometricLogin = false;
-
-  // Preferences — TODO(backend): load/save via GET|PUT /api/settings/preferences.
   bool get _darkMode => ThemeController.mode.value == ThemeMode.dark;
-  String _language = 'English';
-
-  void _notify(String label) {
+  void _notify(String label, AppLocalizations l10n) {
     ToastService.show(
       title: label,
-      message: 'Connect backend to enable',
+      message: l10n.connectBackendToEnable,
       type: ToastType.info,
     );
   }
 
   void _openLanguagePicker() {
+    final l10n = AppLocalizations.of(context);
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.kSurface,
@@ -46,28 +39,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) {
-        const options = ['English', 'हिन्दी', 'தமிழ்', 'తెలుగు'];
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Padding(
+              Padding(
                 padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Text('Select language',
+                child: Text(l10n.selectLanguage,
                     style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                         color: AppColors.kTextDark)),
               ),
-              for (final opt in options)
+              for (final option in LocaleController.supported.entries)
                 ListTile(
-                  title: Text(opt,
+                  title: Text(option.key,
                       style: const TextStyle(color: AppColors.kTextDark)),
-                  trailing: opt == _language
+                  trailing: option.value == LocaleController.locale.value
                       ? const Icon(Icons.check, color: AppColors.kGold)
                       : null,
                   onTap: () {
-                    setState(() => _language = opt);
+                    LocaleController.locale.value = option.value;
                     Navigator.of(ctx).pop();
                   },
                 ),
@@ -80,26 +72,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _confirmLogout() async {
+    final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.kSurface,
-        title: const Text('Log out',
-            style: TextStyle(color: AppColors.kTextDark)),
-        content: const Text(
-          'Are you sure you want to log out of your account?',
+        title: Text(l10n.logout, style: TextStyle(color: AppColors.kTextDark)),
+        content: Text(
+          l10n.confirmLogoutQuestion,
           style: TextStyle(color: AppColors.kTextMuted),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel',
+            child: Text(l10n.cancel,
                 style: TextStyle(color: AppColors.kTextMuted)),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Log out',
-                style: TextStyle(color: AppColors.kDanger)),
+            child:
+                Text(l10n.logout, style: TextStyle(color: AppColors.kDanger)),
           ),
         ],
       ),
@@ -107,7 +99,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (confirmed == true) {
       // TODO(backend): clear auth/session, then route to login.
-      _notify('Logged out');
+      _notify(l10n.loggedOut, l10n);
       if (mounted) {
         Navigator.of(context)
             .pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
@@ -117,19 +109,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return AppShell(
       currentRoute: AppRoutes.settings,
-      title: 'Settings',
+      title: l10n.settings,
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           _Section(
             icon: Icons.person_outline,
-            title: 'Profile',
+            title: l10n.profile,
             children: [
               _SettingsTile(
                 icon: Icons.edit_outlined,
-                label: 'Edit Profile',
+                label: l10n.editProfile,
                 onTap: () => Navigator.of(context).pushNamed(AppRoutes.profile),
               ),
             ],
@@ -137,57 +130,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 14),
           _Section(
             icon: Icons.notifications_outlined,
-            title: 'Notifications',
+            title: l10n.notifications,
             children: [
               _SwitchTile(
                 icon: Icons.payments_outlined,
-                label: 'Payment Reminders',
+                label: l10n.paymentReminders,
                 value: _paymentReminders,
                 onChanged: (v) => setState(() => _paymentReminders = v),
               ),
               _SwitchTile(
                 icon: Icons.groups_outlined,
-                label: 'Group Updates',
+                label: l10n.groupUpdates,
                 value: _groupUpdates,
                 onChanged: (v) => setState(() => _groupUpdates = v),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          _Section(
-            icon: Icons.lock_outline,
-            title: 'Security',
-            children: [
-              _SettingsTile(
-                icon: Icons.pin_outlined,
-                label: 'Change MPIN',
-                onTap: () => _notify('Change MPIN'),
-              ),
-              _SwitchTile(
-                icon: Icons.fingerprint,
-                label: 'Biometric Login',
-                value: _biometricLogin,
-                onChanged: (v) => setState(() => _biometricLogin = v),
-              ),
-            ],
-          ),
+          // const SizedBox(height: 14),
+          // _Section(
+          //   icon: Icons.lock_outline,
+          //   title: l10n.security,
+          //   children: [
+          //     _SettingsTile(
+          //       icon: Icons.pin_outlined,
+          //       label: l10n.changeMpin,
+          //       onTap: () => _notify(l10n.changeMpin, l10n),
+          //     ),
+          //     // _SwitchTile(
+          //     //   icon: Icons.fingerprint,
+          //     //   label: l10n.biometricLogin,
+          //     //   value: _biometricLogin,
+          //     //   onChanged: (v) => setState(() => _biometricLogin = v),
+          //     // ),
+          //   ],
+          // ),
           const SizedBox(height: 14),
           _Section(
             icon: Icons.public_outlined,
-            title: 'Preferences',
+            title: l10n.preferences,
             children: [
               _SettingsTile(
                 icon: Icons.language_outlined,
-                label: 'Language',
-                trailingText: _language,
+                label: l10n.language,
+                trailingText: LocaleController.labelFor(
+                  LocaleController.locale.value,
+                ),
                 onTap: _openLanguagePicker,
               ),
               _SwitchTile(
                 icon: Icons.dark_mode_outlined,
-                label: 'Dark Mode',
+                label: l10n.darkMode,
                 value: _darkMode,
                 onChanged: (v) {
-                  ThemeController.mode.value = v ? ThemeMode.dark : ThemeMode.light;
+                  ThemeController.mode.value =
+                      v ? ThemeMode.dark : ThemeMode.light;
                   setState(() {});
                 },
               ),
@@ -196,11 +192,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 14),
           _Section(
             icon: Icons.build_outlined,
-            title: 'Help',
+            title: l10n.help,
             children: [
               _SettingsTile(
                 icon: Icons.support_agent_outlined,
-                label: 'Contact Support',
+                label: l10n.contactSupport,
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
                       builder: (_) => const ContactSupportScreen()),
@@ -208,7 +204,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               _SettingsTile(
                 icon: Icons.help_outline,
-                label: 'FAQ',
+                label: l10n.faq,
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const FaqScreen()),
                 ),
@@ -230,7 +226,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: InkWell(
                 borderRadius: BorderRadius.circular(16),
                 onTap: _confirmLogout,
-                child: const Padding(
+                child: Padding(
                   padding: EdgeInsets.symmetric(vertical: 16, horizontal: 16),
                   child: Row(
                     children: [
@@ -238,7 +234,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           size: 20, color: AppColors.kDanger),
                       SizedBox(width: 12),
                       Text(
-                        'Logout',
+                        l10n.logout,
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -310,8 +306,6 @@ class _Section extends StatelessWidget {
   }
 }
 
-/// A tappable row with an icon, label, and chevron (optionally a trailing
-/// value like the current language).
 class _SettingsTile extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -339,8 +333,8 @@ class _SettingsTile extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  style: const TextStyle(
-                      fontSize: 14, color: AppColors.kTextDark),
+                  style:
+                      const TextStyle(fontSize: 14, color: AppColors.kTextDark),
                 ),
               ),
               if (trailingText != null) ...[

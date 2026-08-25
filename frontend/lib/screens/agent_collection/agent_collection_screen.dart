@@ -63,7 +63,8 @@ class _AgentCollectionScreenState extends State<AgentCollectionScreen> {
   List<AgentCustomerGroup> get _filteredGroups =>
       _groups.where((g) => g.matchesQuery(_query)).toList();
 
-  double get _totalDue => _groups.fold(0.0, (sum, g) => sum + g.totalDue);
+  double get _totalDue =>
+      _groups.fold(0.0, (sum, g) => sum + g.totalDueWithPenalty);
 
   void _openDetail(AgentCustomerGroup group) async {
     await Navigator.of(context).push(
@@ -89,7 +90,14 @@ class _AgentCollectionScreenState extends State<AgentCollectionScreen> {
         customerName: group.customerName,
         subtitleLabel: 'Loan Type',
         subtitleValue: group.displayLoanType,
-        prefillAmount: group.totalDue,
+        prefillAmount: group.totalDueWithPenalty,
+        installmentAmount: group.items.length == 1
+          ? group.items.first.installmentAmount
+          : null,
+        dueAmount: group.totalDue,
+        penaltyAmount: group.totalPenalty,
+        outstandingBalance: group.totalOutstanding,
+        dueCount: group.items.length,
         onSubmit: (amount, method, date, notes) =>
             _collectForGroup(group, amount, method, date, notes),
       ),
@@ -415,8 +423,32 @@ class _CustomerGroupCard extends StatelessWidget {
                 Expanded(
                   child: _InfoBox(
                       label: 'Due Now',
-                      value: AgentCollectionItem.formatAmount(group.totalDue)),
+                      value: AgentCollectionItem.formatAmount(group.totalDueWithPenalty)),
                 ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Due Amount: ${AgentCollectionItem.formatAmount(group.totalDue)}',
+                    style: const TextStyle(
+                        color: AppColors.kDanger,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600),
+                  ),
+                ),
+                if (group.totalPenalty > 0)
+                  Expanded(
+                    child: Text(
+                      'Penalty: ${AgentCollectionItem.formatAmount(group.totalPenalty)}',
+                      style: const TextStyle(
+                          color: AppColors.kDanger,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 10),
