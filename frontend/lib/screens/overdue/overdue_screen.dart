@@ -7,10 +7,8 @@ import '../../widgets/app_shell.dart';
 import '../../theme/confirm_dialog.dart';
 import '../../models/overdue.dart';
 import '../../services/overdue_api_service.dart';
+import '../../l10n/generated/app_localizations.dart';
 
-/// -----------------------------------------------------------------------
-/// HELPERS
-/// -----------------------------------------------------------------------
 String formatIndianCurrency(num value, {bool withSymbol = true}) {
   final isNegative = value < 0;
   final intVal = value.abs().round();
@@ -39,18 +37,8 @@ String formatIndianCurrency(num value, {bool withSymbol = true}) {
 String formatDate(DateTime? d) {
   if (d == null) return '—';
   const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
+    'Jan',    'Feb',    'Mar',    'Apr',
+    'May',    'Jun',    'Jul',    'Aug',    'Sep',    'Oct',    'Nov',    'Dec',
   ];
   final dd = d.day.toString().padLeft(2, '0');
   return '$dd ${months[d.month - 1]} ${d.year}';
@@ -64,9 +52,6 @@ String _normalizePhone(String raw) {
   return digits.replaceAll('+', '');
 }
 
-/// -----------------------------------------------------------------------
-/// SCREEN
-/// -----------------------------------------------------------------------
 class OverdueScreen extends StatefulWidget {
   const OverdueScreen({super.key});
 
@@ -113,8 +98,9 @@ class _OverdueScreenState extends State<OverdueScreen> {
       });
     } catch (e) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
       setState(() {
-        _errorMessage = 'Something went wrong. Please try again.';
+        _errorMessage = l10n.overdueGenericError;
         _isLoading = false;
       });
     }
@@ -152,11 +138,12 @@ class _OverdueScreenState extends State<OverdueScreen> {
   int get _criticalCount => _accounts.where((a) => a.isCritical).length;
 
   Future<void> _confirmMessage(OverdueAccount account) async {
+    final l10n = AppLocalizations.of(context);
     final phone = account.phone.trim();
     if (phone.isEmpty) {
       ToastService.show(
-        title: 'No phone number',
-        message: 'This overdue account does not have a mobile number yet.',
+        title: l10n.overdueNoPhoneTitle,
+        message: l10n.overdueNoPhoneMessage,
         type: ToastType.error,
       );
       return;
@@ -164,23 +151,28 @@ class _OverdueScreenState extends State<OverdueScreen> {
 
     final confirmed = await AppConfirmDialog.show(
       context: context,
-      title: 'Send Message Reminder',
-      message: 'Open WhatsApp for ${account.customerName}?\n$phone',
-      confirmLabel: 'Send',
+      title: l10n.overdueSendMessageTitle,
+      message: l10n.overdueSendMessageBody(account.customerName, phone),
+      confirmLabel: l10n.overdueSendLabel,
       confirmButtonColor: AppColors.kInfo,
     );
 
     if (confirmed == true && mounted) {
       final normalized = _normalizePhone(phone);
-      final text =
-          'Hello ${account.customerName}, your loan ${account.loanNumber} is overdue by ${account.daysOverdue} days. Please contact us to clear the pending amount of ${formatIndianCurrency(account.overdueAmount)}.';
+      final text = l10n.overdueWhatsappTemplate(
+        account.customerName,
+        account.loanNumber,
+        account.daysOverdue,
+        formatIndianCurrency(account.overdueAmount),
+      );
       final uri = Uri.parse(
         'https://wa.me/$normalized?text=${Uri.encodeComponent(text)}',
       );
 
       if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        if (!mounted) return;
         ToastService.show(
-          title: 'Unable to open WhatsApp',
+          title: l10n.overdueWhatsappFailedTitle,
           message: phone,
           type: ToastType.error,
         );
@@ -189,11 +181,12 @@ class _OverdueScreenState extends State<OverdueScreen> {
   }
 
   Future<void> _confirmCall(OverdueAccount account) async {
+    final l10n = AppLocalizations.of(context);
     final phone = account.phone.trim();
     if (phone.isEmpty) {
       ToastService.show(
-        title: 'No phone number',
-        message: 'This overdue account does not have a mobile number yet.',
+        title: l10n.overdueNoPhoneTitle,
+        message: l10n.overdueNoPhoneMessage,
         type: ToastType.error,
       );
       return;
@@ -201,17 +194,18 @@ class _OverdueScreenState extends State<OverdueScreen> {
 
     final confirmed = await AppConfirmDialog.show(
       context: context,
-      title: 'Call Customer',
-      message: '${account.customerName}\n$phone',
-      confirmLabel: 'Call',
+      title: l10n.overdueCallTitle,
+      message: l10n.overdueCallBody(account.customerName, phone),
+      confirmLabel: l10n.overdueCallLabel,
       confirmButtonColor: AppColors.kGoldDark,
     );
 
     if (confirmed == true && mounted) {
       final uri = Uri.parse('tel:${phone.replaceAll(RegExp(r'[^0-9+]'), '')}');
       if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        if (!mounted) return;
         ToastService.show(
-          title: 'Unable to start call',
+          title: l10n.overdueCallFailedTitle,
           message: phone,
           type: ToastType.error,
         );
@@ -220,6 +214,7 @@ class _OverdueScreenState extends State<OverdueScreen> {
   }
 
   Future<void> _openAssignFollowUp(OverdueAccount account) async {
+    final l10n = AppLocalizations.of(context);
     final double maxSheetHeight = MediaQuery.of(context).size.height * 0.75;
     final double keyboardPadding = MediaQuery.of(context).viewInsets.bottom;
 
@@ -256,16 +251,13 @@ class _OverdueScreenState extends State<OverdueScreen> {
     );
 
     if (result != null) {
-      // NOTE: not persisted to backend — overdue.php has no field/endpoint
-      // for follow-up notes. This only updates local in-memory state, so it
-      // will reset next time the list is refetched. Flag if you want this
-      // saved server-side (needs a small schema/endpoint addition).
       setState(() {
         account.followUpNote = result.note;
         account.followUpDate = result.date;
       });
+      if (!mounted) return;
       ToastService.show(
-        title: 'Follow-up assigned',
+        title: l10n.overdueFollowUpAssignedTitle,
         message: account.customerName,
         type: ToastType.success,
       );
@@ -281,21 +273,23 @@ class _OverdueScreenState extends State<OverdueScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final filtered = _filtered;
     final screenWidth = MediaQuery.of(context).size.width;
     final isWide = screenWidth >= 720;
 
     return AppShell(
       currentRoute: AppRoutes.overdue,
-      title: 'Overdue Management',
+      title: l10n.overdueManagementTitle,
       body: RefreshIndicator(
         onRefresh: _onRefresh,
-        child: _buildBody(filtered, isWide),
+        child: _buildBody(filtered, isWide, l10n),
       ),
     );
   }
 
-  Widget _buildBody(List<OverdueAccount> filtered, bool isWide) {
+  Widget _buildBody(
+      List<OverdueAccount> filtered, bool isWide, AppLocalizations l10n) {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -319,7 +313,7 @@ class _OverdueScreenState extends State<OverdueScreen> {
           Center(
             child: OutlinedButton(
               onPressed: () => _loadAccounts(),
-              child: const Text('Retry'),
+              child: Text(l10n.retry),
             ),
           ),
         ],
@@ -332,10 +326,11 @@ class _OverdueScreenState extends State<OverdueScreen> {
       children: [
         Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Text(
-                'Track and follow up on overdue loan accounts',
-                style: TextStyle(color: AppColors.kTextMuted, fontSize: 14),
+                l10n.overdueSubtitle,
+                style: const TextStyle(
+                    color: AppColors.kTextMuted, fontSize: 14),
               ),
             ),
             if (_isRefreshing)
@@ -356,7 +351,7 @@ class _OverdueScreenState extends State<OverdueScreen> {
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(
-              '${_accounts.length} overdue',
+              l10n.overdueCountBadge(_accounts.length),
               style: const TextStyle(
                 color: AppColors.kDanger,
                 fontWeight: FontWeight.w600,
@@ -378,33 +373,33 @@ class _OverdueScreenState extends State<OverdueScreen> {
               icon: Icons.error_outline_rounded,
               iconBg: const Color(0xFFFEE2E2),
               iconColor: AppColors.kDanger,
-              label: 'TOTAL OVERDUE',
+              label: l10n.overdueStatTotalLabel,
               value: '${_accounts.length}',
-              sub: 'accounts',
+              sub: l10n.overdueStatTotalSub,
             ),
             _StatCard(
               icon: Icons.phone_in_talk_outlined,
               iconBg: const Color(0xFFFEE2E2),
               iconColor: AppColors.kDanger,
-              label: 'OVERDUE AMOUNT',
+              label: l10n.overdueStatAmountLabel,
               value: formatIndianCurrency(_totalOverdueAmount),
-              sub: 'outstanding',
+              sub: l10n.overdueStatAmountSub,
             ),
             _StatCard(
               icon: Icons.notifications_active_outlined,
               iconBg: const Color(0xFFFEF3C7),
               iconColor: AppColors.kWarning,
-              label: 'AVG DAYS OVERDUE',
-              value: '${_avgDaysOverdue.round()} d',
-              sub: 'across accounts',
+              label: l10n.overdueStatAvgDaysLabel,
+              value: l10n.overdueStatAvgDaysValue(_avgDaysOverdue.round()),
+              sub: l10n.overdueStatAvgDaysSub,
             ),
             _StatCard(
               icon: Icons.error_outline_rounded,
               iconBg: const Color(0xFFFEE2E2),
               iconColor: AppColors.kDanger,
-              label: 'CRITICAL (>30D)',
+              label: l10n.overdueStatCriticalLabel,
               value: '$_criticalCount',
-              sub: 'needs attention',
+              sub: l10n.overdueStatCriticalSub,
             ),
           ],
         ),
@@ -412,9 +407,9 @@ class _OverdueScreenState extends State<OverdueScreen> {
         TextField(
           controller: _searchController,
           onChanged: (_) => setState(() {}),
-          decoration: const InputDecoration(
-            hintText: 'Search customer or loan number...',
-            prefixIcon: Icon(Icons.search, color: AppColors.kTextMuted),
+          decoration: InputDecoration(
+            hintText: l10n.overdueSearchHint,
+            prefixIcon: const Icon(Icons.search, color: AppColors.kTextMuted),
             filled: true,
             fillColor: AppColors.kSurface,
           ),
@@ -434,11 +429,12 @@ class _OverdueScreenState extends State<OverdueScreen> {
               icon: const Icon(Icons.unfold_more_rounded,
                   color: AppColors.kTextMuted),
               style: const TextStyle(color: AppColors.kTextDark, fontSize: 15),
-              items: const [
+              items: [
                 DropdownMenuItem(
-                    value: 'All overdue', child: Text('All overdue')),
+                    value: 'All overdue', child: Text(l10n.overdueFilterAll)),
                 DropdownMenuItem(
-                    value: 'Critical (>30d)', child: Text('Critical (>30d)')),
+                    value: 'Critical (>30d)',
+                    child: Text(l10n.overdueFilterCritical)),
               ],
               onChanged: (v) => setState(() => _filter = v ?? 'All overdue'),
             ),
@@ -446,12 +442,12 @@ class _OverdueScreenState extends State<OverdueScreen> {
         ),
         const SizedBox(height: 20),
         if (filtered.isEmpty)
-          const Padding(
-            padding: EdgeInsets.only(top: 40),
+          Padding(
+            padding: const EdgeInsets.only(top: 40),
             child: Center(
               child: Text(
-                'No overdue accounts match your search.',
-                style: TextStyle(color: AppColors.kTextMuted),
+                l10n.overdueNoMatchMessage,
+                style: const TextStyle(color: AppColors.kTextMuted),
               ),
             ),
           )
@@ -472,9 +468,6 @@ class _OverdueScreenState extends State<OverdueScreen> {
   }
 }
 
-/// -----------------------------------------------------------------------
-/// STAT CARD
-/// -----------------------------------------------------------------------
 class _StatCard extends StatelessWidget {
   const _StatCard({
     required this.icon,
@@ -554,9 +547,6 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-/// -----------------------------------------------------------------------
-/// OVERDUE ACCOUNT CARD
-/// -----------------------------------------------------------------------
 class _OverdueCard extends StatelessWidget {
   const _OverdueCard({
     required this.account,
@@ -572,6 +562,7 @@ class _OverdueCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -620,9 +611,9 @@ class _OverdueCard extends StatelessWidget {
                   color: const Color(0xFFFEE2E2),
                   borderRadius: BorderRadius.circular(999),
                 ),
-                child: const Text(
-                  'Overdue',
-                  style: TextStyle(
+                child: Text(
+                  l10n.overdueBadgeLabel,
+                  style: const TextStyle(
                       color: AppColors.kDanger,
                       fontSize: 12,
                       fontWeight: FontWeight.w600),
@@ -634,11 +625,12 @@ class _OverdueCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                  child:
-                      _InfoBlock(label: 'Loan No.', value: account.loanNumber)),
+                  child: _InfoBlock(
+                      label: l10n.overdueLoanNumberLabel,
+                      value: account.loanNumber)),
               Expanded(
                 child: _InfoBlock(
-                  label: 'Due Amount',
+                  label: l10n.overdueDueAmountLabel,
                   value: formatIndianCurrency(account.overdueAmount),
                   valueColor: AppColors.kDanger,
                 ),
@@ -650,12 +642,12 @@ class _OverdueCard extends StatelessWidget {
             children: [
               Expanded(
                 child: _InfoBlock(
-                    label: 'Days Overdue',
-                    value: '${account.daysOverdue} days'),
+                    label: l10n.overdueDaysOverdueLabel,
+                    value: l10n.overdueDaysValue(account.daysOverdue)),
               ),
               Expanded(
                 child: _InfoBlock(
-                    label: 'Started',
+                    label: l10n.overdueStartedLabel,
                     value: formatDate(account.earliestDueDate)),
               ),
             ],
@@ -673,9 +665,9 @@ class _OverdueCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'FOLLOW-UP',
-                    style: TextStyle(
+                  Text(
+                    l10n.overdueFollowUpSectionLabel,
+                    style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                       color: AppColors.kTextMuted,
@@ -689,7 +681,8 @@ class _OverdueCard extends StatelessWidget {
                   if (account.followUpDate != null) ...[
                     const SizedBox(height: 4),
                     Text(
-                      'Due ${formatDate(account.followUpDate!)}',
+                      l10n.overdueFollowUpDueLabel(
+                          formatDate(account.followUpDate!)),
                       style: const TextStyle(
                           color: AppColors.kTextMuted, fontSize: 12),
                     ),
@@ -705,19 +698,19 @@ class _OverdueCard extends StatelessWidget {
               final buttons = <Widget>[
                 _ActionButton(
                   icon: Icons.chat_bubble_outline_rounded,
-                  label: 'Message',
+                  label: l10n.overdueActionMessage,
                   onTap: onMessage,
                   outlined: true,
                 ),
                 _ActionButton(
                   icon: Icons.call_outlined,
-                  label: 'Call',
+                  label: l10n.overdueActionCall,
                   onTap: onCall,
                   outlined: true,
                 ),
                 _ActionButton(
                   icon: Icons.person_add_alt_1_rounded,
-                  label: 'Assign Follow-up',
+                  label: l10n.overdueActionAssignFollowUp,
                   onTap: onAssignFollowUp,
                   outlined: false,
                 ),
@@ -819,9 +812,6 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
-/// -----------------------------------------------------------------------
-/// ASSIGN FOLLOW-UP DIALOG
-/// -----------------------------------------------------------------------
 class _FollowUpResult {
   _FollowUpResult(this.note, this.date);
   final String note;
@@ -872,13 +862,16 @@ class _AssignFollowUpDialogState extends State<_AssignFollowUpDialog> {
   }
 
   void _submit() {
+    final l10n = AppLocalizations.of(context);
     if (!_formKey.currentState!.validate()) return;
     Navigator.pop(
         context, _FollowUpResult(_noteCtrl.text.trim(), _followUpDate));
+    // l10n referenced above only to keep analyzer happy if unused elsewhere
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final a = widget.account;
     final dd = _followUpDate.day.toString().padLeft(2, '0');
     final mm = _followUpDate.month.toString().padLeft(2, '0');
@@ -895,9 +888,9 @@ class _AssignFollowUpDialogState extends State<_AssignFollowUpDialog> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Assign Follow-up',
-                  style: TextStyle(
+                Text(
+                  l10n.overdueAssignFollowUpTitle,
+                  style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
                     color: AppColors.kTextDark,
@@ -954,9 +947,9 @@ class _AssignFollowUpDialogState extends State<_AssignFollowUpDialog> {
                       color: const Color(0xFFFEE2E2),
                       borderRadius: BorderRadius.circular(999),
                     ),
-                    child: const Text(
-                      'Overdue',
-                      style: TextStyle(
+                    child: Text(
+                      l10n.overdueBadgeLabel,
+                      style: const TextStyle(
                           color: AppColors.kDanger,
                           fontSize: 12,
                           fontWeight: FontWeight.w600),
@@ -966,19 +959,19 @@ class _AssignFollowUpDialogState extends State<_AssignFollowUpDialog> {
               ),
             ),
             const SizedBox(height: 20),
-            const _FieldLabel('FOLLOW-UP NOTE'),
+            _FieldLabel(l10n.overdueFollowUpNoteFieldLabel),
             TextFormField(
               controller: _noteCtrl,
               minLines: 3,
               maxLines: 5,
-              decoration: const InputDecoration(
-                hintText: 'e.g. Called customer, promised to pay by Friday',
+              decoration: InputDecoration(
+                hintText: l10n.overdueFollowUpNoteHint,
               ),
               validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Required' : null,
+                  (v == null || v.trim().isEmpty) ? l10n.overdueFieldRequired : null,
             ),
             const SizedBox(height: 18),
-            const _FieldLabel('FOLLOW-UP DATE'),
+            _FieldLabel(l10n.overdueFollowUpDateFieldLabel),
             InkWell(
               onTap: _pickDate,
               borderRadius: BorderRadius.circular(12),
@@ -992,12 +985,13 @@ class _AssignFollowUpDialogState extends State<_AssignFollowUpDialog> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Started: ${formatDate(a.earliestDueDate)}',
+                  l10n.overdueStartedValue(formatDate(a.earliestDueDate)),
                   style: const TextStyle(
                       color: AppColors.kTextMuted, fontSize: 13),
                 ),
                 Text(
-                  'Outstanding: ${formatIndianCurrency(a.overdueAmount)}',
+                  l10n.overdueOutstandingValue(
+                      formatIndianCurrency(a.overdueAmount)),
                   style: const TextStyle(
                     color: AppColors.kTextDark,
                     fontSize: 13,
@@ -1012,12 +1006,12 @@ class _AssignFollowUpDialogState extends State<_AssignFollowUpDialog> {
               children: [
                 OutlinedButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
+                  child: Text(l10n.cancel),
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton(
                   onPressed: _submit,
-                  child: const Text('Save'),
+                  child: Text(l10n.save),
                 ),
               ],
             ),

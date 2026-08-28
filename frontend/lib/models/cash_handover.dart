@@ -120,12 +120,23 @@ class HandoverRecord {
 }
 
 /// Overall summary card data.
+///
+/// `totalCollected`/`cashCollected`/`onlineCollected` (and their `today*`
+/// counterparts) are derived from the real `collections` table — what the
+/// agent has actually received from customers — not from the `handovers`
+/// table, which only records what has since been physically settled to the
+/// office. `totalPending` is the gap between the two: money collected that
+/// hasn't been handed over (and verified) yet.
 class HandoverSummary {
   final double totalCollected;
   final double totalHandedOver;
   final double totalPending;
   final int agentsWithPending;
   final double todayCollected;
+  final double cashCollected;
+  final double onlineCollected;
+  final double todayCashCollected;
+  final double todayOnlineCollected;
 
   HandoverSummary({
     required this.totalCollected,
@@ -133,6 +144,10 @@ class HandoverSummary {
     required this.totalPending,
     required this.agentsWithPending,
     this.todayCollected = 0,
+    this.cashCollected = 0,
+    this.onlineCollected = 0,
+    this.todayCashCollected = 0,
+    this.todayOnlineCollected = 0,
   });
 
   factory HandoverSummary.fromJson(Map<String, dynamic> json) {
@@ -142,6 +157,10 @@ class HandoverSummary {
       totalPending: _toDouble(json['total_pending']),
       agentsWithPending: (json['agents_with_pending'] as num?)?.toInt() ?? 0,
       todayCollected: _toDouble(json['today_collected']),
+      cashCollected: _toDouble(json['cash_collected']),
+      onlineCollected: _toDouble(json['online_collected']),
+      todayCashCollected: _toDouble(json['today_cash_collected']),
+      todayOnlineCollected: _toDouble(json['today_online_collected']),
     );
   }
 }

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../../l10n/generated/app_localizations.dart';
 import '../../routes/app_routes.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_shell.dart';
@@ -8,26 +10,26 @@ import '../../models/AppNotification.dart';
 import '../../models/user_role.dart';
 import '../../services/NotificationService.dart';
 import '../../services/session_service.dart';
-import '../../services/customer_api_service.dart'; // adjust import to your actual CustomerApiService location
+import '../../services/customer_api_service.dart';
 import 'notification_state.dart';
 
 enum NotificationFilter { all, unread, emiDue, overdue, approvals, reminders }
 
 extension NotificationFilterX on NotificationFilter {
-  String get label {
+  String label(AppLocalizations l10n) {
     switch (this) {
       case NotificationFilter.all:
-        return 'All';
+        return l10n.filterAll;
       case NotificationFilter.unread:
-        return 'Unread';
+        return l10n.filterUnread;
       case NotificationFilter.emiDue:
-        return 'EMI Due';
+        return l10n.filterEmiDue;
       case NotificationFilter.overdue:
-        return 'Overdue';
+        return l10n.filterOverdue;
       case NotificationFilter.approvals:
-        return 'Approvals';
+        return l10n.filterApprovals;
       case NotificationFilter.reminders:
-        return 'Reminders';
+        return l10n.filterReminders;
     }
   }
 }
@@ -77,9 +79,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       NotificationState.instance.setCount(list.where((n) => !n.read).length);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = 'Failed to load notifications');
+      final l10n = AppLocalizations.of(context)!;
+      setState(() => _error = l10n.failedToLoadNotifications);
       ToastService.show(
-        title: 'Could not load notifications',
+        title: l10n.couldNotLoadNotificationsToastTitle,
         message: e.toString(),
         type: ToastType.error,
       );
@@ -154,13 +157,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       }
     });
 
+    final l10n = AppLocalizations.of(context)!;
+
     try {
       await NotificationService.markAllRead(unreadIds);
       if (!mounted) return;
       NotificationState.instance.setCount(0);
       ToastService.show(
-        title: 'All notifications cleared',
-        message: 'Everything has been marked as read.',
+        title: l10n.allNotificationsClearedToastTitle,
+        message: l10n.allNotificationsClearedToastMessage,
         type: ToastType.success,
       );
     } catch (e) {
@@ -171,7 +176,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         }
       });
       ToastService.show(
-        title: 'Failed to update',
+        title: l10n.failedToUpdateToastTitle,
         message: e.toString(),
         type: ToastType.error,
       );
@@ -179,12 +184,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   void _deleteNotification(AppNotification n) async {
+    final l10n = AppLocalizations.of(context)!;
     final confirmed = await AppConfirmDialog.show(
       context: context,
-      title: 'Delete Notification',
-      message:
-          'Are you sure you want to delete "${n.title}"? This action cannot be undone.',
-      confirmLabel: 'Delete',
+      title: l10n.deleteNotificationTitle,
+      message: l10n.deleteNotificationMessage(n.title),
+      confirmLabel: l10n.delete,
       confirmButtonColor: AppColors.kDanger,
     );
 
@@ -199,7 +204,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       NotificationState.instance
           .setCount(_notifications.where((x) => !x.read).length);
       ToastService.show(
-        title: 'Notification removed',
+        title: l10n.notificationRemovedToastTitle,
         message: n.title,
         type: ToastType.success,
       );
@@ -209,7 +214,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         () => _notifications.insert(index.clamp(0, _notifications.length), n),
       );
       ToastService.show(
-        title: 'Failed to delete',
+        title: l10n.failedToDeleteToastTitle,
         message: e.toString(),
         type: ToastType.error,
       );
@@ -220,27 +225,26 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (notification.read) return;
 
     setState(() => notification.read = true);
+    final l10n = AppLocalizations.of(context)!;
 
     try {
       await NotificationService.markRead(notification.id);
       if (!mounted) return;
       NotificationState.instance
           .setCount(_notifications.where((n) => !n.read).length);
-      ToastService.show(title: 'Marked as read', type: ToastType.success);
+      ToastService.show(
+          title: l10n.markedAsReadToastTitle, type: ToastType.success);
     } catch (e) {
       if (!mounted) return;
       setState(() => notification.read = false);
       ToastService.show(
-        title: 'Failed to mark as read',
+        title: l10n.failedToMarkAsReadToastTitle,
         message: e.toString(),
         type: ToastType.error,
       );
     }
   }
 
-  /// -----------------------------------------------------------------------
-  /// SEND NOTIFICATION SHEET (bottom-up, matching Passbook / Funds style)
-  /// -----------------------------------------------------------------------
   Widget _sheetFrame({required Widget child}) {
     final double keyboardPadding = MediaQuery.of(context).viewInsets.bottom;
     final double maxSheetHeight = MediaQuery.of(context).size.height * 0.85;
@@ -274,18 +278,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     if (_loading) {
-      return const AppShell(
+      return AppShell(
         currentRoute: AppRoutes.notifications,
-        title: 'Notifications',
-        body: Center(child: CircularProgressIndicator()),
+        title: l10n.notificationsScreenTitle,
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     if (_error != null && _notifications.isEmpty) {
       return AppShell(
         currentRoute: AppRoutes.notifications,
-        title: 'Notifications',
+        title: l10n.notificationsScreenTitle,
         body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -295,7 +301,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               const SizedBox(height: 12),
               OutlinedButton(
                 onPressed: _loadNotifications,
-                child: const Text('Retry'),
+                child: Text(l10n.retry),
               ),
             ],
           ),
@@ -307,7 +313,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     return AppShell(
       currentRoute: AppRoutes.notifications,
-      title: 'Notifications',
+      title: l10n.notificationsScreenTitle,
       body: RefreshIndicator(
         onRefresh: _loadNotifications,
         child: ListView(
@@ -315,9 +321,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
           children: [
             const SizedBox(height: 6),
-            const Text(
-              'Stay on top of dues, approvals, and reminders',
-              style: TextStyle(color: AppColors.kTextMuted, fontSize: 14),
+            Text(
+              l10n.notificationsSubtitle,
+              style: const TextStyle(color: AppColors.kTextMuted, fontSize: 14),
             ),
             const SizedBox(height: 16),
             Row(
@@ -326,7 +332,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   child: OutlinedButton.icon(
                     onPressed: _unreadCount == 0 ? null : _markAllRead,
                     icon: const Icon(Icons.done_all_rounded, size: 18),
-                    label: const Text('Mark all read'),
+                    label: Text(l10n.markAllRead),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
@@ -338,7 +344,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     child: ElevatedButton.icon(
                       onPressed: _openSendDialog,
                       icon: const Icon(Icons.send_rounded, size: 18),
-                      label: const Text('Send'),
+                      label: Text(l10n.send),
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
@@ -355,7 +361,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     icon: Icons.notifications_none_rounded,
                     iconBg: const Color(0xFFDCEAFE),
                     iconColor: AppColors.kInfo,
-                    label: 'TOTAL',
+                    label: l10n.statTotal,
                     value: '$_totalCount',
                   ),
                 ),
@@ -365,7 +371,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     icon: Icons.notifications_off_outlined,
                     iconBg: const Color(0xFFEDE9FE),
                     iconColor: const Color(0xFF7C3AED),
-                    label: 'UNREAD',
+                    label: l10n.statUnread,
                     value: '$_unreadCount',
                   ),
                 ),
@@ -375,7 +381,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     icon: Icons.error_outline_rounded,
                     iconBg: const Color(0xFFFEE2E2),
                     iconColor: AppColors.kDanger,
-                    label: 'OVERDUE',
+                    label: l10n.statOverdue,
                     value: '$_overdueCount',
                   ),
                 ),
@@ -392,7 +398,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   final f = NotificationFilter.values[index];
                   final isSelected = f == _filter;
                   return _FilterPill(
-                    label: f.label,
+                    label: f.label(l10n),
                     count: _countFor(f),
                     selected: isSelected,
                     onTap: () => setState(() => _filter = f),
@@ -402,12 +408,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ),
             const SizedBox(height: 20),
             if (filtered.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(top: 40),
+              Padding(
+                padding: const EdgeInsets.only(top: 40),
                 child: Center(
                   child: Text(
-                    'No notifications here.',
-                    style: TextStyle(color: AppColors.kTextMuted),
+                    l10n.noNotificationsHere,
+                    style: const TextStyle(color: AppColors.kTextMuted),
                   ),
                 ),
               )
@@ -429,9 +435,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 }
 
-/// -----------------------------------------------------------------------
-/// STAT CARD
-/// -----------------------------------------------------------------------
 class _StatCard extends StatelessWidget {
   const _StatCard({
     required this.icon,
@@ -489,9 +492,6 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-/// -----------------------------------------------------------------------
-/// FILTER PILL
-/// -----------------------------------------------------------------------
 class _FilterPill extends StatelessWidget {
   const _FilterPill({
     required this.label,
@@ -554,9 +554,6 @@ class _FilterPill extends StatelessWidget {
   }
 }
 
-/// -----------------------------------------------------------------------
-/// NOTIFICATION CARD
-/// -----------------------------------------------------------------------
 class _NotificationCard extends StatelessWidget {
   const _NotificationCard({
     required this.notification,
@@ -571,6 +568,7 @@ class _NotificationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final n = notification;
+    final l10n = AppLocalizations.of(context)!;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(18),
@@ -649,7 +647,7 @@ class _NotificationCard extends StatelessWidget {
                           height: 1.4)),
                   const SizedBox(height: 6),
                   Text(
-                    'user_id: ${n.userId}',
+                    l10n.userIdLabel(n.userId),
                     style: const TextStyle(
                         color: AppColors.kTextMuted, fontSize: 11),
                   ),
@@ -675,9 +673,6 @@ class _NotificationCard extends StatelessWidget {
   }
 }
 
-/// -----------------------------------------------------------------------
-/// SEND NOTIFICATION DIALOG (bottom sheet content)
-/// -----------------------------------------------------------------------
 class _SendNotificationDialog extends StatefulWidget {
   const _SendNotificationDialog();
 
@@ -698,13 +693,13 @@ class _SendNotificationDialogState extends State<_SendNotificationDialog> {
   bool _loadingCustomers = true;
   bool _sending = false;
 
-  final _types = const [
-    {'value': 'info', 'label': 'Info'},
-    {'value': 'reminder', 'label': 'Reminder'},
-    {'value': 'emi_due', 'label': 'EMI Due'},
-    {'value': 'overdue', 'label': 'Overdue'},
-    {'value': 'approval', 'label': 'Approval'},
-  ];
+  List<Map<String, String>> _typeOptions(AppLocalizations l10n) => [
+        {'value': 'info', 'label': l10n.typeInfo},
+        {'value': 'reminder', 'label': l10n.typeReminder},
+        {'value': 'emi_due', 'label': l10n.typeEmiDue},
+        {'value': 'overdue', 'label': l10n.typeOverdue},
+        {'value': 'approval', 'label': l10n.typeApproval},
+      ];
 
   @override
   void initState() {
@@ -738,7 +733,7 @@ class _SendNotificationDialogState extends State<_SendNotificationDialog> {
       if (!mounted) return;
       setState(() => _loadingCustomers = false);
       ToastService.show(
-        title: 'Could not load customers',
+        title: AppLocalizations.of(context)!.couldNotLoadCustomersToastTitle,
         message: e.toString(),
         type: ToastType.error,
       );
@@ -760,22 +755,26 @@ class _SendNotificationDialogState extends State<_SendNotificationDialog> {
       : _selectedIds.where(_customerUserIds.containsKey).length;
 
   Future<void> _handleSend() async {
+    final l10n = AppLocalizations.of(context)!;
+
     if (_titleCtrl.text.trim().isEmpty) {
-      ToastService.show(title: 'Title required', type: ToastType.error);
+      ToastService.show(title: l10n.titleRequiredError, type: ToastType.error);
       return;
     }
     if (_allCustomers && _customers.isEmpty) {
-      ToastService.show(title: 'No customers found', type: ToastType.error);
+      ToastService.show(
+          title: l10n.noCustomersFoundError, type: ToastType.error);
       return;
     }
     if (_allCustomers && _customerUserIds.isEmpty) {
       ToastService.show(
-          title: 'No linked customer logins found', type: ToastType.error);
+          title: l10n.noLinkedCustomerLoginsFoundError,
+          type: ToastType.error);
       return;
     }
     if (!_allCustomers && _selectedIds.isEmpty) {
       ToastService.show(
-          title: 'Select at least one recipient', type: ToastType.error);
+          title: l10n.selectAtLeastOneRecipientError, type: ToastType.error);
       return;
     }
 
@@ -791,9 +790,8 @@ class _SendNotificationDialogState extends State<_SendNotificationDialog> {
 
     if (recipientIds.isEmpty) {
       ToastService.show(
-        title: 'No eligible recipients',
-        message:
-            'Selected customers need a portal login to receive notifications.',
+        title: l10n.noEligibleRecipientsToastTitle,
+        message: l10n.noEligibleRecipientsToastMessage,
         type: ToastType.error,
       );
       return;
@@ -809,8 +807,8 @@ class _SendNotificationDialogState extends State<_SendNotificationDialog> {
       );
       if (!mounted) return;
       ToastService.show(
-        title: 'Notification sent',
-        message: '$_recipientCount recipient(s)',
+        title: l10n.notificationSentToastTitle,
+        message: l10n.recipientsCount(_recipientCount),
         type: ToastType.success,
       );
       Navigator.of(context).pop(true);
@@ -818,12 +816,15 @@ class _SendNotificationDialogState extends State<_SendNotificationDialog> {
       if (!mounted) return;
       setState(() => _sending = false);
       ToastService.show(
-          title: 'Send failed', message: e.toString(), type: ToastType.error);
+          title: l10n.sendFailedToastTitle,
+          message: e.toString(),
+          type: ToastType.error);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
       child: Column(
@@ -844,18 +845,18 @@ class _SendNotificationDialogState extends State<_SendNotificationDialog> {
                     color: AppColors.kGold, size: 20),
               ),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Send Notification',
-                        style: TextStyle(
+                    Text(l10n.sendNotificationTitle,
+                        style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: AppColors.kTextDark)),
-                    SizedBox(height: 2),
-                    Text('Notify your customers instantly',
-                        style: TextStyle(
+                    const SizedBox(height: 2),
+                    Text(l10n.sendNotificationSubtitle,
+                        style: const TextStyle(
                             color: AppColors.kTextMuted, fontSize: 13)),
                   ],
                 ),
@@ -869,8 +870,8 @@ class _SendNotificationDialogState extends State<_SendNotificationDialog> {
             ],
           ),
           const SizedBox(height: 24),
-          const Text('RECIPIENTS',
-              style: TextStyle(
+          Text(l10n.recipientsLabel,
+              style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                   color: AppColors.kTextMuted)),
@@ -880,7 +881,7 @@ class _SendNotificationDialogState extends State<_SendNotificationDialog> {
               Expanded(
                 child: _ToggleChip(
                   icon: Icons.groups_outlined,
-                  label: 'All Customers',
+                  label: l10n.allCustomers,
                   trailing: '${_customerUserIds.length}',
                   selected: _allCustomers,
                   onTap: () => setState(() => _allCustomers = true),
@@ -890,7 +891,7 @@ class _SendNotificationDialogState extends State<_SendNotificationDialog> {
               Expanded(
                 child: _ToggleChip(
                   icon: Icons.person_search_outlined,
-                  label: 'Select',
+                  label: l10n.selectLabel,
                   selected: !_allCustomers,
                   onTap: () => setState(() => _allCustomers = false),
                 ),
@@ -901,10 +902,10 @@ class _SendNotificationDialogState extends State<_SendNotificationDialog> {
             const SizedBox(height: 12),
             TextField(
               onChanged: (v) => setState(() => _search = v),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 isDense: true,
-                prefixIcon: Icon(Icons.search, size: 20),
-                hintText: 'Search customers...',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                hintText: l10n.searchCustomersHint,
               ),
             ),
             const SizedBox(height: 8),
@@ -920,11 +921,12 @@ class _SendNotificationDialogState extends State<_SendNotificationDialog> {
                       child: Center(child: CircularProgressIndicator()),
                     )
                   : _filteredCustomers.isEmpty
-                      ? const Padding(
-                          padding: EdgeInsets.all(24),
+                      ? Padding(
+                          padding: const EdgeInsets.all(24),
                           child: Center(
-                            child: Text('No customers found.',
-                                style: TextStyle(color: AppColors.kTextMuted)),
+                            child: Text(l10n.noCustomersFoundInList,
+                                style: const TextStyle(
+                                    color: AppColors.kTextMuted)),
                           ),
                         )
                       : ListView.separated(
@@ -957,7 +959,7 @@ class _SendNotificationDialogState extends State<_SendNotificationDialog> {
                               subtitle: Text(
                                   _customerUserIds.containsKey(id)
                                       ? (c['email'] ?? '')
-                                      : 'No portal login',
+                                      : l10n.noPortalLogin,
                                   style: const TextStyle(
                                       color: AppColors.kTextMuted,
                                       fontSize: 12)),
@@ -968,8 +970,8 @@ class _SendNotificationDialogState extends State<_SendNotificationDialog> {
             ),
           ],
           const SizedBox(height: 20),
-          const Text('TYPE',
-              style: TextStyle(
+          Text(l10n.typeLabel,
+              style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                   color: AppColors.kTextMuted)),
@@ -977,7 +979,7 @@ class _SendNotificationDialogState extends State<_SendNotificationDialog> {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: _types.map((t) {
+            children: _typeOptions(l10n).map((t) {
               final selected = _type == t['value'];
               return ChoiceChip(
                 label: Text(t['label']!),
@@ -994,20 +996,20 @@ class _SendNotificationDialogState extends State<_SendNotificationDialog> {
             }).toList(),
           ),
           const SizedBox(height: 20),
-          const Text('TITLE',
-              style: TextStyle(
+          Text(l10n.titleFieldLabel,
+              style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                   color: AppColors.kTextMuted)),
           const SizedBox(height: 8),
           TextField(
             controller: _titleCtrl,
-            decoration: const InputDecoration(
-                isDense: true, hintText: 'e.g. EMI due tomorrow'),
+            decoration: InputDecoration(
+                isDense: true, hintText: l10n.titleFieldHint),
           ),
           const SizedBox(height: 16),
-          const Text('MESSAGE',
-              style: TextStyle(
+          Text(l10n.messageFieldLabel,
+              style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                   color: AppColors.kTextMuted)),
@@ -1015,16 +1017,16 @@ class _SendNotificationDialogState extends State<_SendNotificationDialog> {
           TextField(
             controller: _messageCtrl,
             maxLines: 3,
-            decoration: const InputDecoration(
-                isDense: true, hintText: 'Write your message...'),
+            decoration: InputDecoration(
+                isDense: true, hintText: l10n.messageFieldHint),
           ),
           const SizedBox(height: 20),
           LayoutBuilder(builder: (context, constraints) {
             final isNarrow = constraints.maxWidth < 420;
             final recipientLabel = Text(
               _recipientCount == 0
-                  ? 'No recipients selected'
-                  : '$_recipientCount recipient(s) selected',
+                  ? l10n.noRecipientsSelected
+                  : l10n.recipientsSelectedCount(_recipientCount),
               style: const TextStyle(color: AppColors.kTextMuted, fontSize: 13),
             );
             final actionButtons = Row(
@@ -1033,7 +1035,7 @@ class _SendNotificationDialogState extends State<_SendNotificationDialog> {
                 OutlinedButton(
                   onPressed:
                       _sending ? null : () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  child: Text(l10n.cancel),
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton.icon(
@@ -1046,7 +1048,7 @@ class _SendNotificationDialogState extends State<_SendNotificationDialog> {
                               strokeWidth: 2, color: Colors.white),
                         )
                       : const Icon(Icons.send_rounded, size: 18),
-                  label: const Text('Send'),
+                  label: Text(l10n.send),
                 ),
               ],
             );

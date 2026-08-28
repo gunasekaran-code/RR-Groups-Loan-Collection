@@ -8,6 +8,7 @@ import '../../theme/glass_toast.dart';
 import '../../theme/edit_dialog.dart'; // Imported for future/shared styling context
 import '../../widgets/app_shell.dart';
 import '../../widgets/status_badge.dart';
+import '../../l10n/generated/app_localizations.dart';
 
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({super.key});
@@ -31,7 +32,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   };
 
   final TextEditingController _searchCtrl = TextEditingController();
-  String _roleFilter = 'All Roles';
+  // Canonical role code; 'all' means no filter. Kept locale-independent so
+  // switching languages doesn't break an already-selected filter.
+  String _roleFilter = 'all';
 
   @override
   void initState() {
@@ -53,8 +56,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     super.dispose();
   }
 
-  // ---------------- Data loading / CRUD ----------------
-
   Future<void> _loadUsers() async {
     setState(() {
       _loading = true;
@@ -70,34 +71,38 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _loadError = e is UserApiException ? e.message : 'Failed to load users';
+        _loadError = e is UserApiException
+            ? e.message
+            : AppLocalizations.of(context).failedToLoadUsers;
         _loading = false;
       });
     }
   }
 
   Future<void> _createUser(UserAccount draft, String password) async {
+    final l10n = AppLocalizations.of(context);
     try {
       final created =
           await UserApiService.instance.createUser(draft, password: password);
       if (!mounted) return;
       setState(() => _users = [..._users, created]);
       ToastService.show(
-        title: 'User created',
-        message: '${created.fullName} was added successfully',
+        title: l10n.userCreatedToastTitle,
+        message: l10n.userCreatedToastMessage(created.fullName),
         type: ToastType.success,
       );
     } catch (e) {
       if (!mounted) return;
       ToastService.show(
-        title: 'Could not create user',
-        message: e is UserApiException ? e.message : 'Something went wrong',
+        title: l10n.couldNotCreateUserToastTitle,
+        message: e is UserApiException ? e.message : l10n.somethingWentWrong,
         type: ToastType.error,
       );
     }
   }
 
   Future<void> _updateUser(UserAccount user, {String? password}) async {
+    final l10n = AppLocalizations.of(context);
     try {
       final updated =
           await UserApiService.instance.updateUser(user, password: password);
@@ -106,35 +111,36 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         _users = _users.map((u) => u.id == updated.id ? updated : u).toList();
       });
       ToastService.show(
-        title: 'User updated',
-        message: '${updated.fullName} was saved',
+        title: l10n.userUpdatedToastTitle,
+        message: l10n.userUpdatedToastMessage(updated.fullName),
         type: ToastType.success,
       );
     } catch (e) {
       if (!mounted) return;
       ToastService.show(
-        title: 'Could not update user',
-        message: e is UserApiException ? e.message : 'Something went wrong',
+        title: l10n.couldNotUpdateUserToastTitle,
+        message: e is UserApiException ? e.message : l10n.somethingWentWrong,
         type: ToastType.error,
       );
     }
   }
 
   Future<void> _deleteUser(UserAccount user) async {
+    final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Remove user?'),
-        content: Text('This will permanently remove ${user.fullName}.'),
+        title: Text(l10n.removeUserDialogTitle),
+        content: Text(l10n.removeUserDialogMessage(user.fullName)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Remove',
-                style: TextStyle(color: AppColors.kDanger)),
+            child: Text(l10n.remove,
+                style: const TextStyle(color: AppColors.kDanger)),
           ),
         ],
       ),
@@ -146,21 +152,19 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       if (!mounted) return;
       setState(() => _users = _users.where((u) => u.id != user.id).toList());
       ToastService.show(
-        title: 'User removed',
-        message: '${user.fullName} was deleted',
+        title: l10n.userRemovedToastTitle,
+        message: l10n.userRemovedToastMessage(user.fullName),
         type: ToastType.success,
       );
     } catch (e) {
       if (!mounted) return;
       ToastService.show(
-        title: 'Could not delete user',
-        message: e is UserApiException ? e.message : 'Something went wrong',
+        title: l10n.couldNotDeleteUserToastTitle,
+        message: e is UserApiException ? e.message : l10n.somethingWentWrong,
         type: ToastType.error,
       );
     }
   }
-
-  // ---------------- Derived data ----------------
 
   List<UserAccount> get _filteredUsers {
     final q = _searchCtrl.text.trim().toLowerCase();
@@ -168,8 +172,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       final matchesQuery = q.isEmpty ||
           u.fullName.toLowerCase().contains(q) ||
           (u.mobile ?? '').replaceAll(' ', '').contains(q.replaceAll(' ', ''));
-      final matchesRole =
-          _roleFilter == 'All Roles' || _roleLabel(u.role) == _roleFilter;
+      final matchesRole = _roleFilter == 'all' || u.role == _roleFilter;
       return matchesQuery && matchesRole;
     }).toList();
   }
@@ -180,24 +183,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   int get _adminCount => _users.where((u) => u.role == 'admin').length;
 
   String _roleLabel(String role) {
+    final l10n = AppLocalizations.of(context);
     switch (role) {
       case 'admin':
-        return 'Admin';
+        return l10n.roleAdmin;
       case 'customer':
-        return 'Customer';
+        return l10n.roleCustomer;
       default:
-        return 'Collection Agent';
-    }
-  }
-
-  String _roleValue(String label) {
-    switch (label) {
-      case 'Admin':
-        return 'admin';
-      case 'Customer':
-        return 'customer';
-      default:
-        return 'agent';
+        return l10n.roleCollectionAgent;
     }
   }
 
@@ -269,7 +262,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     showGeneralDialog<Map<String, dynamic>>(
       context: context,
       barrierDismissible: true,
-      barrierLabel: 'Dismiss Add User Dialog',
+      barrierLabel: AppLocalizations.of(context).dismissAddUserDialogLabel,
       barrierColor: Colors.black.withOpacity(0.4),
       transitionDuration: const Duration(milliseconds: 350),
       pageBuilder: (context, animation, secondaryAnimation) {
@@ -298,7 +291,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         mobile: (result['mobile'] as String).isEmpty
             ? null
             : result['mobile'] as String,
-        role: _roleValue(result['role'] as String),
+        role: result['role'] as String,
         status: (result['status'] as String).toLowerCase(),
         avatarUrl: (result['avatar'] as String).isEmpty
             ? null
@@ -312,7 +305,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     showGeneralDialog<Map<String, dynamic>>(
       context: context,
       barrierDismissible: true,
-      barrierLabel: 'Dismiss Edit User Dialog',
+      barrierLabel: AppLocalizations.of(context).dismissEditUserDialogLabel,
       barrierColor: Colors.black.withOpacity(0.4),
       transitionDuration: const Duration(milliseconds: 350),
       pageBuilder: (context, animation, secondaryAnimation) {
@@ -340,7 +333,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         mobile: (result['mobile'] as String).isEmpty
             ? null
             : result['mobile'] as String,
-        role: _roleValue(result['role'] as String),
+        role: result['role'] as String,
         status: (result['status'] as String).toLowerCase(),
         avatarUrl: (result['avatar'] as String).isEmpty
             ? null
@@ -355,21 +348,21 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final width = MediaQuery.of(context).size.width;
     final isWide = width >= 700;
 
     return AppShell(
       currentRoute: AppRoutes.userManagement,
-      title: 'User Management',
+      title: l10n.userManagementScreenTitle,
       body: RefreshIndicator(
         onRefresh: _loadUsers,
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
             const SizedBox(height: 6),
-            const Text(
-                'Manage roles, access, and permissions across your organization',
-                style: TextStyle(fontSize: 13, color: AppColors.kTextMuted)),
+            Text(l10n.userManagementSubtitle,
+                style: const TextStyle(fontSize: 13, color: AppColors.kTextMuted)),
             const SizedBox(height: 16),
             Row(
               children: [
@@ -378,7 +371,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   child: ElevatedButton.icon(
                     onPressed: () => _showAddUserDialog(),
                     icon: const Icon(Icons.person_add_alt_1_outlined, size: 18),
-                    label: const Text('Add User'),
+                    label: Text(l10n.addUser),
                   ),
                 ),
                 const Spacer(),
@@ -390,7 +383,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   )
                 else
                   IconButton(
-                    tooltip: 'Refresh',
+                    tooltip: l10n.refreshTooltip,
                     icon: const Icon(Icons.refresh),
                     onPressed: _loadUsers,
                   ),
@@ -408,22 +401,22 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 _StatCard(
                     icon: Icons.manage_accounts_outlined,
                     value: '$_totalUsers',
-                    label: 'Total Users',
+                    label: l10n.statTotalUsers,
                     tint: AppColors.kInfo),
                 _StatCard(
                     icon: Icons.verified_user_outlined,
                     value: '$_activeUsers',
-                    label: 'Active',
+                    label: l10n.statActive,
                     tint: AppColors.kSuccess),
                 _StatCard(
                     icon: Icons.shield_outlined,
                     value: '$_agentCount',
-                    label: 'Agents',
+                    label: l10n.statAgents,
                     tint: AppColors.kSuccess),
                 _StatCard(
                     icon: Icons.workspace_premium_outlined,
                     value: '$_adminCount',
-                    label: 'Admins',
+                    label: l10n.statAdmins,
                     tint: AppColors.kInfo),
               ],
             ),
@@ -439,24 +432,25 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   TextField(
                     controller: _searchCtrl,
                     onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(
-                        hintText: 'Search by name or mobile...',
-                        prefixIcon: Icon(Icons.search, size: 20)),
+                    decoration: InputDecoration(
+                        hintText: l10n.searchByNameOrMobileHint,
+                        prefixIcon: const Icon(Icons.search, size: 20)),
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
                     initialValue: _roleFilter,
                     decoration: const InputDecoration(),
-                    items: const [
-                      'All Roles',
-                      'Admin',
-                      'Collection Agent',
-                      'Customer',
-                    ]
-                        .map((r) => DropdownMenuItem(
-                            value: r,
-                            child:
-                                Text(r, style: const TextStyle(fontSize: 13))))
+                    items: {
+                      'all': l10n.roleAll,
+                      'admin': l10n.roleAdmin,
+                      'agent': l10n.roleCollectionAgent,
+                      'customer': l10n.roleCustomer,
+                    }
+                        .entries
+                        .map((e) => DropdownMenuItem(
+                            value: e.key,
+                            child: Text(e.value,
+                                style: const TextStyle(fontSize: 13))))
                         .toList(),
                     onChanged: (v) =>
                         setState(() => _roleFilter = v ?? _roleFilter),
@@ -473,11 +467,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             else if (_loadError != null)
               _ErrorState(message: _loadError!, onRetry: _loadUsers)
             else if (_filteredUsers.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 40),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 40),
                 child: Center(
-                  child: Text('No users found',
-                      style: TextStyle(color: AppColors.kTextMuted)),
+                  child: Text(l10n.noUsersFound,
+                      style: const TextStyle(color: AppColors.kTextMuted)),
                 ),
               )
             else
@@ -488,32 +482,32 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     headingRowColor:
                         WidgetStateProperty.all(AppColors.kSurface),
                     columnSpacing: 24,
-                    columns: const [
+                    columns: [
                       DataColumn(
-                          label: Text('USER',
-                              style: TextStyle(
+                          label: Text(l10n.tableColumnUser,
+                              style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
                                   color: AppColors.kTextMuted))),
                       DataColumn(
-                          label: Text('MOBILE',
-                              style: TextStyle(
+                          label: Text(l10n.tableColumnMobile,
+                              style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
                                   color: AppColors.kTextMuted))),
                       DataColumn(
-                          label: Text('ROLE',
-                              style: TextStyle(
+                          label: Text(l10n.tableColumnRole,
+                              style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
                                   color: AppColors.kTextMuted))),
                       DataColumn(
-                          label: Text('STATUS',
-                              style: TextStyle(
+                          label: Text(l10n.tableColumnStatus,
+                              style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
                                   color: AppColors.kTextMuted))),
-                      DataColumn(label: SizedBox.shrink()),
+                      const DataColumn(label: SizedBox.shrink()),
                     ],
                     rows: [
                       for (final u in _filteredUsers)
@@ -527,138 +521,40 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                               tone: _roleTone(u.role))),
                           DataCell(StatusBadge(
                               label: u.status == 'active'
-                                  ? 'Active'
-                                  : 'Inactive',
+                                  ? l10n.statusActive
+                                  : l10n.statusInactive,
                               tone: u.status == 'active'
                                   ? BadgeTone.success
                                   : BadgeTone.warning)),
                           DataCell(Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                tooltip: 'Edit',
-                                icon: const Icon(Icons.edit_outlined, size: 18),
-                                onPressed: () => _showEditUserDialog(u),
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              tooltip: u.role == 'admin' ? l10n.adminCannotBeEditedTooltip : l10n.edit,
+                              icon: Icon(
+                                Icons.edit_outlined,
+                                size: 18,
+                                color: u.role == 'admin' ? AppColors.kTextMuted.withOpacity(0.35) : AppColors.kTextDark,
                               ),
-                              IconButton(
-                                tooltip: 'Delete',
-                                icon: const Icon(Icons.delete_outline,
-                                    size: 18, color: AppColors.kDanger),
-                                onPressed: () => _deleteUser(u),
+                              onPressed: u.role == 'admin' ? null : () => _showEditUserDialog(u),
+                            ),
+                            IconButton(
+                              tooltip: u.role == 'admin' ? l10n.adminCannotBeDeletedTooltip : l10n.delete,
+                              icon: Icon(
+                                Icons.delete_outline,
+                                size: 18,
+                                color: u.role == 'admin' ? AppColors.kDanger.withOpacity(0.35) : AppColors.kDanger,
                               ),
-                            ],
-                          )),
+                              onPressed: u.role == 'admin' ? null : () => _deleteUser(u),
+                            ),
+                          ],
+                        )),
                         ]),
                     ],
                   ),
                 ),
               ),
             const SizedBox(height: 20),
-           /* const Text('Permissions Matrix',
-                style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.kTextDark)),
-            const SizedBox(height: 12),
-            const Text(
-              'Role-based module access. Click on the tick icons to toggle access for all profiles.',
-              style: TextStyle(fontSize: 12, color: AppColors.kTextMuted),
-            ),
-            const SizedBox(height: 12),
-            _SectionCard(
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: DataTable(
-                  headingRowColor: WidgetStateProperty.all(AppColors.kSurface),
-                  columnSpacing: 28,
-                  columns: [
-                    const DataColumn(
-                        label: Text('ROLE',
-                            style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.kTextMuted))),
-                    const DataColumn(
-                        label: Text('DASHBOARD',
-                            style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.kTextMuted))),
-                    for (final label in _pageLabels.values)
-                      DataColumn(
-                        label: Text(label.toUpperCase(),
-                            style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.kTextMuted)),
-                      ),
-                  ],
-                  rows: [
-                    _permissionRow(
-                      'Owner',
-                      dashboard: true,
-                      pages: _draftPermissions['Owner']!,
-                      editable: true,
-                    ),
-                    _permissionRow(
-                      'Admin',
-                      dashboard: true,
-                      pages: _draftPermissions['Admin']!,
-                      editable: true,
-                    ),
-                    _permissionRow(
-                      'Collection Agent',
-                      dashboard: true,
-                      pages: _draftPermissions['Collection Agent']!,
-                      editable: true,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            if (_hasPendingChanges)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _draftPermissions = {
-                          'Owner': {for (final k in _pageLabels.keys) k: true},
-                          'Admin': {
-                            for (final k in _pageLabels.keys)
-                              k: PrivilegeService.instance.isEnabledForAdmin(k),
-                          },
-                          'Collection Agent': {
-                            for (final k in _pageLabels.keys) k: false
-                          },
-                        };
-                        _hasPendingChanges = false;
-                      });
-                    },
-                    child: const Text('Discard'),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      for (final entry in _draftPermissions['Admin']!.entries) {
-                        PrivilegeService.instance
-                            .setEnabledForAdmin(entry.key, entry.value);
-                      }
-                      setState(() => _hasPendingChanges = false);
-                      ToastService.show(
-                        title: 'Permissions saved',
-                        message: 'All dynamic role modules updated',
-                        type: ToastType.success,
-                      );
-                    },
-                    icon: const Icon(Icons.save_outlined, size: 18),
-                    label: const Text('Save Changes'),
-                  ),
-                ],
-              ),
-            const SizedBox(height: 2), */
           ],
         ),
       ),
@@ -688,7 +584,9 @@ class _ErrorState extends StatelessWidget {
               textAlign: TextAlign.center,
               style: const TextStyle(color: AppColors.kTextMuted)),
           const SizedBox(height: 12),
-          OutlinedButton(onPressed: onRetry, child: const Text('Retry')),
+          OutlinedButton(
+              onPressed: onRetry,
+              child: Text(AppLocalizations.of(context).retry)),
         ],
       ),
     );
@@ -709,25 +607,25 @@ class _AddUserDialogContentState extends State<_AddUserDialogContent> {
   late final TextEditingController _mobileCtrl;
   late final TextEditingController _avatarCtrl;
   late final TextEditingController _passwordCtrl;
-  String _role = 'Collection Agent';
-  String _status = 'Active';
+  // Canonical codes ('admin'/'agent'/'customer', 'active'/'inactive'), kept
+  // locale-independent; only the dropdown display text is localized.
+  String _role = 'agent';
+  String _status = 'active';
   bool _submitting = false;
   String? _formError;
 
   bool get _isEdit => widget.existing != null;
 
-  static const _roleLabels = ['Admin', 'Collection Agent', 'Customer'];
+  Map<String, String> _roleOptions(AppLocalizations l10n) => {
+        'admin': l10n.roleAdmin,
+        'agent': l10n.roleCollectionAgent,
+        'customer': l10n.roleCustomer,
+      };
 
-  String _roleToLabel(String role) {
-    switch (role) {
-      case 'admin':
-        return 'Admin';
-      case 'customer':
-        return 'Customer';
-      default:
-        return 'Collection Agent';
-    }
-  }
+  Map<String, String> _statusOptions(AppLocalizations l10n) => {
+        'active': l10n.statusActive,
+        'inactive': l10n.statusInactive,
+      };
 
   @override
   void initState() {
@@ -739,8 +637,8 @@ class _AddUserDialogContentState extends State<_AddUserDialogContent> {
     _avatarCtrl = TextEditingController(text: u?.avatarUrl ?? '');
     _passwordCtrl = TextEditingController();
     if (u != null) {
-      _role = _roleToLabel(u.role);
-      _status = u.status == 'active' ? 'Active' : 'Inactive';
+      _role = (u.role == 'admin' || u.role == 'customer') ? u.role : 'agent';
+      _status = u.status == 'active' ? 'active' : 'inactive';
     }
   }
 
@@ -755,24 +653,25 @@ class _AddUserDialogContentState extends State<_AddUserDialogContent> {
   }
 
   void _submit() {
+    final l10n = AppLocalizations.of(context);
     final name = _nameCtrl.text.trim();
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text;
 
     if (name.isEmpty) {
-      setState(() => _formError = 'Full name is required');
+      setState(() => _formError = l10n.fullNameRequiredError);
       return;
     }
     if (email.isEmpty || !email.contains('@')) {
-      setState(() => _formError = 'A valid email is required');
+      setState(() => _formError = l10n.validEmailRequiredError);
       return;
     }
     if (!_isEdit && password.length < 6) {
-      setState(() => _formError = 'Password must be at least 6 characters');
+      setState(() => _formError = l10n.passwordMinLengthError);
       return;
     }
     if (_isEdit && password.isNotEmpty && password.length < 6) {
-      setState(() => _formError = 'Password must be at least 6 characters');
+      setState(() => _formError = l10n.passwordMinLengthError);
       return;
     }
 
@@ -789,6 +688,7 @@ class _AddUserDialogContentState extends State<_AddUserDialogContent> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final double keyboardPadding = MediaQuery.of(context).viewInsets.bottom;
     final double safeAreaPadding = MediaQuery.of(context).padding.bottom;
 
@@ -816,7 +716,7 @@ class _AddUserDialogContentState extends State<_AddUserDialogContent> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  _isEdit ? 'Edit User' : 'Add User',
+                  _isEdit ? l10n.editUserDialogTitle : l10n.addUser,
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -848,9 +748,8 @@ class _AddUserDialogContentState extends State<_AddUserDialogContent> {
                   Expanded(
                     child: Text(
                       _isEdit
-                          ? 'Leave password blank to keep the current password unchanged.'
-                          : 'This creates a login account directly on the backend. '
-                              'The user can sign in immediately with the email and password below.',
+                          ? l10n.editPasswordHintNote
+                          : l10n.addUserBackendNote,
                       style: TextStyle(
                           fontSize: 12,
                           color: AppColors.kTextDark.withOpacity(0.85),
@@ -882,30 +781,32 @@ class _AddUserDialogContentState extends State<_AddUserDialogContent> {
                       ),
                       const SizedBox(height: 14),
                     ],
-                    const _FieldLabel('FULL NAME *'),
+                    _FieldLabel(l10n.fullNameFieldLabel),
                     const SizedBox(height: 6),
-                    _buildField(_nameCtrl, 'e.g. Priya Sharma'),
+                    _buildField(_nameCtrl, l10n.fullNameFieldHint),
                     const SizedBox(height: 14),
 
-                    const _FieldLabel('EMAIL *'),
+                    _FieldLabel(l10n.emailFieldLabel),
                     const SizedBox(height: 6),
-                    _buildField(_emailCtrl, 'e.g. priya@example.com',
+                    _buildField(_emailCtrl, l10n.emailFieldHint,
                         keyboardType: TextInputType.emailAddress),
                     const SizedBox(height: 14),
 
                     _FieldLabel(_isEdit
-                        ? 'NEW PASSWORD (OPTIONAL)'
-                        : 'PASSWORD *'),
+                        ? l10n.newPasswordOptionalLabel
+                        : l10n.passwordFieldLabel),
                     const SizedBox(height: 6),
                     _buildField(
                         _passwordCtrl,
-                        _isEdit ? 'Leave blank to keep unchanged' : 'Min 6 characters',
+                        _isEdit
+                            ? l10n.passwordLeaveBlankHint
+                            : l10n.passwordMinCharsHint,
                         obscure: true),
                     const SizedBox(height: 14),
 
-                    const _FieldLabel('MOBILE'),
+                    _FieldLabel(l10n.mobileFieldLabel),
                     const SizedBox(height: 6),
-                    _buildField(_mobileCtrl, 'e.g. +91 98765 43210',
+                    _buildField(_mobileCtrl, l10n.mobileFieldHint,
                         keyboardType: TextInputType.phone),
                     const SizedBox(height: 14),
 
@@ -915,10 +816,11 @@ class _AddUserDialogContentState extends State<_AddUserDialogContent> {
                       final roleDropdown = DropdownButtonFormField<String>(
                         initialValue: _role,
                         decoration: _dropdownDecoration(),
-                        items: _roleLabels
-                            .map((r) => DropdownMenuItem(
-                                value: r,
-                                child: Text(r,
+                        items: _roleOptions(l10n)
+                            .entries
+                            .map((e) => DropdownMenuItem(
+                                value: e.key,
+                                child: Text(e.value,
                                     style: const TextStyle(
                                         fontSize: 13,
                                         color: AppColors.kTextDark))))
@@ -929,10 +831,11 @@ class _AddUserDialogContentState extends State<_AddUserDialogContent> {
                       final statusDropdown = DropdownButtonFormField<String>(
                         initialValue: _status,
                         decoration: _dropdownDecoration(),
-                        items: const ['Active', 'Inactive']
-                            .map((s) => DropdownMenuItem(
-                                value: s,
-                                child: Text(s,
+                        items: _statusOptions(l10n)
+                            .entries
+                            .map((e) => DropdownMenuItem(
+                                value: e.key,
+                                child: Text(e.value,
                                     style: const TextStyle(
                                         fontSize: 13,
                                         color: AppColors.kTextDark))))
@@ -945,11 +848,11 @@ class _AddUserDialogContentState extends State<_AddUserDialogContent> {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const _FieldLabel('ROLE'),
+                            _FieldLabel(l10n.roleFieldLabel),
                             const SizedBox(height: 6),
                             roleDropdown,
                             const SizedBox(height: 14),
-                            const _FieldLabel('STATUS'),
+                            _FieldLabel(l10n.statusFieldLabel),
                             const SizedBox(height: 6),
                             statusDropdown,
                           ],
@@ -962,7 +865,7 @@ class _AddUserDialogContentState extends State<_AddUserDialogContent> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const _FieldLabel('ROLE'),
+                                _FieldLabel(l10n.roleFieldLabel),
                                 const SizedBox(height: 6),
                                 roleDropdown,
                               ],
@@ -973,7 +876,7 @@ class _AddUserDialogContentState extends State<_AddUserDialogContent> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const _FieldLabel('STATUS'),
+                                _FieldLabel(l10n.statusFieldLabel),
                                 const SizedBox(height: 6),
                                 statusDropdown,
                               ],
@@ -984,13 +887,13 @@ class _AddUserDialogContentState extends State<_AddUserDialogContent> {
                     }),
                     const SizedBox(height: 14),
 
-                    const _FieldLabel('AVATAR URL'),
+                    _FieldLabel(l10n.avatarUrlFieldLabel),
                     const SizedBox(height: 6),
-                    _buildField(_avatarCtrl, 'https://...'),
+                    _buildField(_avatarCtrl, l10n.avatarUrlFieldHint),
                     const SizedBox(height: 4),
-                    const Text('Optional profile image link',
-                        style:
-                            TextStyle(fontSize: 11, color: AppColors.kTextMuted)),
+                    Text(l10n.avatarUrlHelperText,
+                        style: const TextStyle(
+                            fontSize: 11, color: AppColors.kTextMuted)),
                   ],
                 ),
               ),
@@ -1006,8 +909,8 @@ class _AddUserDialogContentState extends State<_AddUserDialogContent> {
                           borderRadius: BorderRadius.circular(14)),
                     ),
                     onPressed: () => Navigator.pop(context, null),
-                    child: const Text('Cancel',
-                        style: TextStyle(fontWeight: FontWeight.w600)),
+                    child: Text(l10n.cancel,
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -1022,7 +925,7 @@ class _AddUserDialogContentState extends State<_AddUserDialogContent> {
                           borderRadius: BorderRadius.circular(14)),
                     ),
                     onPressed: _submit,
-                    child: Text(_isEdit ? 'Save Changes' : 'Add User',
+                    child: Text(_isEdit ? l10n.saveChanges : l10n.addUser,
                         style: const TextStyle(fontWeight: FontWeight.w600)),
                   ),
                 ),

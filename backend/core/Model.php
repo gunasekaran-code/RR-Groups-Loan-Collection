@@ -18,6 +18,7 @@ abstract class Model
         'chit_groups'        => ChitGroup::class,
         'chit_members'       => ChitMember::class,
         'chit_schedules'     => ChitSchedule::class,
+        'chit_payments'      => ChitPayment::class,
         'funds'              => Fund::class,
         'fund_payments'      => FundPayment::class,
         'handovers'          => Handover::class,
@@ -26,6 +27,7 @@ abstract class Model
         'push_subscriptions' => PushSubscription::class,
         'account_ledger'     => AccountLedger::class,
         'promo_popups'       => PromoPopup::class,
+        'recycle_bin'        => RecycleBin::class,
     ];
 
     public static function forTable(string $table): ?string
@@ -168,8 +170,16 @@ abstract class Model
             $colList = implode(',', array_map(fn($c) => "`$c`", $cols));
             $sql = "INSERT INTO `" . static::$table . "` ($colList) VALUES ($ph)";
             if ($upsert) {
-                $updates = implode(',', array_map(fn($c) => "`$c` = VALUES(`$c`)", $cols));
-                $sql .= " ON DUPLICATE KEY UPDATE $updates";
+                $updates = array_map(fn($c) => "`$c` = VALUES(`$c`)", $cols);
+                // Re-registering a device (push endpoint, passkey) upserts onto
+                // a UNIQUE key. If that row was soft-deleted the upsert would
+                // revive it still flagged, leaving it invisible to every read.
+                if (isset($columns['delflag']) && !isset($data['delflag'])) {
+                    $updates[] = '`delflag` = 0';
+                    if (isset($columns['deleted_at'])) $updates[] = '`deleted_at` = NULL';
+                    if (isset($columns['deleted_by'])) $updates[] = '`deleted_by` = NULL';
+                }
+                $sql .= " ON DUPLICATE KEY UPDATE " . implode(',', $updates);
             }
             $pdo->prepare($sql)->execute(array_values($data));
             $ids[] = $data['id'] ?? $pdo->lastInsertId();

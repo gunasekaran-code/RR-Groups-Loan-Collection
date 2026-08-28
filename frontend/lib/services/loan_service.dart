@@ -81,9 +81,12 @@ class LoanService {
   }
 
   Future<LoanRecord> closeLoan(String id) async {
+    // Only the status is sent — LoanController's afterWrite() runs
+    // LoanRecalc on every PATCH regardless, which recomputes
+    // outstanding_balance from the real collections/schedule and would
+    // silently reopen the loan if any balance were actually still pending.
     final row = await _api.update('loans', id, {
       'status': 'closed',
-      'outstanding_balance': 0,
     });
     return LoanRecord.fromJson(row);
   }

@@ -8,6 +8,7 @@ class Customer {
   final String? address;
   final String? aadhaar;
   final String? pan;
+  final String? email;
   final String? occupation;
   final String? photoUrl;
   final String? assignedAgent;
@@ -25,6 +26,7 @@ class Customer {
     this.address,
     this.aadhaar,
     this.pan,
+    this.email,
     this.occupation,
     this.photoUrl,
     this.assignedAgent,

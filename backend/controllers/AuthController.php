@@ -97,6 +97,7 @@ class AuthController extends Controller
         if ($user['status'] === 'inactive') {
             json_error('Your account is inactive. Please contact the administrator.', 403);
         }
+        $this->assertNotSoftDeleted($user);
 
         $token = Jwt::encode([
             'sub'   => $user['id'],
@@ -109,6 +110,44 @@ class AuthController extends Controller
             'user'    => ['id' => $user['id'], 'email' => $user['email']],
             'profile' => $user,
         ]);
+    }
+
+    /**
+     * Refuse a login for a soft-deleted account.
+     *
+     * Two separate rows can be flagged, and both have to be checked:
+     *
+     *  - the profile itself (delflag = 1), i.e. the login was deleted; and
+     *  - for a customer login, the linked `customers` row. Deleting a customer
+     *    does not touch their profile, so without this a deleted customer
+     *    would keep signing in and seeing a portal built from a record that no
+     *    longer appears anywhere else in the app.
+     */
+    private function assertNotSoftDeleted(array $user): void
+    {
+        if ((int)($user['delflag'] ?? 0) === 1) {
+            json_error(
+                'This login has been deleted. Please contact the administrator to create a new account.',
+                403
+            );
+        }
+
+        $role = strtolower(trim((string)($user['role'] ?? '')));
+        if ($role !== 'customer' || empty($user['customer_id'])) {
+            return;
+        }
+
+        $customer = Customer::firstRaw(' WHERE id = ?', [$user['customer_id']]);
+
+        // No linked record at all is the same situation as a deleted one:
+        // there is nothing for the portal to show.
+        if (!$customer || (int)($customer['delflag'] ?? 0) === 1) {
+            json_error(
+                'This customer record has been deleted and is no longer active. '
+                . 'Please contact the office to create a new customer.',
+                403
+            );
+        }
     }
 
     /** Find the account for a reset request, verifying email or mobile. */

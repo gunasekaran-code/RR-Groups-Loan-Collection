@@ -1,11 +1,13 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
+import '../models/chit_schedule.dart';
 import 'method_override_http.dart';
 import 'session_service.dart';
 import '../models/chit_group.dart';
 import '../models/chit_member.dart';
 import '../models/chit_passbook.dart';
+import 'collection_api_service.dart';
 
 class ChitGroupApiService {
   static String get _restEndpoint => '${ApiConfig.normalizedBaseUrl}/rest.php';
@@ -15,6 +17,68 @@ class ChitGroupApiService {
         if (SessionService.instance.token != null)
           'Authorization': 'Bearer ${SessionService.instance.token}',
       };
+
+  // ---- SCHEDULE: BATCH SAVE / CREATE ----
+  static Future<void> saveSchedules(
+      List<Map<String, dynamic>> schedules) async {
+    if (schedules.isEmpty) return;
+    final uri = Uri.parse('$_restEndpoint?table=chit_schedules');
+    final res = await http.post(
+      uri,
+      headers: _headers,
+      body: jsonEncode(schedules),
+    );
+    _throwIfError(res);
+  }
+
+  // ---- SCHEDULE: DELETE FOR GROUP ----
+  static Future<void> deleteSchedulesForGroup(String groupId) async {
+    final uri =
+        Uri.parse('$_restEndpoint?table=chit_schedules&group_id=$groupId');
+    final res = await postWithMethodOverride(
+      uri,
+      method: 'DELETE',
+      headers: _headers,
+    );
+    _throwIfError(res);
+  }
+
+  // ---- SCHEDULE: READ ----
+  static Future<List<ChitSchedule>> fetchSchedules(String groupId) async {
+    final uri = Uri.parse(_restEndpoint).replace(queryParameters: {
+      'table': 'chit_schedules',
+      'group_id': groupId,
+      'order': 'installment_no.asc',
+    });
+    final res = await http.get(uri, headers: _headers);
+    _throwIfError(res);
+    return _listFrom(res).map((e) => ChitSchedule.fromJson(e)).toList();
+  }
+
+  // ---- SCHEDULE: OVERRIDE (admin only — enforced in UI below) ----
+  static Future<ChitSchedule> overrideSchedule({
+    required String scheduleId,
+    required DateTime dueDate,
+    required double payableAmount,
+    required double poolAmount,
+    String? notes,
+  }) async {
+    final uri = Uri.parse('$_restEndpoint?table=chit_schedules&id=$scheduleId');
+    final res = await postWithMethodOverride(
+      uri,
+      method: 'PATCH',
+      headers: _headers,
+      body: jsonEncode({
+        'due_date': dueDate.toIso8601String().split('T').first,
+        'payable_amount': payableAmount,
+        'pool_amount': poolAmount,
+        'is_custom': 1,
+        if (notes != null && notes.isNotEmpty) 'override_notes': notes,
+      }),
+    );
+    _throwIfError(res);
+    return ChitSchedule.fromJson(_rowFrom(res));
+  }
 
   // ---- GROUPS: READ ----
   static Future<List<ChitGroup>> fetchAll() async {
@@ -122,7 +186,25 @@ class ChitGroupApiService {
         Uri.parse('$_restEndpoint?table=chit_members&group_id=$groupId');
     final res = await http.get(uri, headers: _headers);
     _throwIfError(res);
-    return _listFrom(res).map((e) => ChitMember.fromJson(e)).toList();
+    final members = _listFrom(res).map(ChitMember.fromJson).toList();
+
+    // The mobile number is maintained in profiles, not chit_members. Hydrate
+    // members from their linked customer profile for the tracking table.
+    try {
+      final customers = await fetchCustomers();
+      final customersById = {
+        for (final customer in customers) customer.id: customer,
+      };
+      return members
+          .map((member) => member.copyWith(
+                phone: member.customerId == null
+                    ? null
+                    : customersById[member.customerId]?.phone,
+              ))
+          .toList();
+    } catch (_) {
+      return members;
+    }
   }
 
   // ---- MEMBERS: find the signed-in customer's own row in a group ----
@@ -207,25 +289,20 @@ class ChitGroupApiService {
   }
 
   // ---- CUSTOMERS (for the Add Member dropdown) ----
-  // ASSUMPTION: a `customers` resource exists at ?table=customers on the
-  // same router. Adjust the table name / ChitCustomerOption.fromJson
-  // keys if your customers endpoint differs.
+  // Customer contact details live in profiles. This is equivalent to
+  // SELECT * FROM profiles WHERE role = 'customer' ORDER BY mobile ASC.
   static Future<List<ChitCustomerOption>> fetchCustomers() async {
-    final uri = Uri.parse('$_restEndpoint?table=customers');
+    final uri = Uri.parse(_restEndpoint).replace(queryParameters: {
+      'table': 'profiles',
+      'role': 'eq.customer',
+      'order': 'mobile.asc',
+    });
     final res = await http.get(uri, headers: _headers);
     _throwIfError(res);
     return _listFrom(res).map((e) => ChitCustomerOption.fromJson(e)).toList();
   }
 
-  // ---- PASSBOOK: the member's group schedule ----
-  // There is no `chit_passbook` table in the schema. A member belongs to a
-  // group through `chit_members`, and `chit_schedules` holds that group's
-  // installment schedule. `chit_members.payment_status` is the only payment
-  // state stored for a member, so it is used for the schedule status.
-  //
-  // The schema has no per-payment receipt table for chits; therefore receipts
-  // remain empty until such a table is added and populated when a collection
-  // is recorded.
+  // ---- PASSBOOK: the member's group schedule and collection receipts ----
   static Future<ChitPassbookData> fetchPassbook(String memberId) async {
     final memberUri = Uri.parse(_restEndpoint).replace(
       queryParameters: {
@@ -257,24 +334,54 @@ class ChitGroupApiService {
     final scheduleRes = await http.get(scheduleUri, headers: _headers);
     _throwIfError(scheduleRes);
 
-    final paymentStatus = member['payment_status']?.toString() ?? 'pending';
-    final isPaid = paymentStatus.toLowerCase() == 'paid';
-    final draws = _listFrom(scheduleRes)
-        .map(
-          (schedule) => ChitDraw.fromJson({
-            'draw_number': schedule['installment_no'],
-            'scheduled_date': schedule['due_date'],
-            'payable_contribution': schedule['payable_amount'],
-            'dividend_pool_value': schedule['pool_amount'],
-            'payment_status': paymentStatus,
-            'amount_paid': isPaid ? schedule['payable_amount'] : 0,
-          }),
-        )
+    final customerId = member['customer_id']?.toString();
+    final collectionRows = await CollectionApiService.fetchCollections();
+    final groupMarker = 'Chit group: $groupId';
+    final receipts = collectionRows
+        .where((row) =>
+            (customerId != null &&
+                row['customer_id']?.toString() == customerId) ||
+            (customerId == null &&
+                row['customer_name']?.toString() ==
+                    member['member_name']?.toString()))
+        .where((row) =>
+            row['notes']?.toString().contains(groupMarker) == true ||
+            row['loan_number']?.toString() ==
+                member['group_number']?.toString())
         .toList();
+
+    final paidByDraw = <int, double>{};
+    final drawPattern = RegExp(r'Draw #(\d+)');
+    for (final receipt in receipts) {
+      final match = drawPattern.firstMatch(receipt['notes']?.toString() ?? '');
+      if (match == null) continue;
+      final drawNumber = int.tryParse(match.group(1)!) ?? 0;
+      final amount =
+          double.tryParse('${receipt['collection_amount'] ?? 0}') ?? 0;
+      paidByDraw[drawNumber] = (paidByDraw[drawNumber] ?? 0) + amount;
+    }
+
+    final draws = _listFrom(scheduleRes).map(
+      (schedule) {
+        final drawNumber = int.tryParse('${schedule['installment_no']}') ?? 0;
+        final amountPaid = paidByDraw[drawNumber] ?? 0;
+        return ChitDraw.fromJson({
+          'draw_number': schedule['installment_no'],
+          'scheduled_date': schedule['due_date'],
+          'payable_contribution': schedule['payable_amount'],
+          'dividend_pool_value': schedule['pool_amount'],
+          'payment_status': amountPaid >=
+                  (double.tryParse('${schedule['payable_amount']}') ?? 0) - 0.01
+              ? 'paid'
+              : 'pending',
+          'amount_paid': amountPaid,
+        });
+      },
+    ).toList();
 
     return ChitPassbookData(
       draws: draws,
-      receipts: const [],
+      receipts: receipts.map(ChitPaymentReceipt.fromJson).toList(),
       totalDraws: draws.length,
     );
   }

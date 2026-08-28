@@ -6,11 +6,15 @@ import 'package:intl/intl.dart';
 import '../../models/app_user.dart';
 import '../../models/report_model.dart';
 import '../../routes/app_routes.dart';
+import '../../models/account_ledger_model.dart';
+import '../../services/account_ledger_service.dart';
 import '../../services/report_service.dart';
 import '../../services/session_service.dart';
+import '../Promotional Popup/promotional_popup.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_shell.dart';
 import '../../widgets/stat_card.dart';
+import '../../l10n/generated/app_localizations.dart';
 
 String formatIndianCurrency(double? amount) {
   if (amount == null) return '₹0';
@@ -35,12 +39,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _future = _load();
-        _clockTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) showActivePromoPopup(context);
+    });
+    _clockTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() => _now = DateTime.now());
     });
   }
 
-    @override
+  @override
   void dispose() {
     _clockTimer?.cancel();
     super.dispose();
@@ -58,7 +65,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       start: monthStart,
       end: today,
     );
-    return _DashboardData(daily: daily, monthly: monthly, agent: agent);
+    final ledger = await AccountLedgerService().fetchSummary();
+    return _DashboardData(
+        daily: daily, monthly: monthly, agent: agent, ledger: ledger);
   }
 
   Future<void> _refresh() async {
@@ -69,23 +78,219 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _quickAction(BuildContext context, String label) {
+    final l10n = AppLocalizations.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$label is not linked yet')),
+      SnackBar(content: Text(l10n.dashboardNotLinkedYet(label))),
+    );
+  }
+
+  Widget _buildNetBalanceCard(AccountLedgerSummary s, AppLocalizations l10n) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final fmt = formatIndianCurrency;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+              colors: [
+                scheme.primary.withValues(alpha: 0.92),
+                AppColors.kGoldDark.withValues(alpha: 0.92)
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          borderRadius: BorderRadius.circular(24),
+          border:
+              Border.all(color: AppColors.kGold.withOpacity(0.35), width: 1.2),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.savings_outlined,
+                    color: AppColors.kGoldLight, size: 20),
+                const SizedBox(width: 8),
+                Text(l10n.dashboardNetBalanceSummary,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(l10n.dashboardNetBalanceSubtitle,
+                style: const TextStyle(
+                    color: AppColors.kTextOnDarkMuted, fontSize: 12)),
+            const SizedBox(height: 16),
+            _ledgerRow(
+              icon: Icons.account_balance_wallet_outlined,
+              iconColor: AppColors.gold50,
+              label: l10n.dashboardCashInHand,
+              value: fmt(s.cashInHand),
+              valueColor: AppColors.gold50,
+              details: {
+                l10n.dashboardLoanCollections: fmt(s.loanCollections),
+                l10n.dashboardFundDeposits: fmt(s.fundDeposits),
+                l10n.dashboardCustomCashIn: fmt(s.customCashIn),
+              },
+            ),
+            const SizedBox(height: 14),
+            _ledgerRow(
+              icon: Icons.account_balance_outlined,
+              iconColor: AppColors.gold50,
+              label: l10n.dashboardOutstandingMoneyLent,
+              value: fmt(s.outstandingMoneyLent),
+              valueColor: AppColors.gold50,
+              details: {
+                l10n.dashboardLoansOutstanding: fmt(s.totalLoanOutstanding),
+                l10n.dashboardCustomLent: fmt(s.customLentNet),
+              },
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.kGold.withOpacity(0.25),
+                    AppColors.kGoldDark.withOpacity(0.15)
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.kGold.withOpacity(0.5)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.emoji_events_outlined,
+                              color: AppColors.kGoldLight, size: 18),
+                          const SizedBox(width: 6),
+                          Text(l10n.dashboardNetBalanceLabel,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.25),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(l10n.dashboardTotalAssets,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(fmt(s.netBalance),
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text(
+                    l10n.dashboardNetBalanceFormula(
+                        fmt(s.cashInHand), fmt(s.outstandingMoneyLent)),
+                    style: const TextStyle(
+                        color: AppColors.kTextOnDarkMuted, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _ledgerRow({
+    required IconData icon,
+    required Color iconColor,
+    required String label,
+    required String value,
+    required Color valueColor,
+    required Map<String, String> details,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: iconColor, size: 16),
+              const SizedBox(width: 6),
+              Text(label,
+                  style: TextStyle(
+                      color: iconColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.4)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(value,
+              style: TextStyle(
+                  color: valueColor,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold)),
+          const Divider(color: Colors.white24, height: 18),
+          ...details.entries.map((e) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(e.key,
+                          style: const TextStyle(
+                              color: AppColors.kTextOnDarkMuted, fontSize: 12),
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(e.value,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              )),
+        ],
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final AppUser user = SessionService.instance.currentUser!;
     final theme = Theme.of(context);
     final todayLabel = DateFormat('EEEE, d MMMM y').format(DateTime.now());
     final firstName = user.name.split(' ').first;
-     final greeting = _greetingForHour(_now.hour);
-
+    final greeting = _greetingForHour(_now.hour, l10n);
 
     return AppShell(
       currentRoute: AppRoutes.dashboard,
-      title: 'Dashboard',
+      title: l10n.dashboardTitle,
       body: FutureBuilder<_DashboardData>(
         future: _future,
         builder: (context, snapshot) {
@@ -119,7 +324,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    _buildHeroBanner(context, todayLabel, firstName, data),
+                    _buildHeroBanner(
+                        context, todayLabel, firstName, greeting, data, l10n),
                     const SizedBox(height: 16),
                     if (loading)
                       const Padding(
@@ -129,22 +335,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     else if (error != null)
                       _errorCard(error)
                     else if (data != null) ...[
-                      _buildStatGrid(data),
+                     
+                      _buildStatGrid(data, l10n),
                       const SizedBox(height: 16),
-                      _buildCollectionTrendCard(data.monthly.collectionTrend),
+                       _buildNetBalanceCard(data.ledger, l10n),
                       const SizedBox(height: 16),
-                      _buildLoanStatusCard(data.monthly),
+                      _buildCollectionTrendCard(
+                          data.monthly.collectionTrend, l10n),
                       const SizedBox(height: 16),
-                      _buildAgentPerformanceCard(data.agent),
+                      _buildLoanStatusCard(data.monthly, l10n),
                       const SizedBox(height: 16),
-                      _buildMonthlyProgressCard(data.monthly),
+                      _buildAgentPerformanceCard(data.agent, l10n),
                       const SizedBox(height: 16),
-                      _buildQuickActionsCard(context),
+                      _buildMonthlyProgressCard(data.monthly, l10n),
+                      const SizedBox(height: 16),
+                      _buildQuickActionsCard(context, l10n),
                       const SizedBox(height: 16),
                       _buildRecentCollectionsCard(
-                          context, data.daily.collections),
+                          context, data.daily.collections, l10n),
                       const SizedBox(height: 16),
-                      _buildRecentLoansCard(context, data.daily.newLoans),
+                      _buildRecentLoansCard(
+                          context, data.daily.newLoans, l10n),
                     ],
                   ],
                 ),
@@ -156,11 +367,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  String _greetingForHour(int hour) {
-  if (hour < 12) return 'Good morning';
-  if (hour < 17) return 'Good afternoon';
-  return 'Good evening';
-}
+  String _greetingForHour(int hour, AppLocalizations l10n) {
+    if (hour < 12) return l10n.dashboardGreetingMorning;
+    if (hour < 17) return l10n.dashboardGreetingAfternoon;
+    return l10n.dashboardGreetingEvening;
+  }
 
   Widget _errorCard(String message) {
     return Container(
@@ -243,10 +454,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  
-
   Widget _buildHeroBanner(BuildContext context, String today, String firstName,
-      _DashboardData? data) {
+      String greeting, _DashboardData? data, AppLocalizations l10n) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final collections = data?.daily.summary.totalCollected ?? 0;
@@ -279,14 +488,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       fontSize: 11,
                       fontWeight: FontWeight.w600)),
               const SizedBox(height: 6),
-              Text('Good morning, $firstName',
+              Text(l10n.dashboardGreetingWithName(greeting, firstName),
                   style: const TextStyle(
                       color: Colors.white,
                       fontSize: 24,
                       fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               Text(
-                'Live figures from the database: ${formatIndianCurrency(collections)} collected today and $loans active loans.',
+                l10n.dashboardLiveFigures(
+                    formatIndianCurrency(collections), loans),
                 style: const TextStyle(
                     color: Colors.white, fontSize: 13, height: 1.4),
               ),
@@ -297,10 +507,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-
-
-
-  Widget _buildStatGrid(_DashboardData data) {
+  Widget _buildStatGrid(_DashboardData data, AppLocalizations l10n) {
     final daily = data.daily;
     final monthly = data.monthly;
     final activeLoans = monthly.summary.activeLoans;
@@ -316,56 +523,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
       childAspectRatio: 1.15,
       children: [
         StatCard(
-          label: 'Active Loans',
+          label: l10n.dashboardStatActiveLoans,
           value: '$activeLoans',
           icon: Icons.account_balance_outlined,
           iconColor: Colors.blue,
           iconBackground: const Color(0xFFDCEAFE),
         ),
         StatCard(
-          label: 'New Customers',
+          label: l10n.dashboardStatNewCustomers,
           value: '${monthly.summary.newCustomers}',
           icon: Icons.people_outline,
           iconColor: Colors.blue,
           iconBackground: const Color(0xFFDCEAFE),
         ),
         StatCard(
-          label: "Today's Collections",
+          label: l10n.dashboardStatTodaysCollections,
           value: formatIndianCurrency(daily.summary.totalCollected),
           icon: Icons.currency_rupee,
           iconColor: Colors.green,
           iconBackground: const Color(0xFFDCFCE7),
         ),
         StatCard(
-          label: 'Overdue Accounts',
+          label: l10n.dashboardStatOverdueAccounts,
           value: '$overdueLoans',
           icon: Icons.warning_amber_rounded,
           iconColor: Colors.red,
           iconBackground: const Color(0xFFFEE2E2),
         ),
         StatCard(
-          label: 'Pending Approvals',
+          label: l10n.dashboardStatPendingApprovals,
           value: '$totalLoans',
           icon: Icons.access_time_rounded,
           iconColor: Colors.orange,
           iconBackground: const Color(0xFFFEF3C7),
         ),
         StatCard(
-          label: 'Total Loan Amount',
+          label: l10n.dashboardStatTotalLoanAmount,
           value: formatIndianCurrency(monthly.summary.disbursement),
           icon: Icons.credit_card_outlined,
           iconColor: const Color(0xFF7C3AED),
           iconBackground: const Color(0xFFEDE9FE),
         ),
         StatCard(
-          label: 'Interest Revenue',
+          label: l10n.dashboardStatInterestRevenue,
           value: formatIndianCurrency(monthly.summary.interest),
           icon: Icons.trending_up_rounded,
           iconColor: Colors.green,
           iconBackground: const Color(0xFFDCFCE7),
         ),
         StatCard(
-          label: 'Monthly Collection',
+          label: l10n.dashboardStatMonthlyCollection,
           value: formatIndianCurrency(monthly.summary.collected),
           icon: Icons.calendar_month_outlined,
           iconColor: Colors.blue,
@@ -375,13 +582,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildCollectionTrendCard(List<MonthPoint> trend) {
+  Widget _buildCollectionTrendCard(List<MonthPoint> trend, AppLocalizations l10n) {
     final values = trend.map((e) => e.value).toList();
     return _glassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _sectionHeader('Collection Trend', 'Last months from reports table'),
+          _sectionHeader(l10n.dashboardCollectionTrend,
+              l10n.dashboardCollectionTrendSubtitle),
           const SizedBox(height: 16),
           SizedBox(
             height: 140,
@@ -406,22 +614,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildLoanStatusCard(MonthlyReport monthly) {
+  Widget _buildLoanStatusCard(MonthlyReport monthly, AppLocalizations l10n) {
     final active = monthly.summary.activeLoans.toDouble();
     final overdue = monthly.summary.overdueLoans.toDouble();
     final closed =
         (monthly.summary.collectionCount - overdue).clamp(0, 999999).toDouble();
     final slices = [
-      _DonutSlice('Active', active, AppColors.kSuccess),
-      _DonutSlice('Overdue', overdue, AppColors.kDanger),
-      _DonutSlice('Closed/Other', closed, AppColors.kTextMuted),
+      _DonutSlice(l10n.dashboardStatusActive, active, AppColors.kSuccess),
+      _DonutSlice(l10n.dashboardStatusOverdue, overdue, AppColors.kDanger),
+      _DonutSlice(
+          l10n.dashboardStatusClosedOther, closed, AppColors.kTextMuted),
     ];
     final total = slices.fold<double>(0, (sum, s) => sum + s.value);
     return _glassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _sectionHeader('Loan Status', 'Live database summary'),
+          _sectionHeader(
+              l10n.dashboardLoanStatus, l10n.dashboardLoanStatusSubtitle),
           const SizedBox(height: 16),
           Row(
             children: [
@@ -443,8 +653,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 fontSize: 22,
                                 fontWeight: FontWeight.bold,
                                 color: AppColors.kTextDark)),
-                        const Text('Total',
-                            style: TextStyle(
+                        Text(l10n.dashboardDonutTotal,
+                            style: const TextStyle(
                                 fontSize: 11, color: AppColors.kTextMuted)),
                       ],
                     ),
@@ -490,7 +700,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildAgentPerformanceCard(AgentReport agentReport) {
+  Widget _buildAgentPerformanceCard(
+      AgentReport agentReport, AppLocalizations l10n) {
     final data = agentReport.chart
         .map((e) =>
             _BarDatum(e.label, _scaleValue(e.value), color: AppColors.kInfo))
@@ -500,7 +711,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          _sectionHeader('Agent Performance', 'Top field agents from report'),
+          _sectionHeader(l10n.dashboardAgentPerformance,
+              l10n.dashboardAgentPerformanceSubtitle),
           const SizedBox(height: 20),
           SizedBox(
               height: 200,
@@ -567,7 +779,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildMonthlyProgressCard(MonthlyReport monthly) {
+  Widget _buildMonthlyProgressCard(MonthlyReport monthly, AppLocalizations l10n) {
     final target =
         monthly.summary.disbursement <= 0 ? 1.0 : monthly.summary.disbursement;
     final progress = (monthly.summary.collected / target).clamp(0.0, 1.0);
@@ -577,8 +789,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _sectionHeader('Monthly Collection Progress',
-              '₹${fmt.format(monthly.summary.collected)} of ₹${fmt.format(target)} target',
+          _sectionHeader(
+              l10n.dashboardMonthlyProgress,
+              l10n.dashboardMonthlyProgressSubtitle(
+                  fmt.format(monthly.summary.collected), fmt.format(target)),
               trailing: Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -609,25 +823,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildQuickActionsCard(BuildContext context) {
+  Widget _buildQuickActionsCard(BuildContext context, AppLocalizations l10n) {
     final actions = <_QuickAction>[
-      _QuickAction('Add Customer', Icons.person_add_alt_outlined,
-          AppColors.kInfo, ()  => Navigator.of(context).pushNamed(AppRoutes.customers)),
-      _QuickAction('Create Loan',  Icons.account_balance_outlined,
-          AppColors.kSuccess, () => Navigator.of(context).pushNamed(AppRoutes.loans)),
-      _QuickAction('Chit Group', Icons.groups_outlined, const Color(0xFF7C3AED),
+      _QuickAction(
+          l10n.dashboardQuickAddCustomer,
+          Icons.person_add_alt_outlined,
+          AppColors.kInfo,
+          () => Navigator.of(context).pushNamed(AppRoutes.customers)),
+      _QuickAction(
+          l10n.dashboardQuickCreateLoan,
+          Icons.account_balance_outlined,
+          AppColors.kSuccess,
+          () => Navigator.of(context).pushNamed(AppRoutes.loans)),
+      _QuickAction(l10n.dashboardQuickChitGroup, Icons.groups_outlined,
+          const Color(0xFF7C3AED),
           () => Navigator.of(context).pushNamed(AppRoutes.chitGroups)),
-      _QuickAction('Add Agent', Icons.badge_outlined, AppColors.kWarning,
+      _QuickAction(l10n.dashboardQuickAddAgent, Icons.badge_outlined,
+          AppColors.kWarning,
           () => Navigator.of(context).pushNamed(AppRoutes.agent)),
-      _QuickAction('Reports', Icons.description_outlined, AppColors.kInfo,
+      _QuickAction(l10n.dashboardQuickReports, Icons.description_outlined,
+          AppColors.kInfo,
           () => Navigator.of(context).pushNamed(AppRoutes.reports)),
     ];
     return _glassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Quick Actions',
-              style: TextStyle(
+          Text(l10n.dashboardQuickActions,
+              style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
                   color: AppColors.kTextDark)),
@@ -648,25 +871,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildRecentCollectionsCard(
-      BuildContext context, List<CollectionEntry> items) {
+      BuildContext context, List<CollectionEntry> items, AppLocalizations l10n) {
     return _glassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _sectionHeader(
-            'Recent Collections',
-            'Latest payments received',
+            l10n.dashboardRecentCollections,
+            l10n.dashboardRecentCollectionsSubtitle,
             trailing: TextButton(
                 onPressed: () =>
                     Navigator.of(context).pushNamed(AppRoutes.collections),
-                child: const Text('View all')),
+                child: Text(l10n.dashboardViewAll)),
           ),
           Divider(height: 20, color: Colors.white.withOpacity(0.6)),
           if (items.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Text('No collections found for today.',
-                  style: TextStyle(color: AppColors.kTextMuted)),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(l10n.dashboardNoCollectionsToday,
+                  style: const TextStyle(color: AppColors.kTextMuted)),
             )
           else
             ...items.take(5).map((item) => _glassListRow(
@@ -685,25 +908,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildRecentLoansCard(BuildContext context, List<NewLoanEntry> items) {
+  Widget _buildRecentLoansCard(
+      BuildContext context, List<NewLoanEntry> items, AppLocalizations l10n) {
     return _glassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _sectionHeader(
-            'Recent Loans',
-            'Newly disbursed loans',
+            l10n.dashboardRecentLoans,
+            l10n.dashboardRecentLoansSubtitle,
             trailing: TextButton(
                 onPressed: () =>
                     Navigator.of(context).pushNamed(AppRoutes.loans),
-                child: const Text('View all')),
+                child: Text(l10n.dashboardViewAll)),
           ),
           Divider(height: 20, color: Colors.white.withOpacity(0.6)),
           if (items.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Text('No new loans found for today.',
-                  style: TextStyle(color: AppColors.kTextMuted)),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(l10n.dashboardNoLoansToday,
+                  style: const TextStyle(color: AppColors.kTextMuted)),
             )
           else
             ...items.take(5).map((item) {
@@ -826,11 +1050,13 @@ class _DashboardData {
     required this.daily,
     required this.monthly,
     required this.agent,
+    required this.ledger,
   });
 
   final DailyReport daily;
   final MonthlyReport monthly;
   final AgentReport agent;
+  final AccountLedgerSummary ledger;
 }
 
 class _DonutSlice {

@@ -10,6 +10,33 @@ import '../../theme/glass_toast.dart';
 import '../../services/photo_service.dart';
 import '../../services/agent_api_service.dart';
 import '../../services/auth_api_service.dart' show ApiException;
+import '../../l10n/generated/app_localizations.dart';
+
+String localizedRoleLabel(String role, AppLocalizations l10n) {
+  switch (role) {
+    case 'Agent':
+      return l10n.agentRoleAgent;
+    case 'Admin':
+      return l10n.agentRoleAdmin;
+    case 'Manager':
+      return l10n.agentRoleManager;
+    case 'All':
+      return l10n.agentRoleAll;
+    default:
+      return role;
+  }
+}
+
+String localizedStatusLabel(String status, AppLocalizations l10n) {
+  switch (status) {
+    case 'Active':
+      return l10n.statusActive;
+    case 'Inactive':
+      return l10n.statusInactive;
+    default:
+      return status;
+  }
+}
 
 class AgentManagementScreen extends StatefulWidget {
   const AgentManagementScreen({super.key});
@@ -23,22 +50,22 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
   String _selectedRole = 'Agent';
 
   String _formatCreatedDate(dynamic value) {
-  if (value == null || value.toString().isEmpty) {
-    return '';
+    if (value == null || value.toString().isEmpty) {
+      return '';
+    }
+
+    try {
+      final date = DateTime.parse(value.toString());
+
+      const months = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      ];
+
+      return '${date.day} ${months[date.month - 1]} ${date.year}';
+    } catch (_) {
+      return value.toString();
+    }
   }
-
-  try {
-    final date = DateTime.parse(value.toString());
-
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-
-    return '${date.day} ${months[date.month - 1]} ${date.year}';
-  } catch (_) {
-    return value.toString();
-  }
-}
 
   final ScrollController _tableScrollController = ScrollController();
 
@@ -53,8 +80,6 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
     super.initState();
     _loadAgents();
   }
-
-  // ---- backend mapping ---------------------------------------------------
 
   Map<String, dynamic> _fromApi(Map<String, dynamic> row) {
     String cap(String? s) {
@@ -114,8 +139,9 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
         _isLoading = false;
       });
     } catch (e) {
+      final l10n = AppLocalizations.of(context);
       setState(() {
-        _loadError = 'Failed to load agents.';
+        _loadError = l10n.agentLoadFailedFallback;
         _isLoading = false;
       });
     }
@@ -151,6 +177,7 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
   }
 
   void _showAddAgentDialog() {
+    final l10n = AppLocalizations.of(context);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -165,14 +192,14 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
               setState(() => _agents.add(_fromApi(created)));
               if (!mounted) return;
               ToastService.show(
-                title: 'Agent created',
-                message: '${newAgent['name']} has been added',
+                title: l10n.agentCreatedTitle,
+                message: l10n.agentCreatedMessage(newAgent['name']),
                 type: ToastType.success,
               );
             } on ApiException catch (e) {
               if (!mounted) return;
               ToastService.show(
-                title: 'Could not create agent',
+                title: l10n.agentCreateFailedTitle,
                 message: e.message,
                 type: ToastType.error,
               );
@@ -184,6 +211,7 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
   }
 
   void _showEditAgentDialog(Map<String, dynamic> agent) {
+    final l10n = AppLocalizations.of(context);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -202,14 +230,14 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
               });
               if (!mounted) return;
               ToastService.show(
-                title: 'Agent updated',
-                message: '${updated['name']} has been updated',
+                title: l10n.agentUpdatedTitle,
+                message: l10n.agentUpdatedMessage(updated['name']),
                 type: ToastType.success,
               );
             } on ApiException catch (e) {
               if (!mounted) return;
               ToastService.show(
-                title: 'Could not update agent',
+                title: l10n.agentUpdateFailedTitle,
                 message: e.message,
                 type: ToastType.error,
               );
@@ -221,12 +249,12 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
   }
 
   void _showDeleteAgentDialog(Map<String, dynamic> agent) async {
+    final l10n = AppLocalizations.of(context);
     final confirmed = await AppConfirmDialog.show(
       context: context,
-      title: 'Delete Agent',
-      message:
-          'Are you sure you want to delete ${agent['name']}? This action cannot be undone.',
-      confirmLabel: 'Delete Agent',
+      title: l10n.agentDeleteDialogTitle,
+      message: l10n.agentDeleteConfirmMessage(agent['name']),
+      confirmLabel: l10n.agentDeleteConfirmLabel,
       confirmButtonColor: AppColors.kDanger,
     );
 
@@ -238,14 +266,14 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
         });
         if (!mounted) return;
         ToastService.show(
-          title: 'Agent deleted',
-          message: '${agent['name']} has been removed',
+          title: l10n.agentDeletedTitle,
+          message: l10n.agentDeletedMessage(agent['name']),
           type: ToastType.success,
         );
       } on ApiException catch (e) {
         if (!mounted) return;
         ToastService.show(
-          title: 'Could not delete agent',
+          title: l10n.agentDeleteFailedTitle,
           message: e.message,
           type: ToastType.error,
         );
@@ -281,9 +309,10 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return AppShell(
       currentRoute: AppRoutes.agent,
-      title: 'Agent Management',
+      title: l10n.agentManagementTitle,
       body: LayoutBuilder(
         builder: (context, constraints) {
           final isNarrow = constraints.maxWidth < 700;
@@ -311,7 +340,7 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
                     const SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: _loadAgents,
-                      child: const Text('Retry'),
+                      child: Text(l10n.retry),
                     ),
                   ],
                 ),
@@ -328,8 +357,8 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   PageHeader(
-                    title: 'Agent Management',
-                    subtitle: 'Add, edit, and manage your collection agents',
+                    title: l10n.agentManagementTitle,
+                    subtitle: l10n.agentManagementSubtitle,
                     actions: [
                       Align(
                         alignment: Alignment.centerLeft,
@@ -338,7 +367,7 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
                           child: ElevatedButton.icon(
                             onPressed: _showAddAgentDialog,
                             icon: const Icon(Icons.add),
-                            label: const Text('Add Agent'),
+                            label: Text(l10n.agentAddButton),
                             style: ElevatedButton.styleFrom(
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 12),
@@ -348,11 +377,11 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
                       ),
                     ],
                   ),
-                  _buildStatsRow(isNarrow),
+                  _buildStatsRow(isNarrow, l10n),
                   const SizedBox(height: 8),
-                  _buildSearchAndFilters(isNarrow),
+                  _buildSearchAndFilters(isNarrow, l10n),
                   const SizedBox(height: 8),
-                  _buildAgentsTable(isNarrow),
+                  _buildAgentsTable(isNarrow, l10n),
                   const SizedBox(height: 24),
                 ],
               ),
@@ -363,35 +392,35 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
     );
   }
 
-  Widget _buildStatsRow(bool isNarrow) {
+  Widget _buildStatsRow(bool isNarrow, AppLocalizations l10n) {
     final cards = <Widget>[
       _statCard(
         icon: Icons.shield_outlined,
         iconColor: AppColors.kSuccess,
         iconBg: const Color(0xFFF0FDF4),
         value: '$_totalAgents',
-        label: 'Total Agents',
+        label: l10n.agentStatTotal,
       ),
       _statCard(
         icon: Icons.person_outline,
         iconColor: AppColors.kSuccess,
         iconBg: const Color(0xFFF0FDF4),
         value: '$_activeAgents',
-        label: 'Active Agents',
+        label: l10n.agentStatActive,
       ),
       _statCard(
         icon: Icons.person_off_outlined,
         iconColor: AppColors.kInfo,
         iconBg: const Color(0xFFF0F5FF),
         value: '$_inactiveAgents',
-        label: 'Inactive Agents',
+        label: l10n.agentStatInactive,
       ),
       _statCard(
         icon: Icons.person_add_alt_outlined,
         iconColor: AppColors.kInfo,
         iconBg: const Color(0xFFF0F5FF),
         value: '$_addedThisMonth',
-        label: 'Added This Month',
+        label: l10n.agentStatAddedThisMonth,
       ),
     ];
 
@@ -481,11 +510,11 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
     );
   }
 
-  Widget _buildSearchAndFilters(bool isNarrow) {
+  Widget _buildSearchAndFilters(bool isNarrow, AppLocalizations l10n) {
     final searchField = TextField(
-      decoration: const InputDecoration(
-        prefixIcon: Icon(Icons.search),
-        hintText: 'Search by name or mobile...',
+      decoration: InputDecoration(
+        prefixIcon: const Icon(Icons.search),
+        hintText: l10n.agentSearchHint,
         isDense: true,
       ),
       onChanged: (v) => setState(() => _query = v),
@@ -495,7 +524,8 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
       initialValue: _selectedRole,
       decoration: const InputDecoration(isDense: true),
       items: _roleFilters
-          .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+          .map((r) => DropdownMenuItem(
+              value: r, child: Text(localizedRoleLabel(r, l10n))))
           .toList(),
       onChanged: (v) {
         if (v != null) setState(() => _selectedRole = v);
@@ -534,17 +564,17 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
     );
   }
 
-  Widget _buildAgentsTable(bool isNarrow) {
+  Widget _buildAgentsTable(bool isNarrow, AppLocalizations l10n) {
     final agents = _filteredAgents;
 
     if (agents.isEmpty) {
       return Padding(
         padding: EdgeInsets.symmetric(
             horizontal: isNarrow ? 12.0 : 24.0, vertical: 32.0),
-        child: const Center(
+        child: Center(
           child: Text(
-            'No agents found.',
-            style: TextStyle(color: AppColors.kTextMuted),
+            l10n.agentNoAgentsFound,
+            style: const TextStyle(color: AppColors.kTextMuted),
           ),
         ),
       );
@@ -560,13 +590,13 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
         fontWeight: FontWeight.bold,
         fontSize: 12,
       ),
-      columns: const [
-        DataColumn(label: Text('USER')),
-        DataColumn(label: Text('MOBILE')),
-        DataColumn(label: Text('ROLE')),
-        DataColumn(label: Text('STATUS')),
-        DataColumn(label: Text('CREATED')),
-        DataColumn(label: Text('ACTIONS')),
+      columns: [
+        DataColumn(label: Text(l10n.agentColUser)),
+        DataColumn(label: Text(l10n.agentColMobile)),
+        DataColumn(label: Text(l10n.agentColRole)),
+        DataColumn(label: Text(l10n.agentColStatus)),
+        DataColumn(label: Text(l10n.agentColCreated)),
+        DataColumn(label: Text(l10n.agentColActions)),
       ],
       rows: agents.map((agent) {
         final photoUrl = agent['photo_url'] as String?;
@@ -610,10 +640,13 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
             ],
           )),
           DataCell(Text(agent['mobile'] ?? '')),
-          DataCell(StatusBadge(label: agent['role']!, tone: BadgeTone.success)),
           DataCell(StatusBadge(
-              label: agent['status']!, tone: _toneFor(agent['status']!))),
-          DataCell( Text(_formatCreatedDate(agent['created'])),),
+              label: localizedRoleLabel(agent['role']!, l10n),
+              tone: BadgeTone.success)),
+          DataCell(StatusBadge(
+              label: localizedStatusLabel(agent['status']!, l10n),
+              tone: _toneFor(agent['status']!))),
+          DataCell(Text(_formatCreatedDate(agent['created']))),
           DataCell(Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -621,13 +654,13 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
                 icon: const Icon(Icons.edit_outlined, size: 20),
                 color: AppColors.kTextMuted,
                 onPressed: () => _showEditAgentDialog(agent),
-                tooltip: 'Edit',
+                tooltip: l10n.agentEditTooltip,
               ),
               IconButton(
                 icon: const Icon(Icons.delete_outline, size: 20),
                 color: AppColors.kDanger,
                 onPressed: () => _showDeleteAgentDialog(agent),
-                tooltip: 'Delete',
+                tooltip: l10n.agentDeleteTooltip,
               ),
             ],
           )),
@@ -667,9 +700,6 @@ class _AgentManagementScreenState extends State<AgentManagementScreen> {
   }
 }
 
-// ==========================================
-// ADD / EDIT AGENT SHEET
-// ==========================================
 class AgentFormDialog extends StatefulWidget {
   final Map<String, dynamic>? agent;
   final ValueChanged<Map<String, dynamic>>? onSaved;
@@ -734,12 +764,14 @@ class _AgentFormDialogState extends State<AgentFormDialog> {
   }
 
   Future<void> _pickPhoto() async {
+    final l10n = AppLocalizations.of(context);
     try {
       final dataUri = await _photoService.pickPhotoAsDataUri();
       if (dataUri != null) setState(() => _photoDataUri = dataUri);
     } catch (e) {
+      if (!mounted) return;
       ToastService.show(
-        title: 'Photo upload failed',
+        title: l10n.agentPhotoUploadFailedTitle,
         message: e.toString(),
         type: ToastType.error,
       );
@@ -747,12 +779,13 @@ class _AgentFormDialogState extends State<AgentFormDialog> {
   }
 
   void _handleSave() {
+    final l10n = AppLocalizations.of(context);
     if (_nameController.text.trim().isEmpty ||
         _emailController.text.trim().isEmpty ||
         (!widget.isEdit && _passwordController.text.trim().isEmpty)) {
       ToastService.show(
-        title: 'Missing information',
-        message: 'Please fill all required fields',
+        title: l10n.agentMissingInfoTitle,
+        message: l10n.agentMissingInfoMessage,
         type: ToastType.error,
       );
       return;
@@ -782,6 +815,7 @@ class _AgentFormDialogState extends State<AgentFormDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final initials = _nameController.text.trim().isNotEmpty
         ? _nameController.text.trim()[0].toUpperCase()
         : 'U';
@@ -796,7 +830,7 @@ class _AgentFormDialogState extends State<AgentFormDialog> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                widget.isEdit ? 'Edit User' : 'Add User',
+                widget.isEdit ? l10n.agentFormEditTitle : l10n.agentFormAddTitle,
                 style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -820,26 +854,26 @@ class _AgentFormDialogState extends State<AgentFormDialog> {
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: const Color(0xFFFDE68A)),
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(Icons.shield_outlined,
+                  const Icon(Icons.shield_outlined,
                       size: 18, color: AppColors.kWarning),
-                  SizedBox(width: 10),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Set an email and password so this user can sign in to the app.',
-                      style:
-                          TextStyle(fontSize: 13, color: AppColors.kTextDark),
+                      l10n.agentFormCredentialsNotice,
+                      style: const TextStyle(
+                          fontSize: 13, color: AppColors.kTextDark),
                     ),
                   ),
                 ],
               ),
             ),
           const SizedBox(height: 20),
-          _buildTextField('FULL NAME *', 'e.g. Priya Sharma',
+          _buildTextField(l10n.agentFieldFullName, l10n.agentFieldFullNameHint,
               controller: _nameController),
           const SizedBox(height: 16),
-          _buildTextField('MOBILE', 'e.g. +91 98765 43210',
+          _buildTextField(l10n.agentFieldMobile, l10n.agentFieldMobileHint,
               controller: _mobileController),
           const SizedBox(height: 16),
           LayoutBuilder(
@@ -847,9 +881,10 @@ class _AgentFormDialogState extends State<AgentFormDialog> {
               final isNarrow = constraints.maxWidth < 500;
               return _responsiveRow(
                 isNarrow,
-                _buildTextField('EMAIL *', 'user@rrgroups.in',
+                _buildTextField(l10n.agentFieldEmail, l10n.agentFieldEmailHint,
                     controller: _emailController),
-                _buildTextField('PASSWORD *', 'Min. 6 characters',
+                _buildTextField(
+                    l10n.agentFieldPassword, l10n.agentFieldPasswordHint,
                     controller: _passwordController, obscure: true),
               );
             },
@@ -860,15 +895,23 @@ class _AgentFormDialogState extends State<AgentFormDialog> {
               final isNarrow = constraints.maxWidth < 500;
               return _responsiveRow(
                 isNarrow,
-                _buildDropdown('ROLE', _role, _roles,
+                _buildDropdown(
+                    l10n.agentFieldRole,
+                    _role,
+                    _roles,
+                    l10n,
                     (v) => setState(() => _role = v ?? _role)),
-                _buildDropdown('STATUS', _status, _statuses,
+                _buildDropdown(
+                    l10n.agentFieldStatus,
+                    _status,
+                    _statuses,
+                    l10n,
                     (v) => setState(() => _status = v ?? _status)),
               );
             },
           ),
           const SizedBox(height: 16),
-          _buildTextField('ADDRESS', 'Residential address',
+          _buildTextField(l10n.agentFieldAddress, l10n.agentFieldAddressHint,
               controller: _addressController, maxLines: 3),
           const SizedBox(height: 16),
           LayoutBuilder(
@@ -876,19 +919,21 @@ class _AgentFormDialogState extends State<AgentFormDialog> {
               final isNarrow = constraints.maxWidth < 500;
               return _responsiveRow(
                 isNarrow,
-                _buildTextField('AADHAAR', '[Aadhaar Redacted]',
+                _buildTextField(
+                    l10n.agentFieldAadhaar, l10n.agentFieldAadhaarHint,
                     controller: _aadhaarController),
-                _buildTextField('PAN', 'ABCDE1234F',
+                _buildTextField(l10n.agentFieldPan, l10n.agentFieldPanHint,
                     controller: _panController),
               );
             },
           ),
           const SizedBox(height: 16),
-          _buildTextField('OCCUPATION', 'e.g. Field Executive',
+          _buildTextField(
+              l10n.agentFieldOccupation, l10n.agentFieldOccupationHint,
               controller: _occupationController),
           const SizedBox(height: 16),
-          const Text('PROFILE PHOTO',
-              style: TextStyle(
+          Text(l10n.agentFieldProfilePhoto,
+              style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                   color: AppColors.kTextMuted)),
@@ -910,7 +955,7 @@ class _AgentFormDialogState extends State<AgentFormDialog> {
               OutlinedButton.icon(
                 onPressed: _pickPhoto,
                 icon: const Icon(Icons.upload_file),
-                label: const Text('Upload Photo'),
+                label: Text(l10n.agentUploadPhotoButton),
               ),
             ],
           ),
@@ -922,7 +967,9 @@ class _AgentFormDialogState extends State<AgentFormDialog> {
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
-              child: Text(widget.isEdit ? 'Save Changes' : 'Create User'),
+              child: Text(widget.isEdit
+                  ? l10n.agentSaveChangesButton
+                  : l10n.agentCreateUserButton),
             ),
           ),
         ],
@@ -958,7 +1005,7 @@ class _AgentFormDialogState extends State<AgentFormDialog> {
   }
 
   Widget _buildDropdown(String label, String value, List<String> items,
-      ValueChanged<String?> onChanged) {
+      AppLocalizations l10n, ValueChanged<String?> onChanged) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -971,7 +1018,11 @@ class _AgentFormDialogState extends State<AgentFormDialog> {
         DropdownButtonFormField<String>(
           initialValue: value,
           items: items
-              .map((i) => DropdownMenuItem(value: i, child: Text(i)))
+              .map((i) => DropdownMenuItem(
+                  value: i,
+                  child: Text(label == l10n.agentFieldStatus
+                      ? localizedStatusLabel(i, l10n)
+                      : localizedRoleLabel(i, l10n))))
               .toList(),
           onChanged: onChanged,
           decoration: InputDecoration(

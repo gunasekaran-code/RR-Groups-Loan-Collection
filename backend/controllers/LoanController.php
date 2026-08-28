@@ -64,14 +64,25 @@ class LoanController extends ResourceController
      */
     protected function afterWrite(string $method, array $rows): void
     {
-        if ($method === 'DELETE') return;
-
-        $ids = [];
+        // The customer's loan_status has to be refreshed on DELETE too —
+        // removing someone's only loan should put them back to "No Loan".
+        $customerIds = [];
         foreach ($rows as $row) {
-            if (!empty($row['id'])) $ids[] = $row['id'];
+            if (!empty($row['customer_id'])) $customerIds[] = $row['customer_id'];
         }
-        if ($ids) {
-            LoanRecalc::syncMany($ids);
+
+        if ($method !== 'DELETE') {
+            $ids = [];
+            foreach ($rows as $row) {
+                if (!empty($row['id'])) $ids[] = $row['id'];
+            }
+            if ($ids) {
+                LoanRecalc::syncMany($ids);
+            }
+        }
+
+        if ($customerIds) {
+            Customer::recalcLoanStatus($customerIds);
         }
     }
 

@@ -2,7 +2,11 @@
 // ============================================================
 //  AccountLedgerController — Executive Account Book & Working Capital
 //  Role enforcement:
-//    - Read:   Authenticated users (Admin sees full details).
+//    - Read:   Admin sees everything. An agent is scoped to their own
+//              collection receipts (Cash Handover needs them). Customers are
+//              refused outright — the chit passbook used to read this table
+//              to find a member's payments, which handed every customer the
+//              company cash book. It now reads chit_payments instead.
 //    - Create: Admin only (validates positive amount, title, type).
 //    - Update: Admin only.
 //    - Delete: Admin only.
@@ -34,7 +38,17 @@ class AccountLedgerController extends ResourceController
             }
         }
 
-        // 2. Strict Role Enforcement for Writes
+        // 2. Reads are privileged: this table is the company cash book.
+        if ($method === 'GET') {
+            if ($role === 'agent') {
+                // An agent may only ever see money they themselves collected.
+                $_GET['agent_id'] = 'eq.' . ($claims['sub'] ?? '');
+            } elseif ($role !== 'admin') {
+                json_error('Only administrators can read the account book', 403);
+            }
+        }
+
+        // 3. Strict Role Enforcement for Writes
         //    Agents collect chit / fund / loan money in the field, and that
         //    receipt IS the payment record the passbook and account book read.
         //    Blocking it outright made an agent's collection vanish silently, so

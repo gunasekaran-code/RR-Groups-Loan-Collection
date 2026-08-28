@@ -9,6 +9,7 @@ import '../../services/cash_handover_api_service.dart';
 import '../../theme/confirm_dialog.dart';
 import '../../services/session_service.dart';
 import '../../models/user_role.dart';
+import '../../l10n/generated/app_localizations.dart';
 
 String formatIndianCurrency(num value, {bool withSymbol = true}) {
   final isNegative = value < 0;
@@ -35,6 +36,9 @@ String formatIndianCurrency(num value, {bool withSymbol = true}) {
   return '${withSymbol ? '₹' : ''}${isNegative ? '-' : ''}$formatted';
 }
 
+// NOTE: month abbreviations are kept as English constants (not localized),
+// matching the same convention used for RepaymentSchedule date formatting
+// in loans_screen.dart.
 String formatDate(DateTime d) {
   const months = [
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -77,10 +81,18 @@ class _CashHandoverScreenState extends State<CashHandoverScreen> {
   double _totalHandedOver = 0;
   double _totalPending = 0;
   int _agentsWithPending = 0;
+  double _todayCollected = 0;
+  double _cashCollected = 0;
+  double _onlineCollected = 0;
+  double _todayCashCollected = 0;
+  double _todayOnlineCollected = 0;
 
   List<HandoverAgentOption> _agents = [];
   List<AgentSettlement> _settlements = [];
   List<HandoverRecord> _history = [];
+
+  bool get _isAgentView =>
+      SessionService.instance.currentUser?.role == UserRole.agent;
 
   bool get _canCreateOrEdit =>
       SessionService.instance.currentUser?.role == UserRole.admin ||
@@ -100,7 +112,9 @@ class _CashHandoverScreenState extends State<CashHandoverScreen> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadData();
+    });
   }
 
   Future<void> _loadData() async {
@@ -108,6 +122,7 @@ class _CashHandoverScreenState extends State<CashHandoverScreen> {
       _isLoading = true;
       _loadError = null;
     });
+    final l10n = AppLocalizations.of(context);
     try {
       final results = await Future.wait([
         CashHandoverApiService.fetchSummary(),
@@ -125,6 +140,11 @@ class _CashHandoverScreenState extends State<CashHandoverScreen> {
         _totalHandedOver = summary.totalHandedOver;
         _totalPending = summary.totalPending;
         _agentsWithPending = summary.agentsWithPending;
+        _todayCollected = summary.todayCollected;
+        _cashCollected = summary.cashCollected;
+        _onlineCollected = summary.onlineCollected;
+        _todayCashCollected = summary.todayCashCollected;
+        _todayOnlineCollected = summary.todayOnlineCollected;
         _agents = agents;
         _settlements = settlements;
         _history = history;
@@ -137,7 +157,7 @@ class _CashHandoverScreenState extends State<CashHandoverScreen> {
         _isLoading = false;
       });
       ToastService.show(
-        title: 'Failed to load handover data',
+        title: l10n.handoverLoadFailedTitle,
         message: e.toString(),
         type: ToastType.error,
       );
@@ -145,6 +165,7 @@ class _CashHandoverScreenState extends State<CashHandoverScreen> {
   }
 
   Future<void> _openRecordHandoverDialog({HandoverRecord? existing}) async {
+    final l10n = AppLocalizations.of(context);
     final result = await showModalBottomSheet<HandoverRecord>(
       context: context,
       isScrollControlled: true,
@@ -169,13 +190,13 @@ class _CashHandoverScreenState extends State<CashHandoverScreen> {
           : await CashHandoverApiService.createHandover(result);
       await _loadData();
       ToastService.show(
-        title: isEdit ? 'Handover updated' : 'Handover recorded',
+        title: isEdit ? l10n.handoverUpdatedTitle : l10n.handoverRecordedTitle,
         message: saved.agentName,
         type: ToastType.success,
       );
     } catch (e) {
       ToastService.show(
-        title: 'Handover failed',
+        title: l10n.handoverFailedTitle,
         message: e.toString(),
         type: ToastType.error,
       );
@@ -183,6 +204,7 @@ class _CashHandoverScreenState extends State<CashHandoverScreen> {
   }
 
   Future<void> _verifyRecord(HandoverRecord record) async {
+    final l10n = AppLocalizations.of(context);
     try {
       final updated = record.copyWith(
         verified: !record.verified,
@@ -193,13 +215,15 @@ class _CashHandoverScreenState extends State<CashHandoverScreen> {
       await CashHandoverApiService.updateHandover(updated);
       await _loadData();
       ToastService.show(
-        title: record.verified ? 'Marked pending' : 'Marked verified',
+        title: record.verified
+            ? l10n.handoverMarkedPendingTitle
+            : l10n.handoverMarkedVerifiedTitle,
         message: record.agentName,
         type: ToastType.success,
       );
     } catch (e) {
       ToastService.show(
-        title: 'Could not update handover',
+        title: l10n.handoverUpdateFailedTitle,
         message: e.toString(),
         type: ToastType.error,
       );
@@ -207,21 +231,101 @@ class _CashHandoverScreenState extends State<CashHandoverScreen> {
   }
 
   Future<void> _deleteRecord(HandoverRecord record) async {
+    final l10n = AppLocalizations.of(context);
     try {
       await CashHandoverApiService.deleteHandover(record.id);
       await _loadData();
       ToastService.show(
-        title: 'Handover deleted',
+        title: l10n.handoverDeletedTitle,
         message: record.agentName,
         type: ToastType.success,
       );
     } catch (e) {
       ToastService.show(
-        title: 'Could not delete handover',
+        title: l10n.handoverDeleteFailedTitle,
         message: e.toString(),
         type: ToastType.error,
       );
     }
+  }
+
+  // Card set differs by role: an agent only cares about their own cash
+  // position (what they've collected, split cash vs. online, and what's
+  // still owed to the office); an admin cares about the aggregate plus how
+  // many agents currently have something pending.
+  List<Widget> _buildStatCards(AppLocalizations l10n) {
+    final totalTodayLabel =
+        l10n.handoverStatToday(formatIndianCurrency(_todayCollected));
+
+    final totalCollectedCard = _StatCard(
+      icon: Icons.currency_exchange_rounded,
+      iconBg: const Color(0xFFDBEAFE),
+      iconColor: const Color(0xFF2563EB),
+      label: l10n.handoverStatTotalCollected,
+      value: formatIndianCurrency(_totalCollected),
+      subtitle: totalTodayLabel,
+    );
+    final handedOverCard = _StatCard(
+      icon: Icons.check_circle_outline_rounded,
+      iconBg: const Color(0xFFDCFCE7),
+      iconColor: AppColors.kSuccess,
+      label: l10n.handoverStatHandedOver,
+      value: formatIndianCurrency(_totalHandedOver),
+    );
+
+    if (_isAgentView) {
+      return [
+        totalCollectedCard,
+        handedOverCard,
+        _StatCard(
+          icon: Icons.account_balance_wallet_outlined,
+          iconBg: const Color(0xFFFEF3C7),
+          iconColor: AppColors.kWarning,
+          label: l10n.handoverStatPendingToHandOver,
+          value: formatIndianCurrency(_totalPending),
+          highlight: true,
+        ),
+        _StatCard(
+          icon: Icons.payments_outlined,
+          iconBg: const Color(0xFFDCFCE7),
+          iconColor: AppColors.kSuccess,
+          label: l10n.handoverStatCashCollected,
+          value: formatIndianCurrency(_cashCollected),
+          subtitle:
+              l10n.handoverStatToday(formatIndianCurrency(_todayCashCollected)),
+        ),
+        _StatCard(
+          icon: Icons.smartphone_rounded,
+          iconBg: const Color(0xFFEDE9FE),
+          iconColor: AppColors.violet,
+          label: l10n.handoverStatOnlineUpi,
+          value: formatIndianCurrency(_onlineCollected),
+          subtitle: l10n
+              .handoverStatToday(formatIndianCurrency(_todayOnlineCollected)),
+          subtitleColor: AppColors.violet,
+        ),
+      ];
+    }
+
+    return [
+      totalCollectedCard,
+      handedOverCard,
+      _StatCard(
+        icon: Icons.account_balance_wallet_outlined,
+        iconBg: const Color(0xFFFEF3C7),
+        iconColor: AppColors.kWarning,
+        label: l10n.handoverStatPending,
+        value: formatIndianCurrency(_totalPending),
+        highlight: true,
+      ),
+      _StatCard(
+        icon: Icons.groups_rounded,
+        iconBg: const Color(0xFFFEE2E2),
+        iconColor: AppColors.kDanger,
+        label: l10n.handoverStatAgentsWithPending,
+        value: '$_agentsWithPending',
+      ),
+    ];
   }
 
   Widget _buildSheetFrame({required Widget child}) {
@@ -253,9 +357,10 @@ class _CashHandoverScreenState extends State<CashHandoverScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return AppShell(
       currentRoute: AppRoutes.handover,
-      title: 'Cash Handover',
+      title: l10n.handoverTitle,
       body: LayoutBuilder(
         builder: (context, constraints) {
           final width = constraints.maxWidth;
@@ -293,7 +398,7 @@ class _CashHandoverScreenState extends State<CashHandoverScreen> {
                               const SizedBox(height: 12),
                               ElevatedButton(
                                   onPressed: _loadData,
-                                  child: const Text('Retry')),
+                                  child: Text(l10n.retry)),
                             ],
                           ),
                         ),
@@ -302,35 +407,53 @@ class _CashHandoverScreenState extends State<CashHandoverScreen> {
                         padding: EdgeInsets.fromLTRB(hPad, 16, hPad, 32),
                         children: [
                           const SizedBox(height: 6),
-                          const Text(
-                            'Agents settle collected cash & UPI to the office — pending carries forward',
-                            style: TextStyle(
+                          Text(
+                            l10n.handoverSubtitle,
+                            style: const TextStyle(
                                 color: AppColors.kTextMuted, fontSize: 14),
                           ),
                           const SizedBox(height: 16),
-                          if (_canCreateOrEdit)
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: SizedBox(
-                                // Full width on narrow phones so the tap
-                                // target is comfortably large; fixed
-                                // width otherwise.
-                                width: narrow ? double.infinity : 190,
-                                child: ElevatedButton.icon(
-                                  onPressed: () =>
-                                      _openRecordHandoverDialog(),
-                                  icon: const Icon(Icons.add),
-                                  label: const Text(
-                                    'Record Handover',
-                                    style: TextStyle(
-                                        fontWeight: FontWeight.w600),
+                          Wrap(
+                              spacing: 12,
+                              runSpacing: 10,
+                              children: [
+                                if (_canCreateOrEdit)
+                                  SizedBox(
+                                    // Full width on narrow phones so the tap
+                                    // target is comfortably large; fixed
+                                    // width otherwise.
+                                    width: narrow ? double.infinity : 190,
+                                    child: ElevatedButton.icon(
+                                      onPressed: () =>
+                                          _openRecordHandoverDialog(),
+                                      icon: const Icon(Icons.add),
+                                      label: Text(
+                                        l10n.handoverRecordButton,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w600),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 16),
+                                      ),
+                                    ),
                                   ),
-                                  style: ElevatedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 16),
+                                SizedBox(
+                                  width: narrow ? double.infinity : 130,
+                                  child: OutlinedButton.icon(
+                                    onPressed: _isLoading ? null : _loadData,
+                                    icon: const Icon(Icons.refresh_rounded,
+                                        size: 18),
+                                    label: Text(l10n.handoverRefreshButton),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 16),
+                                      side: const BorderSide(
+                                          color: AppColors.kBorder),
+                                    ),
                                   ),
                                 ),
-                              ),
+                              ],
                             ),
                           const SizedBox(height: 20),
                           GridView.count(
@@ -340,41 +463,15 @@ class _CashHandoverScreenState extends State<CashHandoverScreen> {
                             mainAxisSpacing: 12,
                             crossAxisSpacing: 12,
                             childAspectRatio: aspectRatio,
-                            children: [
-                              _StatCard(
-                                icon: Icons.currency_exchange_rounded,
-                                iconBg: const Color(0xFFDBEAFE),
-                                iconColor: const Color(0xFF2563EB),
-                                label: 'Total Collected',
-                                value:
-                                    formatIndianCurrency(_totalCollected),
-                                subtitle: 'Today: ₹0',
-                              ),
-                              _StatCard(
-                                icon: Icons.check_circle_outline_rounded,
-                                iconBg: const Color(0xFFDCFCE7),
-                                iconColor: AppColors.kSuccess,
-                                label: 'Handed Over',
-                                value:
-                                    formatIndianCurrency(_totalHandedOver),
-                              ),
-                              _StatCard(
-                                icon: Icons.account_balance_wallet_outlined,
-                                iconBg: const Color(0xFFFEF3C7),
-                                iconColor: AppColors.kWarning,
-                                label: 'Pending',
-                                value: formatIndianCurrency(_totalPending),
-                                highlight: true,
-                              ),
-                              _StatCard(
-                                icon: Icons.groups_rounded,
-                                iconBg: const Color(0xFFFEE2E2),
-                                iconColor: AppColors.kDanger,
-                                label: 'Agents With Pending',
-                                value: '$_agentsWithPending',
-                              ),
-                            ],
+                            children: _buildStatCards(l10n),
                           ),
+                          if (_isAgentView && _totalPending > 0.01) ...[
+                            const SizedBox(height: 16),
+                            _PendingBanner(
+                              message: l10n.handoverStillPendingBanner(
+                                  formatIndianCurrency(_totalPending)),
+                            ),
+                          ],
                           const SizedBox(height: 24),
                           Container(
                             padding: EdgeInsets.all(narrow ? 14 : 20),
@@ -386,18 +483,18 @@ class _CashHandoverScreenState extends State<CashHandoverScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
-                                  'Agent Settlement Position',
-                                  style: TextStyle(
+                                Text(
+                                  l10n.handoverSettlementPositionTitle,
+                                  style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w700,
                                     color: AppColors.kTextDark,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
-                                const Text(
-                                  'Pending = collected − handed over (runs continuously)',
-                                  style: TextStyle(
+                                Text(
+                                  l10n.handoverSettlementPositionSubtitle,
+                                  style: const TextStyle(
                                       color: AppColors.kTextMuted,
                                       fontSize: 13),
                                 ),
@@ -420,9 +517,9 @@ class _CashHandoverScreenState extends State<CashHandoverScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
-                                  'Handover History',
-                                  style: TextStyle(
+                                Text(
+                                  l10n.handoverHistoryTitle,
+                                  style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w700,
                                     color: AppColors.kTextDark,
@@ -430,13 +527,13 @@ class _CashHandoverScreenState extends State<CashHandoverScreen> {
                                 ),
                                 const SizedBox(height: 12),
                                 if (_history.isEmpty)
-                                  const Padding(
-                                    padding:
-                                        EdgeInsets.symmetric(vertical: 20),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 20),
                                     child: Center(
                                       child: Text(
-                                        'No handovers recorded yet.',
-                                        style: TextStyle(
+                                        l10n.handoverHistoryEmpty,
+                                        style: const TextStyle(
                                             color: AppColors.kTextMuted),
                                       ),
                                     ),
@@ -481,6 +578,7 @@ class _StatCard extends StatelessWidget {
     required this.label,
     required this.value,
     this.subtitle,
+    this.subtitleColor,
     this.highlight = false,
   });
 
@@ -490,6 +588,7 @@ class _StatCard extends StatelessWidget {
   final String label;
   final String value;
   final String? subtitle;
+  final Color? subtitleColor;
   final bool highlight;
 
   @override
@@ -550,12 +649,50 @@ class _StatCard extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               subtitle!,
-              style: const TextStyle(
-                color: AppColors.kSuccess,
+              style: TextStyle(
+                color: subtitleColor ?? AppColors.kSuccess,
                 fontSize: 12,
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// -----------------------------------------------------------------------
+/// STILL-PENDING BANNER (agent view)
+/// -----------------------------------------------------------------------
+class _PendingBanner extends StatelessWidget {
+  const _PendingBanner({required this.message});
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF3C7),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.kWarning.withOpacity(0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.account_balance_wallet_outlined,
+              color: AppColors.kWarning, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: Color(0xFF92400E),
+                fontSize: 13,
+                height: 1.4,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -572,11 +709,12 @@ class _SettlementTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     // On narrow phones a 4-column money table gets cramped and truncates
     // currency values. Instead of shrinking text to the point of being
     // unreadable, we give the table a fixed minimum width and let it
     // scroll horizontally — the user can swipe to see all columns.
-    final table = _buildTable();
+    final table = _buildTable(l10n);
     if (!narrow) return table;
 
     return SingleChildScrollView(
@@ -585,41 +723,41 @@ class _SettlementTable extends StatelessWidget {
     );
   }
 
-  Widget _buildTable() {
+  Widget _buildTable(AppLocalizations l10n) {
     return Column(
       children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
           child: Row(
             children: [
               Expanded(
                   flex: 3,
-                  child: Text('AGENT',
-                      style: TextStyle(
+                  child: Text(l10n.handoverColAgent,
+                      style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                           color: AppColors.kTextMuted))),
               Expanded(
                   flex: 2,
-                  child: Text('COLLECTED',
+                  child: Text(l10n.handoverColCollected,
                       textAlign: TextAlign.end,
-                      style: TextStyle(
+                      style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                           color: AppColors.kTextMuted))),
               Expanded(
                   flex: 2,
-                  child: Text('HANDED OVER',
+                  child: Text(l10n.handoverColHandedOver,
                       textAlign: TextAlign.end,
-                      style: TextStyle(
+                      style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                           color: AppColors.kTextMuted))),
               Expanded(
                   flex: 2,
-                  child: Text('PENDING',
+                  child: Text(l10n.handoverColPending,
                       textAlign: TextAlign.end,
-                      style: TextStyle(
+                      style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                           color: AppColors.kTextMuted))),
@@ -699,12 +837,13 @@ class _HistoryTile extends StatelessWidget {
   final VoidCallback onDelete;
 
   Future<void> _confirmDelete(BuildContext context) async {
+    final l10n = AppLocalizations.of(context);
     final confirmed = await AppConfirmDialog.show(
       context: context,
-      title: 'Delete Handover?',
-      message:
-          'This will permanently remove ${record.agentName}\'s handover record of ${formatIndianCurrency(record.totalAmount)}. This cannot be undone.',
-      confirmLabel: 'Delete',
+      title: l10n.handoverDeleteConfirmTitle,
+      message: l10n.handoverDeleteConfirmMessage(
+          record.agentName, formatIndianCurrency(record.totalAmount)),
+      confirmLabel: l10n.handoverDeleteButton,
     );
     if (confirmed == true) {
       onDelete();
@@ -713,6 +852,8 @@ class _HistoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     final avatar = Container(
       width: 40,
       height: 40,
@@ -747,7 +888,9 @@ class _HistoryTile extends StatelessWidget {
             borderRadius: BorderRadius.circular(999),
           ),
           child: Text(
-            record.verified ? 'verified' : 'pending',
+            record.verified
+                ? l10n.handoverStatusVerified
+                : l10n.handoverStatusPending,
             style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
@@ -765,7 +908,11 @@ class _HistoryTile extends StatelessWidget {
         nameAndBadge,
         const SizedBox(height: 6),
         Text(
-          '${formatDate(record.date)} · ₹${record.cashAmount.round()} cash · ₹${record.upiAmount.round()} UPI',
+          l10n.handoverSummaryLine(
+            formatDate(record.date),
+            '₹${record.cashAmount.round()}',
+            '₹${record.upiAmount.round()}',
+          ),
           style: const TextStyle(fontSize: 12, color: AppColors.kTextMuted),
         ),
         if (record.notes != null && record.notes!.trim().isNotEmpty) ...[
@@ -791,13 +938,15 @@ class _HistoryTile extends StatelessWidget {
                 fontWeight: FontWeight.w700,
                 color: AppColors.kTextDark)),
         if (!canManage)
-          const Row(
+          Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.check_circle, size: 14, color: AppColors.kSuccess),
-              SizedBox(width: 4),
-              Text('Received',
-                  style: TextStyle(fontSize: 12, color: AppColors.kSuccess)),
+              const Icon(Icons.check_circle,
+                  size: 14, color: AppColors.kSuccess),
+              const SizedBox(width: 4),
+              Text(l10n.handoverReceivedLabel,
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.kSuccess)),
             ],
           ),
       ],
@@ -816,7 +965,7 @@ class _HistoryTile extends StatelessWidget {
                 OutlinedButton.icon(
                   onPressed: onEdit,
                   icon: const Icon(Icons.edit_outlined, size: 16),
-                  label: const Text('Edit'),
+                  label: Text(l10n.handoverEditButton),
                 ),
                 OutlinedButton.icon(
                   onPressed: onVerify,
@@ -826,12 +975,14 @@ class _HistoryTile extends StatelessWidget {
                         : Icons.verified_outlined,
                     size: 16,
                   ),
-                  label: Text(record.verified ? 'Unverify' : 'Verify'),
+                  label: Text(record.verified
+                      ? l10n.handoverUnverifyButton
+                      : l10n.handoverVerifyButton),
                 ),
                 OutlinedButton.icon(
                   onPressed: () => _confirmDelete(context),
                   icon: const Icon(Icons.delete_outline, size: 16),
-                  label: const Text('Delete'),
+                  label: Text(l10n.handoverDeleteButton),
                 ),
               ],
             ),
@@ -884,14 +1035,14 @@ class _HistoryTile extends StatelessWidget {
                   ),
                   if (!canManage) ...[
                     const SizedBox(height: 4),
-                    const Row(
+                    Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.check_circle,
+                        const Icon(Icons.check_circle,
                             size: 14, color: AppColors.kSuccess),
-                        SizedBox(width: 4),
-                        Text('Received',
-                            style: TextStyle(
+                        const SizedBox(width: 4),
+                        Text(l10n.handoverReceivedLabel,
+                            style: const TextStyle(
                                 fontSize: 12, color: AppColors.kSuccess)),
                       ],
                     ),
@@ -1025,6 +1176,7 @@ class _RecordHandoverDialogState extends State<_RecordHandoverDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final dd = _date.day.toString().padLeft(2, '0');
     final mm = _date.month.toString().padLeft(2, '0');
     final yyyy = _date.year.toString();
@@ -1045,10 +1197,10 @@ class _RecordHandoverDialogState extends State<_RecordHandoverDialog> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
-                        'Record Handover',
-                        style: TextStyle(
+                        l10n.handoverRecordButton,
+                        style: const TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
                             color: AppColors.kTextDark),
@@ -1075,7 +1227,8 @@ class _RecordHandoverDialogState extends State<_RecordHandoverDialog> {
                   value: _selectedAgent,
                   enabled: widget.canChooseAgent,
                   onChanged: (v) => setState(() => _selectedAgent = v),
-                  validator: (v) => v == null ? 'Select an agent' : null,
+                  validator: (v) =>
+                      v == null ? l10n.handoverSelectAgentValidator : null,
                 ),
                 const SizedBox(height: 16),
 
@@ -1083,36 +1236,38 @@ class _RecordHandoverDialogState extends State<_RecordHandoverDialog> {
                 // so each field keeps enough width to show its hint/value
                 // without squeezing.
                 if (narrow) ...[
-                  _buildTextField('CASH AMOUNT', controller: _cashCtrl),
+                  _buildTextField(l10n.handoverCashAmountLabel,
+                      controller: _cashCtrl),
                   const SizedBox(height: 16),
-                  _buildTextField('UPI AMOUNT', controller: _upiCtrl),
+                  _buildTextField(l10n.handoverUpiAmountLabel,
+                      controller: _upiCtrl),
                 ] else
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: _buildTextField('CASH AMOUNT',
+                        child: _buildTextField(l10n.handoverCashAmountLabel,
                             controller: _cashCtrl),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
-                        child: _buildTextField('UPI AMOUNT',
+                        child: _buildTextField(l10n.handoverUpiAmountLabel,
                             controller: _upiCtrl),
                       ),
                     ],
                   ),
                 const SizedBox(height: 16),
                 _buildTextArea(
-                  'NOTES',
+                  l10n.handoverNotesLabel,
                   controller: _notesCtrl,
-                  hintText: 'Optional remarks',
+                  hintText: l10n.handoverNotesHint,
                 ),
                 const SizedBox(height: 16),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('DATE *',
-                        style: TextStyle(
+                    Text(l10n.handoverDateLabel,
+                        style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
                             color: AppColors.kTextMuted)),
@@ -1138,13 +1293,14 @@ class _RecordHandoverDialogState extends State<_RecordHandoverDialog> {
                       ElevatedButton.icon(
                         onPressed: _handleSave,
                         icon: const Icon(Icons.add_circle_outline),
-                        label: Text(
-                            widget.existing == null ? 'Record' : 'Save'),
+                        label: Text(widget.existing == null
+                            ? l10n.handoverRecordActionButton
+                            : l10n.handoverSaveButton),
                       ),
                       const SizedBox(height: 10),
                       OutlinedButton(
                         onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('Cancel'),
+                        child: Text(l10n.handoverCancelButton),
                       ),
                     ],
                   )
@@ -1154,14 +1310,15 @@ class _RecordHandoverDialogState extends State<_RecordHandoverDialog> {
                     children: [
                       OutlinedButton(
                         onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('Cancel'),
+                        child: Text(l10n.handoverCancelButton),
                       ),
                       const SizedBox(width: 12),
                       ElevatedButton.icon(
                         onPressed: _handleSave,
                         icon: const Icon(Icons.add_circle_outline),
-                        label: Text(
-                            widget.existing == null ? 'Record' : 'Save'),
+                        label: Text(widget.existing == null
+                            ? l10n.handoverRecordActionButton
+                            : l10n.handoverSaveButton),
                       ),
                     ],
                   ),

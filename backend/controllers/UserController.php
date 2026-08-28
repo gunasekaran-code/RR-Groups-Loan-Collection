@@ -131,7 +131,28 @@ class UserController extends Controller
         $id = $_GET['id'] ?? '';
         if ($id === '') json_error('Missing user id', 400);
         try {
-            Profile::deleteWhere(' WHERE id = ?', [$id]);
+            // This endpoint deletes profiles directly instead of going through
+            // ResourceController, so it has to archive for itself — otherwise a
+            // user removed from User Management would skip the recycle bin.
+            $claims = $this->requireAuth();
+            RecycleBinService::capture('profiles', [['id' => $id]], $claims);
+
+            // Soft delete, matching every other table. The email is released
+            // first: it is UNIQUE, so a flagged row would keep it claimed and
+            // the replacement account could never be created with it.
+            $existing = Profile::firstRaw(' WHERE id = ?', [$id]);
+            if ($existing) {
+                release_unique_columns('profiles', [$existing]);
+            }
+            Profile::updateWhere(
+                [
+                    'delflag'    => 1,
+                    'deleted_at' => date('Y-m-d H:i:s'),
+                    'deleted_by' => $claims['sub'] ?? null,
+                ],
+                ' WHERE id = ?',
+                [$id]
+            );
             json_out(['success' => true]);
         } catch (\Throwable $e) {
             json_error('Delete failed: ' . $e->getMessage(), 400);

@@ -29,12 +29,38 @@ class Profile extends Model
     public static function emailTaken(string $email, ?string $exceptId = null): bool
     {
         if ($exceptId) {
-            $stmt = Database::pdo()->prepare('SELECT COUNT(*) FROM profiles WHERE email = ? AND id <> ?');
+            $stmt = Database::pdo()->prepare('SELECT COUNT(*) FROM profiles WHERE email = ? AND id <> ? AND delflag = 0');
             $stmt->execute([$email, $exceptId]);
         } else {
-            $stmt = Database::pdo()->prepare('SELECT COUNT(*) FROM profiles WHERE email = ?');
+            $stmt = Database::pdo()->prepare('SELECT COUNT(*) FROM profiles WHERE email = ? AND delflag = 0');
             $stmt->execute([$email]);
         }
+        return (int)$stmt->fetchColumn() > 0;
+    }
+
+    /**
+     * Is this mobile number already used by another login?
+     *
+     * Matters because sign-in accepts a mobile number as the identifier: two
+     * active profiles sharing one number would make login pick one at random.
+     * Digits are compared so "+91 98765 43210" and "9876543210" collide.
+     * Soft-deleted profiles are ignored — a deleted login holds nothing.
+     */
+    public static function mobileTaken(string $mobile, ?string $exceptId = null): bool
+    {
+        $digits = preg_replace('/\D+/', '', $mobile);
+        if ($digits === '') return false;
+
+        $sql = "SELECT COUNT(*) FROM profiles
+                WHERE delflag = 0
+                  AND REPLACE(REPLACE(REPLACE(IFNULL(mobile, ''), ' ', ''), '-', ''), '+', '') LIKE ?";
+        $binds = ['%' . $digits];
+        if ($exceptId) {
+            $sql .= ' AND id <> ?';
+            $binds[] = $exceptId;
+        }
+        $stmt = Database::pdo()->prepare($sql);
+        $stmt->execute($binds);
         return (int)$stmt->fetchColumn() > 0;
     }
 

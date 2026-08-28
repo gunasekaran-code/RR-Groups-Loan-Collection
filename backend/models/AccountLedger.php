@@ -56,27 +56,27 @@ class AccountLedger extends Model
         $pdo = Database::pdo();
 
         // 1. Loan Collections Received
-        $stmt = $pdo->prepare("SELECT COALESCE(SUM(collection_amount), 0) FROM collections");
+        $stmt = $pdo->prepare("SELECT COALESCE(SUM(collection_amount), 0) FROM collections WHERE delflag = 0");
         $stmt->execute();
         $loanCollections = (float)$stmt->fetchColumn();
 
         // 2. Fund Deposits Received
-        $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM fund_payments");
+        $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM fund_payments WHERE delflag = 0");
         $stmt->execute();
         $fundDeposits = (float)$stmt->fetchColumn();
 
         // 3. Chit Members Collections Received (paid or partial)
-        $stmt = $pdo->prepare("SELECT COALESCE(SUM(contribution_amount), 0) FROM chit_members WHERE payment_status IN ('paid', 'partial')");
+        $stmt = $pdo->prepare("SELECT COALESCE(SUM(contribution_amount), 0) FROM chit_members WHERE delflag = 0 AND payment_status IN ('paid', 'partial')");
         $stmt->execute();
         $chitCollected = (float)$stmt->fetchColumn();
 
         // 4. Custom Cash In / Capital additions from ledger
-        $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM account_ledger WHERE entry_type IN ('cash_in', 'capital')");
+        $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM account_ledger WHERE delflag = 0 AND entry_type IN ('cash_in', 'capital')");
         $stmt->execute();
         $customCashIn = (float)$stmt->fetchColumn();
 
         // 5. Custom Cash Out / Expenses from ledger
-        $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM account_ledger WHERE entry_type IN ('cash_out', 'expense')");
+        $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM account_ledger WHERE delflag = 0 AND entry_type IN ('cash_out', 'expense')");
         $stmt->execute();
         $customCashOut = (float)$stmt->fetchColumn();
 
@@ -84,14 +84,14 @@ class AccountLedger extends Model
         $cashInHand = max(0, $loanCollections + $fundDeposits + $chitCollected + $customCashIn - $customCashOut);
 
         // 6. Active Loans Outstanding
-        $stmt = $pdo->prepare("SELECT COUNT(*) as count, COALESCE(SUM(outstanding_balance), 0) as outstanding FROM loans WHERE status = 'active'");
+        $stmt = $pdo->prepare("SELECT COUNT(*) as count, COALESCE(SUM(outstanding_balance), 0) as outstanding FROM loans WHERE delflag = 0 AND status = 'active'");
         $stmt->execute();
         $activeLoansRow = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['count' => 0, 'outstanding' => 0];
         $activeLoansCount = (int)($activeLoansRow['count'] ?? 0);
         $activeLoanOutstanding = (float)($activeLoansRow['outstanding'] ?? 0);
 
         // 7. Overdue Loans Outstanding
-        $stmt = $pdo->prepare("SELECT COUNT(*) as count, COALESCE(SUM(outstanding_balance), 0) as outstanding FROM loans WHERE status = 'overdue'");
+        $stmt = $pdo->prepare("SELECT COUNT(*) as count, COALESCE(SUM(outstanding_balance), 0) as outstanding FROM loans WHERE delflag = 0 AND status = 'overdue'");
         $stmt->execute();
         $overdueLoansRow = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['count' => 0, 'outstanding' => 0];
         $overdueLoansCount = (int)($overdueLoansRow['count'] ?? 0);
@@ -100,12 +100,12 @@ class AccountLedger extends Model
         $totalLoanOutstanding = $activeLoanOutstanding + $overdueLoanOutstanding;
 
         // Total Loans Principal Disbursed
-        $stmt = $pdo->prepare("SELECT COALESCE(SUM(loan_amount), 0) FROM loans WHERE status IN ('active', 'overdue', 'closed')");
+        $stmt = $pdo->prepare("SELECT COALESCE(SUM(loan_amount), 0) FROM loans WHERE delflag = 0 AND status IN ('active', 'overdue', 'closed')");
         $stmt->execute();
         $totalLoansGiven = (float)$stmt->fetchColumn();
 
         // 8. Chit Groups (Active)
-        $stmt = $pdo->prepare("SELECT COUNT(*) as count, COALESCE(SUM(group_value), 0) as group_val, COALESCE(SUM(collected_amount), 0) as coll, COALESCE(SUM(pending_amount), 0) as pend FROM chit_groups WHERE status = 'active'");
+        $stmt = $pdo->prepare("SELECT COUNT(*) as count, COALESCE(SUM(group_value), 0) as group_val, COALESCE(SUM(collected_amount), 0) as coll, COALESCE(SUM(pending_amount), 0) as pend FROM chit_groups WHERE delflag = 0 AND status = 'active'");
         $stmt->execute();
         $chitRow = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['count' => 0, 'group_val' => 0, 'coll' => 0, 'pend' => 0];
         $activeChitsCount = (int)($chitRow['count'] ?? 0);
@@ -114,7 +114,7 @@ class AccountLedger extends Model
         $chitPendingAmount = (float)($chitRow['pend'] ?? 0);
 
         // 9. Savings Funds (Active)
-        $stmt = $pdo->prepare("SELECT COUNT(*) as count, COALESCE(SUM(IFNULL(deposit_amount, total_amount)), 0) as total_dep, COALESCE(SUM(collected_amount), 0) as coll FROM funds WHERE status = 'active'");
+        $stmt = $pdo->prepare("SELECT COUNT(*) as count, COALESCE(SUM(IFNULL(deposit_amount, total_amount)), 0) as total_dep, COALESCE(SUM(collected_amount), 0) as coll FROM funds WHERE delflag = 0 AND status = 'active'");
         $stmt->execute();
         $fundRow = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['count' => 0, 'total_dep' => 0, 'coll' => 0];
         $activeFundsCount = (int)($fundRow['count'] ?? 0);
@@ -123,11 +123,11 @@ class AccountLedger extends Model
         $fundPendingAmount = max(0, $fundTotalDeposit - $fundCollectedAmount);
 
         // 10. Custom Lent Out & Recovered
-        $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM account_ledger WHERE entry_type IN ('lent_out', 'lent_active', 'lent_overdue')");
+        $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM account_ledger WHERE delflag = 0 AND entry_type IN ('lent_out', 'lent_active', 'lent_overdue')");
         $stmt->execute();
         $customLentOut = (float)$stmt->fetchColumn();
 
-        $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM account_ledger WHERE entry_type = 'lent_collected'");
+        $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM account_ledger WHERE delflag = 0 AND entry_type = 'lent_collected'");
         $stmt->execute();
         $customLentCollected = (float)$stmt->fetchColumn();
         $customLentNet = max(0, $customLentOut - $customLentCollected);
@@ -211,6 +211,7 @@ class AccountLedger extends Model
                 1 as is_custom,
                 created_at
             FROM account_ledger
+            WHERE delflag = 0
         ";
 
         // 2. Loan Collections
@@ -230,6 +231,7 @@ class AccountLedger extends Model
                 0 as is_custom,
                 created_at
             FROM collections
+            WHERE delflag = 0
         ";
 
         // 3. Fund Payments / Deposits
@@ -249,6 +251,7 @@ class AccountLedger extends Model
                 0 as is_custom,
                 created_at
             FROM fund_payments
+            WHERE delflag = 0
         ";
 
         // Combine
@@ -300,7 +303,7 @@ class AccountLedger extends Model
                 agent_name as collector_name,
                 created_at
             FROM loans
-            WHERE outstanding_balance > 0 AND status IN ('active', 'overdue')
+            WHERE delflag = 0 AND outstanding_balance > 0 AND status IN ('active', 'overdue')
             ORDER BY outstanding_balance DESC
         ")->fetchAll(PDO::FETCH_ASSOC);
 
@@ -341,7 +344,7 @@ class AccountLedger extends Model
                 'Office' as collector_name,
                 g.created_at
             FROM chit_groups g
-            WHERE g.pending_amount > 0 AND g.status = 'active'
+            WHERE g.delflag = 0 AND g.pending_amount > 0 AND g.status = 'active'
             ORDER BY g.pending_amount DESC
         ")->fetchAll(PDO::FETCH_ASSOC);
 
@@ -382,7 +385,7 @@ class AccountLedger extends Model
                 f.agent_name as collector_name,
                 f.created_at
             FROM funds f
-            WHERE f.status = 'active' AND (f.deposit_amount - f.collected_amount) > 0
+            WHERE f.delflag = 0 AND f.status = 'active' AND (f.deposit_amount - f.collected_amount) > 0
             ORDER BY (f.deposit_amount - f.collected_amount) DESC
         ")->fetchAll(PDO::FETCH_ASSOC);
 
@@ -424,7 +427,7 @@ class AccountLedger extends Model
                 notes,
                 created_at
             FROM account_ledger
-            WHERE entry_type IN ('lent_out', 'lent_active', 'lent_overdue')
+            WHERE delflag = 0 AND entry_type IN ('lent_out', 'lent_active', 'lent_overdue')
             ORDER BY entry_date DESC
         ")->fetchAll(PDO::FETCH_ASSOC);
 

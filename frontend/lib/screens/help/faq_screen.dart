@@ -22,8 +22,9 @@ class _FaqEntry {
 class _FaqGroup {
   final String title;
   final IconData icon;
+  final Color iconColor;
   final List<_FaqEntry> items;
-  const _FaqGroup(this.title, this.icon, this.items);
+  const _FaqGroup(this.title, this.icon, this.iconColor, this.items);
 }
 
 class _FaqScreenState extends State<FaqScreen> {
@@ -31,7 +32,7 @@ class _FaqScreenState extends State<FaqScreen> {
   String _query = '';
 
   static const List<_FaqGroup> _groups = [
-    _FaqGroup('General', Icons.info_outline, [
+    _FaqGroup('General', Icons.info_outline_rounded, Color(0xFF2196F3), [
       _FaqEntry(
         'What is RR Groups Loan & Collection Suite?',
         'It\'s a real-time platform that brings loans, repayments, chit funds '
@@ -52,7 +53,7 @@ class _FaqScreenState extends State<FaqScreen> {
             'collections and issues digital receipts.',
       ),
     ]),
-    _FaqGroup('Loans & EMI', Icons.percent_rounded, [
+    _FaqGroup('Loans & EMI', Icons.percent_rounded, AppColors.kGold, [
       _FaqEntry(
         'How are EMIs calculated?',
         'EMIs are auto-generated using the standard amortization formula '
@@ -72,7 +73,7 @@ class _FaqScreenState extends State<FaqScreen> {
             'and act on recovery.',
       ),
     ]),
-    _FaqGroup('Field Collections', Icons.map_outlined, [
+    _FaqGroup('Field Collections', Icons.map_rounded, Color(0xFF4CAF50), [
       _FaqEntry(
         'How do field agents record collections?',
         'Agents record payments on the go from their assigned daily route. '
@@ -90,7 +91,7 @@ class _FaqScreenState extends State<FaqScreen> {
             'collection or loan is assigned to them.',
       ),
     ]),
-    _FaqGroup('Chit Funds', Icons.groups_outlined, [
+    _FaqGroup('Chit Funds', Icons.groups_rounded, Color(0xFF9C27B0), [
       _FaqEntry(
         'Can I run chit funds on this platform?',
         'Yes. RR Groups supports end-to-end chit fund management — '
@@ -98,7 +99,7 @@ class _FaqScreenState extends State<FaqScreen> {
             'handled in one place.',
       ),
     ]),
-    _FaqGroup('Security', Icons.lock_outline, [
+    _FaqGroup('Security', Icons.lock_outline_rounded, Color(0xFFFF9800), [
       _FaqEntry(
         'How is my data secured?',
         'Every session uses signed, expiring JWT tokens, and access is '
@@ -125,6 +126,7 @@ class _FaqScreenState extends State<FaqScreen> {
         .map((g) => _FaqGroup(
               g.title,
               g.icon,
+              g.iconColor,
               g.items
                   .where((e) =>
                       e.question.toLowerCase().contains(q) ||
@@ -148,76 +150,135 @@ class _FaqScreenState extends State<FaqScreen> {
     return AppShell(
       currentRoute: AppRoutes.profile,
       title: 'FAQ',
+      showBackButton: true, // Handled by AppShell Top Bar
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        physics: const BouncingScrollPhysics(),
         children: [
-          const Text(
-            'RR Groups · Loan & Collection Suite',
-            style: TextStyle(fontSize: 12, color: AppColors.kTextMuted),
+          // Header titles inside body
+          const Padding(
+            padding: EdgeInsets.only(left: 4, bottom: 2),
+            child: Text(
+              'RR Groups · Help Center',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.kTextMuted,
+              ),
+            ),
           ),
-          const SizedBox(height: 4),
-          const Text(
-            'Frequently asked questions',
-            style: TextStyle(
-                fontSize: 18,
+          const Padding(
+            padding: EdgeInsets.only(left: 4, bottom: 20),
+            child: Text(
+              'Frequently Asked Questions',
+              style: TextStyle(
+                fontSize: 20,
                 fontWeight: FontWeight.w700,
-                color: AppColors.kTextDark),
+                color: AppColors.kTextDark,
+              ),
+            ),
           ),
-          const SizedBox(height: 14),
 
-          // Search bar
+          // Search Bar
           Container(
             decoration: BoxDecoration(
               color: AppColors.kSurface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.kBorder),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.kBorder.withOpacity(0.6)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.02),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: TextField(
               controller: _searchCtrl,
               onChanged: (v) => setState(() => _query = v),
-              decoration: const InputDecoration(
+              style: const TextStyle(color: AppColors.kTextDark, fontSize: 15),
+              decoration: InputDecoration(
                 border: InputBorder.none,
                 contentPadding:
-                    EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                hintText: 'Search questions…',
-                hintStyle: TextStyle(color: AppColors.kTextMuted),
-                prefixIcon:
-                    Icon(Icons.search, size: 20, color: AppColors.kTextMuted),
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                hintText: 'Search questions or keywords…',
+                hintStyle: TextStyle(
+                  color: AppColors.kTextMuted.withOpacity(0.6),
+                  fontSize: 14,
+                ),
+                prefixIcon: const Icon(
+                  Icons.search_rounded,
+                  size: 22,
+                  color: AppColors.kTextMuted,
+                ),
+                suffixIcon: _query.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear_rounded,
+                            size: 18, color: AppColors.kTextMuted),
+                        onPressed: () {
+                          _searchCtrl.clear();
+                          setState(() => _query = '');
+                        },
+                      )
+                    : null,
               ),
-              style: const TextStyle(color: AppColors.kTextDark),
             ),
           ),
-          const SizedBox(height: 18),
 
+          const SizedBox(height: 28),
+
+          // Results Section
           if (results.isEmpty)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 32),
+              padding: const EdgeInsets.symmetric(vertical: 48),
               child: Column(
                 children: [
-                  const Icon(Icons.search_off,
-                      size: 32, color: AppColors.kTextMuted),
-                  const SizedBox(height: 10),
-                  Text('No results for "$_query"',
-                      style:
-                          const TextStyle(color: AppColors.kTextMuted)),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.kTextMuted.withOpacity(0.08),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.search_off_rounded,
+                      size: 36,
+                      color: AppColors.kTextMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'No questions found matching "$_query"',
+                    style: const TextStyle(
+                      color: AppColors.kTextMuted,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ],
               ),
             )
           else
             for (final group in results) ...[
               Padding(
-                padding: const EdgeInsets.only(bottom: 8, top: 6),
+                padding: const EdgeInsets.only(left: 4, bottom: 10, top: 4),
                 child: Row(
                   children: [
-                    Icon(group.icon, size: 16, color: AppColors.kInfo),
-                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: group.iconColor.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(group.icon, size: 16, color: group.iconColor),
+                    ),
+                    const SizedBox(width: 10),
                     Text(
-                      group.title,
+                      group.title.toUpperCase(),
                       style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                         color: AppColors.kTextMuted,
-                        letterSpacing: 0.3,
+                        letterSpacing: 1.2,
                       ),
                     ),
                   ],
@@ -226,21 +287,32 @@ class _FaqScreenState extends State<FaqScreen> {
               Container(
                 decoration: BoxDecoration(
                   color: AppColors.kSurface,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.kBorder),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.kBorder.withOpacity(0.5)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.02),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 child: Theme(
                   data: Theme.of(context).copyWith(
                     dividerColor: Colors.transparent,
                     splashColor: Colors.transparent,
+                    highlightColor: Colors.transparent,
                   ),
                   child: Column(
                     children: [
                       for (int i = 0; i < group.items.length; i++) ...[
                         if (i > 0)
-                          const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 16),
-                            child: Divider(height: 1),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Divider(
+                              height: 1,
+                              color: AppColors.kBorder.withOpacity(0.5),
+                            ),
                           ),
                         _FaqTile(entry: group.items[i]),
                       ],
@@ -248,17 +320,18 @@ class _FaqScreenState extends State<FaqScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
             ],
 
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
+
+          // Support CTA Card
           Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: AppColors.kGoldLight.withOpacity(0.35),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.kGoldDark.withOpacity(0.4)),
+              color: AppColors.kGold.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: AppColors.kGold.withOpacity(0.25)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -266,35 +339,54 @@ class _FaqScreenState extends State<FaqScreen> {
                 const Text(
                   'Still need help?',
                   style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.kTextDark),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.kTextDark,
+                  ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
-                  'Our support team can help with anything not covered here.',
+                  'Can\'t find what you\'re looking for? Our dedicated support team is ready to assist you.',
                   style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.kTextDark.withOpacity(0.85),
-                      height: 1.4),
+                    fontSize: 13,
+                    color: AppColors.kTextDark.withOpacity(0.8),
+                    height: 1.4,
+                  ),
                 ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerLeft,
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
                   child: ElevatedButton.icon(
                     onPressed: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                            builder: (_) => const ContactSupportScreen()),
+                          builder: (_) => const ContactSupportScreen(),
+                        ),
                       );
                     },
-                    icon: const Icon(Icons.support_agent_outlined, size: 18),
-                    label: const Text('Contact Support'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.kGold,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    icon: const Icon(Icons.support_agent_rounded, size: 18),
+                    label: const Text(
+                      'Contact Support',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
           ),
+          const SizedBox(height: 20),
         ],
       ),
     );
@@ -308,14 +400,14 @@ class _FaqTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ExpansionTile(
-      tilePadding: const EdgeInsets.symmetric(horizontal: 16),
-      childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      tilePadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+      childrenPadding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
       iconColor: AppColors.kGold,
       collapsedIconColor: AppColors.kTextMuted,
       title: Text(
         entry.question,
         style: const TextStyle(
-          fontSize: 13.5,
+          fontSize: 14.5,
           fontWeight: FontWeight.w600,
           color: AppColors.kTextDark,
         ),
@@ -326,7 +418,7 @@ class _FaqTile extends StatelessWidget {
           child: Text(
             entry.answer,
             style: const TextStyle(
-              fontSize: 12.5,
+              fontSize: 13.5,
               color: AppColors.kTextMuted,
               height: 1.5,
             ),

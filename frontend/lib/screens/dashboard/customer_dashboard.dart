@@ -12,6 +12,7 @@ import '../../services/api_client.dart';
 import '../../services/api_service_repayment.dart';
 import '../../services/collection_api_service.dart';
 import '../../services/session_service.dart';
+import '../Promotional Popup/promotional_popup.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_shell.dart';
 import '../../widgets/stat_card.dart';
@@ -359,6 +360,9 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
   void initState() {
     super.initState();
     _future = _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) showActivePromoPopup(context);
+    });
     _clockTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() => _now = DateTime.now());
     });

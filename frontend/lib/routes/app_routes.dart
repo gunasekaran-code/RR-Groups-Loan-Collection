@@ -25,4 +25,6 @@ class AppRoutes {
   static const String profile = '/profile';
   static const String handover = '/handover';
   static const String funds = '/Funds';
+  static const String promotionalPopup = '/promotional-popup';
+  static const String recycleBin = '/recycle-bin';
 }

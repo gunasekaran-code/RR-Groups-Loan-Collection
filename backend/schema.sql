@@ -70,8 +70,15 @@ CREATE TABLE customers (
   longitude      DECIMAL(10,7) NULL,
   loan_status    ENUM('none','active','overdue','closed') NOT NULL DEFAULT 'none',
   assigned_agent CHAR(36)     NULL,
+  -- Soft delete: 0 = active, 1 = deleted. Customers are never removed
+  -- outright because loans, collections and chit membership reference
+  -- them, and that history has to stay readable.
+  delflag        TINYINT(1)   NOT NULL DEFAULT 0,
+  deleted_at     DATETIME     NULL,
+  deleted_by     CHAR(36)     NULL,
   created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_customers_agent (assigned_agent),
+  INDEX idx_customers_delflag (delflag),
   CONSTRAINT fk_customers_agent FOREIGN KEY (assigned_agent)
     REFERENCES profiles(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -149,7 +156,7 @@ CREATE TABLE collections (
   INDEX idx_collections_date (collection_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
------------- chit_groups ----------
+-- ---------- chit_groups ----------
 CREATE TABLE chit_groups (
   id                   CHAR(36)     NOT NULL PRIMARY KEY,
   group_name           VARCHAR(191) NOT NULL,
@@ -197,6 +204,38 @@ CREATE TABLE chit_schedules (
   INDEX idx_chit_sched_group (group_id),
   CONSTRAINT fk_chit_sched_group FOREIGN KEY (group_id)
     REFERENCES chit_groups(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Per-contribution chit passbook ledger. One row per payment a member makes,
+-- linked by real foreign keys instead of matching names inside ledger text.
+CREATE TABLE chit_payments (
+  id             CHAR(36)     NOT NULL PRIMARY KEY,
+  group_id       CHAR(36)     NOT NULL,
+  member_id      CHAR(36)     NULL,
+  group_number   VARCHAR(64)  NULL,
+  group_name     VARCHAR(191) NULL,
+  customer_id    CHAR(36)     NULL,
+  customer_name  VARCHAR(191) NULL,
+  installment_no INT          NOT NULL DEFAULT 0,   -- which draw this payment settles (0 = unallocated)
+  amount         DECIMAL(14,2) NOT NULL DEFAULT 0,
+  balance_after  DECIMAL(14,2) NOT NULL DEFAULT 0,  -- member's total paid after this entry
+  payment_method ENUM('cash','upi','card','bank','cheque') NOT NULL DEFAULT 'cash',
+  payment_date   DATE         NULL,
+  agent_id       CHAR(36)     NULL,
+  agent_name     VARCHAR(191) NULL,
+  ledger_id      CHAR(36)     NULL,                 -- the account_ledger receipt this came from
+  notes          TEXT         NULL,
+  created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_chit_payments_group (group_id),
+  INDEX idx_chit_payments_member (member_id),
+  INDEX idx_chit_payments_customer (customer_id),
+  INDEX idx_chit_payments_ledger (ledger_id),
+  CONSTRAINT fk_chit_payments_group FOREIGN KEY (group_id)
+    REFERENCES chit_groups(id) ON DELETE CASCADE,
+  -- SET NULL, not CASCADE: removing someone from the group must not erase the
+  -- money they already paid.
+  CONSTRAINT fk_chit_payments_member FOREIGN KEY (member_id)
+    REFERENCES chit_members(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------- funds (daily-deposit savings scheme) ----------
@@ -330,6 +369,25 @@ CREATE TABLE biometric_credentials (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------- account_ledger (custom ledger entries / adjustments) ----------
+-- Soft-delete archive. Deliberately carries NO foreign keys: it has to
+-- outlive whatever was deleted, including the parent rows it references.
+CREATE TABLE recycle_bin (
+  id              CHAR(36)     NOT NULL PRIMARY KEY,
+  table_name      VARCHAR(64)  NOT NULL,
+  record_id       VARCHAR(64)  NULL,
+  label           VARCHAR(255) NULL,          -- human-readable name of the record
+  payload         LONGTEXT     NOT NULL,      -- {table, row, children{table:[rows]}}
+  child_count     INT          NOT NULL DEFAULT 0,
+  deleted_by      CHAR(36)     NULL,
+  deleted_by_name VARCHAR(191) NULL,
+  deleted_by_role VARCHAR(32)  NULL,
+  deleted_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  restored_at     DATETIME     NULL,
+  INDEX idx_recycle_table (table_name),
+  INDEX idx_recycle_deleted_at (deleted_at),
+  INDEX idx_recycle_actor (deleted_by)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE account_ledger (
   id           CHAR(36)     NOT NULL PRIMARY KEY,
   entry_type   VARCHAR(64)  NOT NULL DEFAULT 'cash_in',

@@ -70,9 +70,9 @@ class Overdue extends Model
                 DATEDIFF(?, MIN(s.due_date)) AS days_overdue
             FROM loans l
             JOIN repayment_schedule s
-                ON s.loan_id = l.id AND s.due_date < ? AND s.status <> 'paid'
-            LEFT JOIN customers c ON c.id = l.customer_id
-            WHERE l.status <> 'closed'
+                ON s.loan_id = l.id AND s.delflag = 0 AND s.due_date < ? AND s.status <> 'paid'
+            LEFT JOIN customers c ON c.id = l.customer_id AND c.delflag = 0
+            WHERE l.delflag = 0 AND l.status <> 'closed'
             GROUP BY
                 l.id, l.loan_number, l.customer_id, l.customer_name, l.loan_amount,
                 l.loan_type, l.emi, l.outstanding_balance, l.penalty_amount,
@@ -129,10 +129,10 @@ class Overdue extends Model
 
         $toOverdue = $pdo->prepare("
             UPDATE loans l SET l.status = 'overdue'
-            WHERE l.status = 'active'
+            WHERE l.delflag = 0 AND l.status = 'active'
               AND EXISTS (
                 SELECT 1 FROM repayment_schedule s
-                WHERE s.loan_id = l.id AND s.due_date < ? AND s.status <> 'paid'
+                WHERE s.loan_id = l.id AND s.delflag = 0 AND s.due_date < ? AND s.status <> 'paid'
               )
         ");
         $toOverdue->execute([$today]);
@@ -140,10 +140,10 @@ class Overdue extends Model
 
         $toActive = $pdo->prepare("
             UPDATE loans l SET l.status = 'active'
-            WHERE l.status = 'overdue'
+            WHERE l.delflag = 0 AND l.status = 'overdue'
               AND NOT EXISTS (
                 SELECT 1 FROM repayment_schedule s
-                WHERE s.loan_id = l.id AND s.due_date < ? AND s.status <> 'paid'
+                WHERE s.loan_id = l.id AND s.delflag = 0 AND s.due_date < ? AND s.status <> 'paid'
               )
         ");
         $toActive->execute([$today]);

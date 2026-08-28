@@ -37,7 +37,8 @@ class BiometricCredential extends Model
         $stmt = $pdo->prepare("
             INSERT INTO biometric_credentials (id, user_id, credential_id, public_key, label, created_at)
             VALUES (?, ?, ?, ?, ?, NOW())
-            ON DUPLICATE KEY UPDATE public_key = VALUES(public_key), label = VALUES(label), last_used_at = NOW()
+            ON DUPLICATE KEY UPDATE public_key = VALUES(public_key), label = VALUES(label), last_used_at = NOW(),
+                                    delflag = 0, deleted_at = NULL, deleted_by = NULL
         ");
         $stmt->execute([$id, $userId, $credentialId, $publicKey, $label]);
         return $id;
@@ -47,7 +48,7 @@ class BiometricCredential extends Model
     public static function ownerOf(string $credentialId): ?string
     {
         $stmt = Database::pdo()->prepare(
-            "SELECT user_id FROM biometric_credentials WHERE credential_id = ? LIMIT 1"
+            "SELECT user_id FROM biometric_credentials WHERE credential_id = ? AND delflag = 0 LIMIT 1"
         );
         $stmt->execute([$credentialId]);
         $uid = $stmt->fetchColumn();

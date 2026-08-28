@@ -8,6 +8,7 @@ import '../../models/loan_record.dart';
 import '../../routes/app_routes.dart';
 import '../../services/api_client.dart';
 import '../../services/session_service.dart';
+import '../Promotional Popup/promotional_popup.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_shell.dart';
 
@@ -166,6 +167,9 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
   void initState() {
     super.initState();
     _future = _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) showActivePromoPopup(context);
+    });
     _clockTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() => _now = DateTime.now());
     });

@@ -37,9 +37,9 @@ class Reminder extends Model
                 c.mobile,
                 DATEDIFF(s.due_date, ?) AS days_until
             FROM repayment_schedule s
-            JOIN loans l       ON l.id = s.loan_id AND l.status <> 'closed'
-            LEFT JOIN customers c ON c.id = l.customer_id
-            WHERE s.status <> 'paid'
+            JOIN loans l       ON l.id = s.loan_id AND l.delflag = 0 AND l.status <> 'closed'
+            LEFT JOIN customers c ON c.id = l.customer_id AND c.delflag = 0
+            WHERE s.delflag = 0 AND s.status <> 'paid'
               AND s.due_date IS NOT NULL
               AND s.due_date <= ?
             ORDER BY s.due_date ASC

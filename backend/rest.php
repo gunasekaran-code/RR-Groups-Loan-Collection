@@ -23,11 +23,13 @@ $controllers = [
     'chit_groups'        => ChitGroupController::class,
     'chit_members'       => ChitMemberController::class,
     'chit_schedules'     => ChitGroupController::class,
+    'chit_payments'      => ChitPaymentController::class,
     'notifications'      => NotificationController::class,
     'settings'           => SettingController::class,
     'push_subscriptions' => PushSubscriptionController::class,
     'promo_popups'       => PromoPopupController::class,
     'account_ledger'     => AccountLedgerController::class,
+    'recycle_bin'        => RecycleBinController::class,
 ];
 $controllerClass = $controllers[$table] ?? ResourceController::class;
 $controller = new $controllerClass($model);

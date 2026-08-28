@@ -17,13 +17,20 @@ class LoanRecalc
     /** Recompute every loan touched by a set of loan ids. */
     public static function syncMany(array $loanIds): void
     {
-        foreach (array_unique(array_filter($loanIds)) as $id) {
+        $loanIds = array_unique(array_filter($loanIds));
+        foreach ($loanIds as $id) {
             try {
                 self::sync((string)$id);
             } catch (\Throwable $e) {
                 // A recalc failure must never fail the payment that triggered it.
                 error_log('LoanRecalc failed for loan ' . $id . ': ' . $e->getMessage());
             }
+        }
+
+        // A payment can close a loan or push it overdue, which changes what
+        // the customer directory should show next to that customer.
+        if ($loanIds) {
+            Customer::recalcLoanStatus(Customer::idsForLoans(array_values($loanIds)));
         }
     }
 

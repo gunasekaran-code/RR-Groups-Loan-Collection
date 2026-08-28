@@ -29,6 +29,8 @@ import 'screens/user_management/user_management_screen.dart';
 import 'screens/handover/cash_handover.dart';
 import 'screens/funds/funds_screen.dart';
 import 'screens/agent_collection/agent_collection_screen.dart';
+import 'screens/Promotional Popup/promotional_popup.dart';
+import 'screens/Recycle Bin/recycle_bin_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/settings/profile_page.dart';
 import 'widgets/app_shell.dart';
@@ -150,6 +152,17 @@ class FinCollectApp extends StatelessWidget {
       case AppRoutes.userManagement:
         page = _guarded(const UserManagementScreen(),
             const [UserRole.owner, UserRole.admin]);
+        break;
+      case AppRoutes.promotionalPopup:
+        page = _guarded(
+            const PromoPopupScreen(), UserRole.values);
+        break;
+      case AppRoutes.recycleBin:
+        // Backend's RecycleBinController is admin-only (requireAdmin()); the
+        // payload it returns includes raw snapshots of deleted rows,
+        // password hashes included, so this must stay admin-only here too.
+        page = _guarded(
+            const RecycleBinScreen(), const [UserRole.owner, UserRole.admin]);
         break;
       case AppRoutes.settings:
         page = _guarded(

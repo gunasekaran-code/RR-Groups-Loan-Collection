@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/customer.dart';
 import 'method_override_http.dart';
-import 'session_service.dart'; // adjust import to your actual SessionService path
+import 'session_service.dart'; 
 
 class CustomerApiException implements Exception {
   final String message;
@@ -168,7 +168,6 @@ class CustomerApiService {
         .toList();
   }
 
-  // Add this inside CustomerApiService
   Future<List<Map<String, String>>> fetchAllLite() async {
     final res = await _client.get(
       // Use the customers resource directly so the notification recipient

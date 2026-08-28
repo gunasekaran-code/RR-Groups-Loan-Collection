@@ -100,6 +100,16 @@ const List<_DrawerSection> _ownerAdminSections = [
         icon: Icons.manage_accounts_outlined,
         route: AppRoutes.userManagement),
     _DrawerItem(
+        label: 'Promotional Popup',
+        icon: Icons
+            .campaign_outlined, // standard Material icon for promotions/announcements
+        route: AppRoutes.promotionalPopup),
+    _DrawerItem(
+      label: 'Recycle Bin',
+      icon: Icons.delete_outline,
+      route: AppRoutes.recycleBin,
+    ),
+    _DrawerItem(
         label: 'Settings',
         icon: Icons.settings_outlined,
         route: AppRoutes.settings),

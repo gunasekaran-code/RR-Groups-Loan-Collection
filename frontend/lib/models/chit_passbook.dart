@@ -56,10 +56,17 @@ class ChitPaymentReceipt {
   factory ChitPaymentReceipt.fromJson(Map<String, dynamic> json) {
     return ChitPaymentReceipt(
       id: '${json['id']}',
-      title: json['title']?.toString() ?? 'Chit Contribution',
-      subtitle: json['subtitle']?.toString() ?? '',
-      amount: double.tryParse('${json['amount']}') ?? 0,
-      date: DateTime.tryParse('${json['paid_at']}') ?? DateTime.now(),
+      title: json['title']?.toString() ??
+          'Chit Contribution: ${json['customer_name'] ?? ''}'.trim(),
+      subtitle: json['subtitle']?.toString() ??
+          '${json['payment_method'] ?? json['payment_mode'] ?? 'Cash'}'
+              ' · ${json['receipt_number'] ?? 'Receipt'}',
+      amount: double.tryParse(
+              '${json['amount'] ?? json['collection_amount'] ?? 0}') ??
+          0,
+      date: DateTime.tryParse(
+              '${json['paid_at'] ?? json['collection_date'] ?? json['created_at']}') ??
+          DateTime.now(),
     );
   }
 }

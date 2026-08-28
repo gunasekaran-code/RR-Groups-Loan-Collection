@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'dart:ui' as ui;
 import 'package:latlong2/latlong.dart';
+import 'package:intl/intl.dart';
+import '../../l10n/generated/app_localizations.dart';
 import '../../routes/app_routes.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/glass_toast.dart';
@@ -59,8 +61,9 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
         _loadError = e.toString();
         _isLoading = false;
       });
+      final l10n = AppLocalizations.of(context)!;
       ToastService.show(
-        title: 'Failed to load map data',
+        title: l10n.routeMapLoadFailedTitle,
         message: e.toString(),
         type: ToastType.error,
       );
@@ -144,10 +147,11 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final points = _filteredPoints;
     return AppShell(
       currentRoute: AppRoutes.routeMap,
-      title: 'Customer Map',
+      title: l10n.routeMapTitle,
       body: RefreshIndicator(
         onRefresh: _loadData,
         child: _isLoading
@@ -161,7 +165,8 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                             style: const TextStyle(color: AppColors.kDanger)),
                         const SizedBox(height: 12),
                         ElevatedButton(
-                            onPressed: _loadData, child: const Text('Retry')),
+                            onPressed: _loadData,
+                            child: Text(l10n.routeMapRetryButton)),
                       ],
                     ),
                   )
@@ -172,9 +177,9 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'All customer locations',
-                            style: TextStyle(
+                          Text(
+                            l10n.routeMapAllLocationsSubtitle,
+                            style: const TextStyle(
                                 color: AppColors.kTextMuted, fontSize: 14),
                           ),
                           _RefreshButton(onTap: _loadData),
@@ -182,9 +187,9 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                       ),
                       const SizedBox(height: 20),
                       TextField(
-                        decoration: const InputDecoration(
-                          hintText: 'Search customer, loan or agent...',
-                          prefixIcon: Icon(Icons.search),
+                        decoration: InputDecoration(
+                          hintText: l10n.routeMapSearchHint,
+                          prefixIcon: const Icon(Icons.search),
                         ),
                         onChanged: (value) =>
                             _applyFilterState(searchQuery: value),
@@ -192,14 +197,15 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
                         initialValue: _selectedCustomerId,
-                        decoration: const InputDecoration(
-                          labelText: 'Customer',
-                          prefixIcon: Icon(Icons.person_search_outlined),
+                        decoration: InputDecoration(
+                          labelText: l10n.routeMapCustomerLabel,
+                          prefixIcon:
+                              const Icon(Icons.person_search_outlined),
                         ),
                         items: [
-                          const DropdownMenuItem(
+                          DropdownMenuItem(
                             value: 'all',
-                            child: Text('All customers'),
+                            child: Text(l10n.routeMapAllCustomers),
                           ),
                           ..._customerNames.map(
                             (name) => DropdownMenuItem(
@@ -224,14 +230,14 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                             icon: Icons.people_alt_rounded,
                             iconBg: const Color(0xFFFEF3C7),
                             iconColor: AppColors.kWarning,
-                            label: 'Total Mapped',
+                            label: l10n.routeMapTotalMapped,
                             value: '${_summary?.onMap ?? points.length}',
                           ),
                           _StatCard(
                             icon: Icons.check_circle_outline_rounded,
                             iconBg: const Color(0xFFDCFCE7),
                             iconColor: AppColors.kSuccess,
-                            label: 'Active Customers',
+                            label: l10n.routeMapActiveCustomers,
                             value:
                                 '${_summary?.collectedCount ?? points.where((p) => p.collected).length}',
                           ),
@@ -246,11 +252,10 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: AppColors.kBorder),
                           ),
-                          child: const EmptyState(
+                          child: EmptyState(
                             icon: Icons.map_outlined,
-                            title: 'No locations found',
-                            message:
-                                "Customers with valid coordinates will appear here.",
+                            title: l10n.routeMapNoLocationsTitle,
+                            message: l10n.routeMapNoLocationsMessage,
                           ),
                         )
                       else
@@ -350,18 +355,18 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(color: AppColors.kBorder),
                         ),
-                        child: const Row(
+                        child: Row(
                           children: [
-                            _LegendDot(color: AppColors.kSuccess),
-                            SizedBox(width: 6),
-                            Text('Active',
-                                style: TextStyle(
+                            const _LegendDot(color: AppColors.kSuccess),
+                            const SizedBox(width: 6),
+                            Text(l10n.routeMapActive,
+                                style: const TextStyle(
                                     color: AppColors.kTextDark, fontSize: 13)),
-                            SizedBox(width: 20),
-                            _LegendDot(color: AppColors.kDanger),
-                            SizedBox(width: 6),
-                            Text('Inactive',
-                                style: TextStyle(
+                            const SizedBox(width: 20),
+                            const _LegendDot(color: AppColors.kDanger),
+                            const SizedBox(width: 6),
+                            Text(l10n.routeMapInactive,
+                                style: const TextStyle(
                                     color: AppColors.kTextDark, fontSize: 13)),
                           ],
                         ),
@@ -373,6 +378,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
   }
 
   void _showPointInfo(CollectionPoint point) {
+    final l10n = AppLocalizations.of(context)!;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -406,7 +412,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    point.collected ? 'Active' : 'Inactive',
+                    point.collected ? l10n.routeMapActive : l10n.routeMapInactive,
                     style: TextStyle(
                       color: point.collected
                           ? AppColors.kSuccess
@@ -444,7 +450,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    'Joined: ${_formatDate(point.collectedAt)}',
+                    l10n.routeMapJoinedLabel(_formatDate(point.collectedAt)),
                     style: const TextStyle(
                         color: AppColors.kTextMuted, fontSize: 14),
                   ),
@@ -457,24 +463,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     );
   }
 
-  String _formatDate(DateTime d) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    final dd = d.day.toString().padLeft(2, '0');
-    return '$dd ${months[d.month - 1]} ${d.year}';
-  }
+  String _formatDate(DateTime d) => DateFormat('dd MMM yyyy').format(d);
 }
 
 /// -----------------------------------------------------------------------

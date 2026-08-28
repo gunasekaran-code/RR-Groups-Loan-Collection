@@ -51,7 +51,9 @@ class ReportController extends Controller
                    c.payment_method, c.collection_date, c.agent_id,
                    c.agent_name, c.notes, c.created_at
             FROM collections c
-            WHERE c.collection_date = :d OR DATE(c.created_at) = :d2
+            WHERE c.delflag = 0 AND (
+              c.collection_date = :d OR DATE(c.created_at) = :d2
+            )
             ORDER BY c.created_at DESC
         ");
         $stmt->execute([':d' => $date, ':d2' => $date]);
@@ -69,7 +71,9 @@ class ReportController extends Controller
                    fp.balance_after, fp.payment_method, fp.payment_date,
                    fp.agent_id, fp.agent_name, fp.notes, fp.created_at
             FROM fund_payments fp
-            WHERE fp.payment_date = :d OR DATE(fp.created_at) = :d2
+            WHERE fp.delflag = 0 AND (
+              fp.payment_date = :d OR DATE(fp.created_at) = :d2
+            )
             ORDER BY fp.created_at DESC
         ");
         $stmt->execute([':d' => $date, ':d2' => $date]);
@@ -88,7 +92,7 @@ class ReportController extends Controller
                    l.total_interest, l.total_repayment, l.outstanding_balance,
                    l.created_at
             FROM loans l
-            WHERE DATE(l.created_at) = :d
+            WHERE l.delflag = 0 AND DATE(l.created_at) = :d
             ORDER BY l.created_at DESC
         ");
         $stmt->execute([':d' => $date]);
@@ -108,7 +112,9 @@ class ReportController extends Controller
             SELECT COALESCE(SUM(collection_amount), 0) AS total_collected,
                    COUNT(*) AS collection_count
             FROM collections
-            WHERE collection_date = :d OR DATE(created_at) = :d2
+            WHERE delflag = 0 AND (
+              collection_date = :d OR DATE(created_at) = :d2
+            )
         ");
         $stmt->execute([':d' => $date, ':d2' => $date]);
         $collSummary = $stmt->fetch();
@@ -117,7 +123,9 @@ class ReportController extends Controller
             SELECT COALESCE(SUM(amount), 0) AS total_fund_collected,
                    COUNT(*) AS fund_payment_count
             FROM fund_payments
-            WHERE payment_date = :d OR DATE(created_at) = :d2
+            WHERE delflag = 0 AND (
+              payment_date = :d OR DATE(created_at) = :d2
+            )
         ");
         $stmt->execute([':d' => $date, ':d2' => $date]);
         $fundSummary = $stmt->fetch();
@@ -126,7 +134,7 @@ class ReportController extends Controller
             SELECT COALESCE(SUM(loan_amount), 0) AS total_disbursed,
                    COUNT(*) AS new_loan_count
             FROM loans
-            WHERE DATE(created_at) = :d
+            WHERE delflag = 0 AND DATE(created_at) = :d
         ");
         $stmt->execute([':d' => $date]);
         $loanSummary = $stmt->fetch();
@@ -135,7 +143,7 @@ class ReportController extends Controller
         $stmt = $pdo->prepare("
             SELECT COUNT(*) AS overdue_count
             FROM loans
-            WHERE status = 'overdue'
+            WHERE delflag = 0 AND status = 'overdue'
         ");
         $stmt->execute();
         $overdueRow = $stmt->fetch();
@@ -171,7 +179,7 @@ class ReportController extends Controller
             SELECT COALESCE(SUM(loan_amount), 0)     AS disbursement,
                    COALESCE(SUM(total_interest), 0)   AS interest
             FROM loans
-            WHERE DATE(created_at) BETWEEN :s AND :e
+            WHERE delflag = 0 AND DATE(created_at) BETWEEN :s AND :e
         ");
         $stmt->execute([':s' => $start, ':e' => $end]);
         $loanAgg = $stmt->fetch();
@@ -180,8 +188,10 @@ class ReportController extends Controller
             SELECT COALESCE(SUM(collection_amount), 0) AS collected,
                    COUNT(*) AS collection_count
             FROM collections
-            WHERE (collection_date BETWEEN :s AND :e)
-               OR (collection_date IS NULL AND DATE(created_at) BETWEEN :s2 AND :e2)
+            WHERE delflag = 0 AND (
+              (collection_date BETWEEN :s AND :e)
+                 OR (collection_date IS NULL AND DATE(created_at) BETWEEN :s2 AND :e2)
+            )
         ");
         $stmt->execute([':s' => $start, ':e' => $end, ':s2' => $start, ':e2' => $end]);
         $collAgg = $stmt->fetch();
@@ -189,17 +199,17 @@ class ReportController extends Controller
         $stmt = $pdo->prepare("
             SELECT COUNT(*) AS new_customers
             FROM customers
-            WHERE DATE(created_at) BETWEEN :s AND :e
+            WHERE delflag = 0 AND DATE(created_at) BETWEEN :s AND :e
         ");
         $stmt->execute([':s' => $start, ':e' => $end]);
         $custAgg = $stmt->fetch();
 
         // Active / overdue loan counts
-        $stmt = $pdo->prepare("SELECT COUNT(*) AS c FROM loans WHERE status = 'active'");
+        $stmt = $pdo->prepare("SELECT COUNT(*) AS c FROM loans WHERE delflag = 0 AND status = 'active'");
         $stmt->execute();
         $activeLoans = (int)$stmt->fetchColumn();
 
-        $stmt = $pdo->prepare("SELECT COUNT(*) AS c FROM loans WHERE status = 'overdue'");
+        $stmt = $pdo->prepare("SELECT COUNT(*) AS c FROM loans WHERE delflag = 0 AND status = 'overdue'");
         $stmt->execute();
         $overdueLoans = (int)$stmt->fetchColumn();
 
@@ -213,8 +223,10 @@ class ReportController extends Controller
             $stmt = $pdo->prepare("
                 SELECT COALESCE(SUM(collection_amount), 0) AS total
                 FROM collections
-                WHERE (collection_date BETWEEN :s AND :e)
-                   OR (collection_date IS NULL AND DATE(created_at) BETWEEN :s2 AND :e2)
+                WHERE delflag = 0 AND (
+                  (collection_date BETWEEN :s AND :e)
+                     OR (collection_date IS NULL AND DATE(created_at) BETWEEN :s2 AND :e2)
+                )
             ");
             $stmt->execute([':s' => $mStart, ':e' => $mEnd, ':s2' => $mStart, ':e2' => $mEnd]);
             $collectionTrend[] = [
@@ -233,7 +245,7 @@ class ReportController extends Controller
             $stmt = $pdo->prepare("
                 SELECT COALESCE(SUM(loan_amount), 0) AS total
                 FROM loans
-                WHERE DATE(created_at) BETWEEN :s AND :e
+                WHERE delflag = 0 AND DATE(created_at) BETWEEN :s AND :e
             ");
             $stmt->execute([':s' => $mStart, ':e' => $mEnd]);
             $disbursementTrend[] = [
@@ -272,7 +284,7 @@ class ReportController extends Controller
         $stmt = $pdo->prepare("
             SELECT id, full_name
             FROM profiles
-            WHERE role = 'agent' AND status = 'active'
+            WHERE delflag = 0 AND role = 'agent' AND status = 'active'
             ORDER BY full_name ASC
         ");
         $stmt->execute();
@@ -283,7 +295,7 @@ class ReportController extends Controller
             $agentId = $ag['id'];
 
             // Assigned customers
-            $stmt = $pdo->prepare("SELECT COUNT(*) FROM customers WHERE assigned_agent = :a");
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM customers WHERE assigned_agent = :a AND delflag = 0");
             $stmt->execute([':a' => $agentId]);
             $assigned = (int)$stmt->fetchColumn();
 
@@ -291,22 +303,24 @@ class ReportController extends Controller
             $stmt = $pdo->prepare("
                 SELECT COUNT(*) AS cnt, COALESCE(SUM(collection_amount), 0) AS total
                 FROM collections
-                WHERE agent_id = :a
-                  AND ((collection_date BETWEEN :s AND :e)
-                    OR (collection_date IS NULL AND DATE(created_at) BETWEEN :s2 AND :e2))
+                WHERE delflag = 0 AND (
+                  agent_id = :a
+                    AND ((collection_date BETWEEN :s AND :e)
+                      OR (collection_date IS NULL AND DATE(created_at) BETWEEN :s2 AND :e2))
+                )
             ");
             $stmt->execute([':a' => $agentId, ':s' => $start, ':e' => $end, ':s2' => $start, ':e2' => $end]);
             $collRow = $stmt->fetch();
 
             // Total loans assigned
-            $stmt = $pdo->prepare("SELECT COUNT(*) FROM loans WHERE assigned_agent = :a");
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM loans WHERE delflag = 0 AND assigned_agent = :a");
             $stmt->execute([':a' => $agentId]);
             $totalLoans = (int)$stmt->fetchColumn();
 
             // Closed/paid loans
             $stmt = $pdo->prepare("
                 SELECT COUNT(*) FROM loans
-                WHERE assigned_agent = :a AND (status = 'closed' OR outstanding_balance <= 0)
+                WHERE delflag = 0 AND assigned_agent = :a AND (status = 'closed' OR outstanding_balance <= 0)
             ");
             $stmt->execute([':a' => $agentId]);
             $paidLoans = (int)$stmt->fetchColumn();
@@ -314,7 +328,7 @@ class ReportController extends Controller
             // Overdue loans
             $stmt = $pdo->prepare("
                 SELECT COUNT(*) FROM loans
-                WHERE assigned_agent = :a AND status = 'overdue'
+                WHERE delflag = 0 AND assigned_agent = :a AND status = 'overdue'
             ");
             $stmt->execute([':a' => $agentId]);
             $overdueLoans = (int)$stmt->fetchColumn();

@@ -382,6 +382,478 @@ function ensure_promo_popups_table() {
 ensure_promo_popups_table();
 
 /**
+ * Per-contribution chit passbook ledger.
+ *
+ * Before this table existed the only record of a chit contribution was the
+ * free-text account_ledger receipt, and the customer passbook had to find its
+ * own payments by substring-matching the member and group name inside that
+ * text. That silently cross-matched similar names and broke whenever a group
+ * or member was renamed. chit_payments stores the link as real foreign keys.
+ */
+function ensure_chit_payments_table(): void
+{
+    static $ran = false;
+    if ($ran) return;
+    $ran = true;
+
+    try {
+        $pdo = Database::pdo();
+        $hasTable = (int)$pdo->query(
+            "SELECT COUNT(*) FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'chit_payments'"
+        )->fetchColumn();
+
+        if (!$hasTable) {
+            $pdo->exec("
+                CREATE TABLE chit_payments (
+                  id             CHAR(36)     NOT NULL PRIMARY KEY,
+                  group_id       CHAR(36)     NOT NULL,
+                  member_id      CHAR(36)     NULL,
+                  group_number   VARCHAR(64)  NULL,
+                  group_name     VARCHAR(191) NULL,
+                  customer_id    CHAR(36)     NULL,
+                  customer_name  VARCHAR(191) NULL,
+                  installment_no INT          NOT NULL DEFAULT 0,
+                  amount         DECIMAL(14,2) NOT NULL DEFAULT 0,
+                  balance_after  DECIMAL(14,2) NOT NULL DEFAULT 0,
+                  payment_method ENUM('cash','upi','card','bank','cheque') NOT NULL DEFAULT 'cash',
+                  payment_date   DATE         NULL,
+                  agent_id       CHAR(36)     NULL,
+                  agent_name     VARCHAR(191) NULL,
+                  ledger_id      CHAR(36)     NULL,
+                  notes          TEXT         NULL,
+                  created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                  INDEX idx_chit_payments_group (group_id),
+                  INDEX idx_chit_payments_member (member_id),
+                  INDEX idx_chit_payments_customer (customer_id),
+                  INDEX idx_chit_payments_ledger (ledger_id),
+                  CONSTRAINT fk_chit_payments_group FOREIGN KEY (group_id)
+                    REFERENCES chit_groups(id) ON DELETE CASCADE,
+                  CONSTRAINT fk_chit_payments_member FOREIGN KEY (member_id)
+                    REFERENCES chit_members(id) ON DELETE SET NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            ");
+        }
+
+        backfill_chit_payments_from_ledger();
+    } catch (\Throwable $e) {
+        // Schema check failures must never take the API down.
+    }
+}
+
+/**
+ * Recover historic contributions that only exist as account_ledger receipts.
+ *
+ * Idempotent: a receipt is skipped once a chit_payments row references it, so
+ * this can run on every deployment without duplicating money. Receipts whose
+ * group or member cannot be resolved are left behind rather than guessed at —
+ * they stay visible in the Account Book either way.
+ */
+function backfill_chit_payments_from_ledger(): void
+{
+    $pdo = Database::pdo();
+
+    $rows = $pdo->query(
+        "SELECT l.id, l.title, l.notes, l.amount, l.entry_date, l.agent_id, l.agent_name, l.payment_method
+         FROM account_ledger l
+         LEFT JOIN chit_payments p ON p.ledger_id = l.id
+         WHERE LOWER(l.category) LIKE '%chit%' AND p.id IS NULL"
+    )->fetchAll(PDO::FETCH_ASSOC);
+
+    if (!$rows) return;
+
+    $groups  = $pdo->query("SELECT id, group_name, group_number FROM chit_groups")->fetchAll(PDO::FETCH_ASSOC);
+    $members = $pdo->query("SELECT id, group_id, customer_id, member_name FROM chit_members")->fetchAll(PDO::FETCH_ASSOC);
+
+    $ins = $pdo->prepare(
+        "INSERT INTO chit_payments
+           (id, group_id, member_id, group_number, group_name, customer_id, customer_name,
+            installment_no, amount, balance_after, payment_method, payment_date,
+            agent_id, agent_name, ledger_id, notes)
+         VALUES (?,?,?,?,?,?,?,0,?,0,?,?,?,?,?,?)"
+    );
+
+    $touched = [];
+    foreach ($rows as $r) {
+        $haystack = strtolower(trim(($r['title'] ?? '') . ' ' . ($r['notes'] ?? '')));
+        if ($haystack === '') continue;
+
+        // Resolve the group first — prefer the group number, which is unique.
+        $group = null;
+        foreach ($groups as $g) {
+            $num = strtolower(trim((string)($g['group_number'] ?? '')));
+            if ($num !== '' && strpos($haystack, $num) !== false) { $group = $g; break; }
+        }
+        if (!$group) {
+            $best = 0;
+            foreach ($groups as $g) {
+                $name = strtolower(trim((string)($g['group_name'] ?? '')));
+                if ($name !== '' && strpos($haystack, $name) !== false && strlen($name) > $best) {
+                    $group = $g; $best = strlen($name);
+                }
+            }
+        }
+        if (!$group) continue;
+
+        // Then the member, scoped to that group. Longest name wins so that
+        // "Ramesh" cannot claim a receipt belonging to "Ramesh Kumar".
+        $member = null; $best = 0;
+        foreach ($members as $m) {
+            if ($m['group_id'] !== $group['id']) continue;
+            $name = strtolower(trim((string)($m['member_name'] ?? '')));
+            if ($name !== '' && strpos($haystack, $name) !== false && strlen($name) > $best) {
+                $member = $m; $best = strlen($name);
+            }
+        }
+        if (!$member) continue;
+
+        $method = strtolower(trim((string)($r['payment_method'] ?? 'cash')));
+        if (!in_array($method, ['cash', 'upi', 'card', 'bank', 'cheque'], true)) $method = 'cash';
+
+        $ins->execute([
+            uuid4(),
+            $group['id'],
+            $member['id'],
+            $group['group_number'] ?? null,
+            $group['group_name'] ?? null,
+            $member['customer_id'] ?? null,
+            $member['member_name'] ?? null,
+            (float)($r['amount'] ?? 0),
+            $method,
+            $r['entry_date'] ?: null,
+            $r['agent_id'] ?? null,
+            $r['agent_name'] ?? null,
+            $r['id'],
+            'Recovered from account book receipt during chit_payments migration.',
+        ]);
+        $touched[$member['id']] = true;
+    }
+
+    // Rebuild the running balance for every member the backfill touched.
+    $sel = $pdo->prepare(
+        "SELECT id, amount FROM chit_payments
+         WHERE member_id = ? ORDER BY payment_date IS NULL, payment_date ASC, created_at ASC, id ASC"
+    );
+    $upd = $pdo->prepare("UPDATE chit_payments SET balance_after = ? WHERE id = ?");
+    foreach (array_keys($touched) as $memberId) {
+        $sel->execute([$memberId]);
+        $running = 0.0;
+        foreach ($sel->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $running = round($running + (float)$row['amount'], 2);
+            $upd->execute([$running, $row['id']]);
+        }
+    }
+}
+
+ensure_chit_payments_table();
+
+/**
+ * Soft-delete archive backing the admin Recycle Bin.
+ *
+ * Carries no foreign keys on purpose: it has to survive the deletion of the
+ * very rows it describes, and the utf8mb4 migration drops and recreates every
+ * FK in the schema — one fewer constraint to juggle there.
+ */
+function ensure_recycle_bin_table(): void
+{
+    static $ran = false;
+    if ($ran) return;
+    $ran = true;
+
+    try {
+        $pdo = Database::pdo();
+        $hasTable = (int)$pdo->query(
+            "SELECT COUNT(*) FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'recycle_bin'"
+        )->fetchColumn();
+        if ($hasTable) return;
+
+        $pdo->exec("
+            CREATE TABLE recycle_bin (
+              id              CHAR(36)     NOT NULL PRIMARY KEY,
+              table_name      VARCHAR(64)  NOT NULL,
+              record_id       VARCHAR(64)  NULL,
+              label           VARCHAR(255) NULL,
+              payload         LONGTEXT     NOT NULL,
+              child_count     INT          NOT NULL DEFAULT 0,
+              deleted_by      CHAR(36)     NULL,
+              deleted_by_name VARCHAR(191) NULL,
+              deleted_by_role VARCHAR(32)  NULL,
+              deleted_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              restored_at     DATETIME     NULL,
+              INDEX idx_recycle_table (table_name),
+              INDEX idx_recycle_deleted_at (deleted_at),
+              INDEX idx_recycle_actor (deleted_by)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (\Throwable $e) {
+        // Never take the API down over a schema check.
+    }
+}
+
+ensure_recycle_bin_table();
+
+/**
+ * Soft-delete flag on customers.
+ *
+ * A customer cannot simply be removed: loans, collections, funds and chit
+ * membership all point at them, and wiping the row would either orphan or
+ * erase real financial history. delflag = 1 hides them everywhere instead.
+ */
+function ensure_customer_delflag(): void
+{
+    static $ran = false;
+    if ($ran) return;
+    $ran = true;
+
+    try {
+        $pdo = Database::pdo();
+        $cols = $pdo->query("SHOW COLUMNS FROM customers")->fetchAll(PDO::FETCH_COLUMN, 0);
+        if (!in_array('delflag', $cols, true)) {
+            $pdo->exec("ALTER TABLE customers ADD COLUMN delflag TINYINT(1) NOT NULL DEFAULT 0");
+            $pdo->exec("ALTER TABLE customers ADD INDEX idx_customers_delflag (delflag)");
+        }
+        if (!in_array('deleted_at', $cols, true)) {
+            $pdo->exec("ALTER TABLE customers ADD COLUMN deleted_at DATETIME NULL");
+        }
+        if (!in_array('deleted_by', $cols, true)) {
+            $pdo->exec("ALTER TABLE customers ADD COLUMN deleted_by CHAR(36) NULL");
+        }
+    } catch (\Throwable $e) {
+        // A schema check must never take the API down.
+    }
+}
+
+ensure_customer_delflag();
+
+/**
+ * Tables carrying the soft-delete flag.
+ *
+ * recycle_bin is deliberately absent: it IS the archive, and "Empty Recycle
+ * Bin" has to mean the records are gone. Flagging rows there would leave the
+ * bin permanently full and give the admin no way to actually purge anything.
+ */
+const SOFT_DELETE_TABLES = [
+    'account_ledger', 'biometric_credentials', 'chit_groups', 'chit_members',
+    'chit_payments', 'chit_schedules', 'collections', 'customers',
+    'fund_payments', 'funds', 'handovers', 'loans', 'notifications',
+    'profiles', 'promo_popups', 'push_subscriptions', 'repayment_schedule',
+    'settings',
+];
+
+/**
+ * Add delflag / deleted_at / deleted_by everywhere.
+ *
+ * 0 = active, 1 = deleted. Rows are flagged rather than removed so that the
+ * financial trail — loans against a customer, collections against a loan,
+ * contributions against a chit member — survives a deletion anywhere above it.
+ */
+function ensure_soft_delete_columns(): void
+{
+    static $ran = false;
+    if ($ran) return;
+    $ran = true;
+
+    try {
+        $pdo = Database::pdo();
+
+        $existing = $pdo->query(
+            "SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND COLUMN_NAME IN ('delflag','deleted_at','deleted_by')"
+        )->fetchAll(PDO::FETCH_ASSOC);
+
+        $have = [];
+        foreach ($existing as $r) {
+            $have[$r['TABLE_NAME']][$r['COLUMN_NAME']] = true;
+        }
+
+        $tables = $pdo->query(
+            "SELECT TABLE_NAME FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'"
+        )->fetchAll(PDO::FETCH_COLUMN, 0);
+
+        foreach (SOFT_DELETE_TABLES as $table) {
+            if (!in_array($table, $tables, true)) continue;
+
+            // Each ALTER is guarded on its own: a shared host that refuses one
+            // must not stop the rest from being added.
+            if (empty($have[$table]['delflag'])) {
+                try {
+                    $pdo->exec("ALTER TABLE `$table` ADD COLUMN delflag TINYINT(1) NOT NULL DEFAULT 0");
+                    $pdo->exec("ALTER TABLE `$table` ADD INDEX idx_{$table}_delflag (delflag)");
+                } catch (\Throwable $e) {}
+            }
+            if (empty($have[$table]['deleted_at'])) {
+                try { $pdo->exec("ALTER TABLE `$table` ADD COLUMN deleted_at DATETIME NULL"); } catch (\Throwable $e) {}
+            }
+            if (empty($have[$table]['deleted_by'])) {
+                try { $pdo->exec("ALTER TABLE `$table` ADD COLUMN deleted_by CHAR(36) NULL"); } catch (\Throwable $e) {}
+            }
+        }
+    } catch (\Throwable $e) {
+        // A schema check must never take the API down.
+    }
+}
+
+ensure_soft_delete_columns();
+
+/**
+ * `customers.loan_status` was only ever written by seed.php, so every
+ * customer created through the app has been stuck on 'none' — the directory
+ * showed "No Loan" next to people holding live loans. It is maintained
+ * going forward by Customer::recalcLoanStatus(); this corrects the rows
+ * that are already wrong.
+ */
+function backfill_customer_loan_status(): void
+{
+    static $ran = false;
+    if ($ran) return;
+    $ran = true;
+
+    $marker = sys_get_temp_dir() . '/rrgroups_loanstatus_' . md5(__DIR__) . '.ok';
+    if (is_file($marker)) return;
+
+    try {
+        Customer::recalcLoanStatus(null);
+        @file_put_contents($marker, date('c'));
+    } catch (\Throwable $e) {
+        // Retry on the next request rather than taking the API down.
+    }
+}
+
+backfill_customer_loan_status();
+
+/** True when $table carries the soft-delete flag (cached per request). */
+function table_has_delflag(string $table): bool
+{
+    static $cache = null;
+    if ($cache === null) {
+        $cache = [];
+        try {
+            $rows = Database::pdo()->query(
+                "SELECT TABLE_NAME FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND COLUMN_NAME = 'delflag'"
+            )->fetchAll(PDO::FETCH_COLUMN, 0);
+            foreach ($rows as $t) $cache[$t] = true;
+        } catch (\Throwable $e) {
+            $cache = [];
+        }
+    }
+    return !empty($cache[$table]);
+}
+
+/**
+ * UNIQUE columns that must be released when a row is soft-deleted.
+ *
+ * This is the trap in every soft-delete design: the row stays, so its UNIQUE
+ * value stays claimed. A deleted customer's login email could never be used
+ * again, and re-registering the same phone for push or the same passkey would
+ * collide with a hidden row. Each value is tombstoned with the row id, which
+ * keeps it unique while freeing the original.
+ *
+ * The recycle bin snapshot still holds the real value, so a restore puts it
+ * back — and if someone has claimed it meanwhile, the restore fails loudly
+ * instead of silently producing two accounts with one email.
+ */
+const SOFT_DELETE_UNIQUE_COLUMNS = [
+    'profiles'              => ['email'],
+    'push_subscriptions'    => ['endpoint'],
+    'biometric_credentials' => ['credential_id'],
+];
+
+/**
+ * Flag the rows the database would have removed by ON DELETE CASCADE.
+ *
+ * A hard DELETE on a chit group took its members, draws and payments with
+ * it. Now that the parent is only flagged the cascade never fires, so the
+ * children would stay visible — a deleted group's contributions would keep
+ * showing in a member's passbook. This walks the same foreign keys and
+ * flags them, so soft delete matches what hard delete used to do.
+ */
+function soft_delete_cascade(string $table, array $rows, ?string $actorId, int $depth = 0): void
+{
+    if ($depth >= 3 || !$rows) return;
+
+    try {
+        $pdo = Database::pdo();
+        $links = $pdo->prepare(
+            "SELECT k.TABLE_NAME, k.COLUMN_NAME
+             FROM information_schema.REFERENTIAL_CONSTRAINTS rc
+             JOIN information_schema.KEY_COLUMN_USAGE k
+               ON k.CONSTRAINT_NAME = rc.CONSTRAINT_NAME
+              AND k.CONSTRAINT_SCHEMA = rc.CONSTRAINT_SCHEMA
+             WHERE rc.CONSTRAINT_SCHEMA = DATABASE()
+               AND rc.REFERENCED_TABLE_NAME = ?
+               AND rc.DELETE_RULE = 'CASCADE'"
+        );
+        $links->execute([$table]);
+        $children = $links->fetchAll(PDO::FETCH_ASSOC);
+        if (!$children) return;
+
+        $now = date('Y-m-d H:i:s');
+        foreach ($rows as $row) {
+            $id = $row['id'] ?? null;
+            if (!$id) continue;
+
+            foreach ($children as $c) {
+                $childTable = $c['TABLE_NAME'];
+                $childCol   = $c['COLUMN_NAME'];
+                if ($childTable === 'recycle_bin' || !table_has_delflag($childTable)) continue;
+
+                $sel = $pdo->prepare("SELECT id FROM `$childTable` WHERE `$childCol` = ? AND delflag = 0");
+                $sel->execute([$id]);
+                $kids = $sel->fetchAll(PDO::FETCH_ASSOC);
+                if (!$kids) continue;
+
+                $pdo->prepare(
+                    "UPDATE `$childTable` SET delflag = 1, deleted_at = ?, deleted_by = ?
+                     WHERE `$childCol` = ? AND delflag = 0"
+                )->execute([$now, $actorId, $id]);
+
+                soft_delete_cascade($childTable, $kids, $actorId, $depth + 1);
+            }
+        }
+    } catch (\Throwable $e) {
+        // Never let the cascade block the delete the user asked for.
+    }
+}
+
+/**
+ * Tombstone the UNIQUE columns of rows about to be soft-deleted.
+ * Call BEFORE flagging them, with the rows as they still are.
+ */
+function release_unique_columns(string $table, array $rows): void
+{
+    $columns = SOFT_DELETE_UNIQUE_COLUMNS[$table] ?? null;
+    if (!$columns || !$rows) return;
+
+    try {
+        $pdo = Database::pdo();
+        foreach ($rows as $row) {
+            $id = $row['id'] ?? null;
+            if (!$id) continue;
+
+            foreach ($columns as $col) {
+                $current = $row[$col] ?? null;
+                if ($current === null || $current === '') continue;
+                // Already tombstoned by an earlier delete — leave it alone.
+                if (strncmp((string)$current, 'deleted:', 8) === 0) continue;
+
+                $tomb = $col === 'email'
+                    ? 'deleted+' . $id . '@deleted.invalid'
+                    : 'deleted:' . $id . ':' . $current;
+
+                $pdo->prepare("UPDATE `$table` SET `$col` = ? WHERE `id` = ?")
+                    ->execute([$tomb, $id]);
+            }
+        }
+    } catch (\Throwable $e) {
+        // Freeing the value is a convenience; never block the delete over it.
+    }
+}
+
+/**
  * Self-healing UTF-8 migration.
  *
  * Tamil (and any non-Latin) text is stored as "?" whenever the database, table

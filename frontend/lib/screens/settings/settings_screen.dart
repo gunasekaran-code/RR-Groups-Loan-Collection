@@ -6,9 +6,9 @@ import '../../theme/glass_toast.dart';
 import '../../theme/locale_controller.dart';
 import '../../theme/theme_controller.dart';
 import '../../l10n/generated/app_localizations.dart';
+import '../../services/session_service.dart';
 import '../../screens/help/contact_support_screen.dart';
 import '../../screens/help/faq_screen.dart';
-
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -20,8 +20,10 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _paymentReminders = true;
   bool _groupUpdates = true;
-  bool _biometricLogin = false;
+  // bool _biometricLogin = false;
+  
   bool get _darkMode => ThemeController.mode.value == ThemeMode.dark;
+
   void _notify(String label, AppLocalizations l10n) {
     ToastService.show(
       title: label,
@@ -36,7 +38,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       backgroundColor: AppColors.kSurface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) {
         return SafeArea(
@@ -44,26 +46,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Padding(
-                padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Text(l10n.selectLanguage,
-                    style: TextStyle(
-                        fontSize: 15,
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+                child: Row(
+                  children: [
+                    Text(
+                      l10n.selectLanguage,
+                      style: const TextStyle(
+                        fontSize: 18,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.kTextDark)),
+                        color: AppColors.kTextDark,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               for (final option in LocaleController.supported.entries)
                 ListTile(
-                  title: Text(option.key,
-                      style: const TextStyle(color: AppColors.kTextDark)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                  title: Text(
+                    option.key,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.kTextDark,
+                    ),
+                  ),
                   trailing: option.value == LocaleController.locale.value
-                      ? const Icon(Icons.check, color: AppColors.kGold)
+                      ? Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: AppColors.kGold.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.check,
+                              color: AppColors.kGold, size: 20),
+                        )
                       : null,
                   onTap: () {
-                    LocaleController.locale.value = option.value;
+                    // Persists against the signed-in user's id (not just this
+                    // device), so it's restored on their next login here.
+                    LocaleController.setForUser(
+                      SessionService.instance.currentUser?.userId ?? '',
+                      option.value,
+                    );
                     Navigator.of(ctx).pop();
                   },
                 ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 16),
             ],
           ),
         );
@@ -77,21 +106,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.kSurface,
-        title: Text(l10n.logout, style: TextStyle(color: AppColors.kTextDark)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          l10n.logout,
+          style: const TextStyle(
+            color: AppColors.kTextDark,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         content: Text(
           l10n.confirmLogoutQuestion,
-          style: TextStyle(color: AppColors.kTextMuted),
+          style: const TextStyle(color: AppColors.kTextMuted, height: 1.5),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n.cancel,
-                style: TextStyle(color: AppColors.kTextMuted)),
+            child: Text(
+              l10n.cancel,
+              style: const TextStyle(
+                color: AppColors.kTextMuted,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
-          TextButton(
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.kDanger.withOpacity(0.1),
+              foregroundColor: AppColors.kDanger,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child:
-                Text(l10n.logout, style: TextStyle(color: AppColors.kDanger)),
+            child: Text(l10n.logout,
+                style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -110,67 +159,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    
     return AppShell(
       currentRoute: AppRoutes.settings,
       title: l10n.settings,
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        physics: const BouncingScrollPhysics(),
         children: [
+          // 1. Premium Profile Card
+          _buildProfileCard(context, l10n),
+          
+          const SizedBox(height: 28),
+          
+          // 2. Notifications Section
           _Section(
-            icon: Icons.person_outline,
-            title: l10n.profile,
-            children: [
-              _SettingsTile(
-                icon: Icons.edit_outlined,
-                label: l10n.editProfile,
-                onTap: () => Navigator.of(context).pushNamed(AppRoutes.profile),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          _Section(
-            icon: Icons.notifications_outlined,
             title: l10n.notifications,
             children: [
               _SwitchTile(
-                icon: Icons.payments_outlined,
+                icon: Icons.payments_rounded,
+                iconColor: AppColors.kGold,
                 label: l10n.paymentReminders,
                 value: _paymentReminders,
                 onChanged: (v) => setState(() => _paymentReminders = v),
               ),
               _SwitchTile(
-                icon: Icons.groups_outlined,
+                icon: Icons.groups_rounded,
+                iconColor: AppColors.kInfo,
                 label: l10n.groupUpdates,
                 value: _groupUpdates,
                 onChanged: (v) => setState(() => _groupUpdates = v),
               ),
             ],
           ),
-          // const SizedBox(height: 14),
-          // _Section(
-          //   icon: Icons.lock_outline,
-          //   title: l10n.security,
-          //   children: [
-          //     _SettingsTile(
-          //       icon: Icons.pin_outlined,
-          //       label: l10n.changeMpin,
-          //       onTap: () => _notify(l10n.changeMpin, l10n),
-          //     ),
-          //     // _SwitchTile(
-          //     //   icon: Icons.fingerprint,
-          //     //   label: l10n.biometricLogin,
-          //     //   value: _biometricLogin,
-          //     //   onChanged: (v) => setState(() => _biometricLogin = v),
-          //     // ),
-          //   ],
-          // ),
-          const SizedBox(height: 14),
+          
+          const SizedBox(height: 24),
+          
+          // 3. Preferences Section
           _Section(
-            icon: Icons.public_outlined,
             title: l10n.preferences,
             children: [
               _SettingsTile(
-                icon: Icons.language_outlined,
+                icon: Icons.language_rounded,
+                iconColor: const Color(0xFF9C27B0), // Soft purple for language
                 label: l10n.language,
                 trailingText: LocaleController.labelFor(
                   LocaleController.locale.value,
@@ -178,7 +209,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onTap: _openLanguagePicker,
               ),
               _SwitchTile(
-                icon: Icons.dark_mode_outlined,
+                icon: Icons.dark_mode_rounded,
+                iconColor: const Color(0xFF607D8B), // Blue-grey for theme
                 label: l10n.darkMode,
                 value: _darkMode,
                 onChanged: (v) {
@@ -189,13 +221,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          
+          const SizedBox(height: 24),
+          
+          // 4. Help & Support Section
           _Section(
-            icon: Icons.build_outlined,
             title: l10n.help,
             children: [
               _SettingsTile(
-                icon: Icons.support_agent_outlined,
+                icon: Icons.support_agent_rounded,
+                iconColor: const Color(0xFF4CAF50), // Green for support
                 label: l10n.contactSupport,
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
@@ -203,7 +238,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               _SettingsTile(
-                icon: Icons.help_outline,
+                icon: Icons.help_outline_rounded,
+                iconColor: const Color(0xFFFF9800), // Orange for FAQ
                 label: l10n.faq,
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const FaqScreen()),
@@ -211,108 +247,209 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          
+          const SizedBox(height: 36),
 
-          // Logout — standalone, styled as a destructive action.
-          Container(
-            decoration: BoxDecoration(
-              color: AppColors.kSurface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.kBorder),
-            ),
-            child: Material(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(16),
-              child: InkWell(
+          // 5. Destructive Logout Button
+          InkWell(
+            onTap: _confirmLogout,
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                color: AppColors.kDanger.withOpacity(0.05),
                 borderRadius: BorderRadius.circular(16),
-                onTap: _confirmLogout,
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                  child: Row(
+                border: Border.all(
+                  color: AppColors.kDanger.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.logout_rounded,
+                      size: 22, color: AppColors.kDanger),
+                  const SizedBox(width: 10),
+                  Text(
+                    l10n.logout,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.kDanger,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  /// A beautiful, prominent profile card at the top of the settings.
+  Widget _buildProfileCard(BuildContext context, AppLocalizations l10n) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.kSurface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.kBorder.withOpacity(0.5)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(24),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24),
+          onTap: () => Navigator.of(context).pushNamed(AppRoutes.profile),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                Container(
+                  height: 60,
+                  width: 60,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.kGold.withOpacity(0.2),
+                        AppColors.kGold.withOpacity(0.05)
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.person_rounded,
+                    size: 32,
+                    color: AppColors.kGold,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.logout_outlined,
-                          size: 20, color: AppColors.kDanger),
-                      SizedBox(width: 12),
                       Text(
-                        l10n.logout,
-                        style: TextStyle(
-                          fontSize: 14,
+                        l10n.profile,
+                        style: const TextStyle(
+                          fontSize: 18,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.kDanger,
+                          color: AppColors.kTextDark,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        l10n.editProfile,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.kTextMuted,
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-        ],
-      ),
-    );
-  }
-}
-
-/// A titled card grouping related settings tiles, e.g. "Notifications".
-class _Section extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final List<Widget> children;
-  const _Section(
-      {required this.icon, required this.title, required this.children});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.kSurface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.kBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-            child: Row(
-              children: [
-                Icon(icon, size: 16, color: AppColors.kInfo),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.kTextMuted.withOpacity(0.05),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.chevron_right_rounded,
                     color: AppColors.kTextMuted,
-                    letterSpacing: 0.3,
                   ),
                 ),
               ],
             ),
           ),
-          for (int i = 0; i < children.length; i++) ...[
-            if (i > 0)
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: Divider(height: 1),
-              ),
-            children[i],
-          ],
-          const SizedBox(height: 4),
-        ],
+        ),
       ),
     );
   }
 }
 
+/// A modern grouped list section with the title appearing above the card.
+class _Section extends StatelessWidget {
+  final String title;
+  final List<Widget> children;
+  
+  const _Section({
+    required this.title,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 16, bottom: 10),
+          child: Text(
+            title.toUpperCase(),
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: AppColors.kTextMuted,
+              letterSpacing: 1.2,
+            ),
+          ),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.kSurface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.kBorder.withOpacity(0.5)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.02),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              for (int i = 0; i < children.length; i++) ...[
+                if (i > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 60, right: 16),
+                    child: Divider(
+                      height: 1,
+                      color: AppColors.kBorder.withOpacity(0.5),
+                    ),
+                  ),
+                children[i],
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A stylized settings tile with a colored icon background.
 class _SettingsTile extends StatelessWidget {
   final IconData icon;
+  final Color iconColor;
   final String label;
   final String? trailingText;
   final VoidCallback onTap;
+  
   const _SettingsTile({
     required this.icon,
+    required this.iconColor,
     required this.label,
     required this.onTap,
     this.trailingText,
@@ -324,29 +461,46 @@ class _SettingsTile extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
           child: Row(
             children: [
-              Icon(icon, size: 18, color: AppColors.kTextMuted),
-              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 20, color: iconColor),
+              ),
+              const SizedBox(width: 16),
               Expanded(
                 child: Text(
                   label,
-                  style:
-                      const TextStyle(fontSize: 14, color: AppColors.kTextDark),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.kTextDark,
+                  ),
                 ),
               ),
               if (trailingText != null) ...[
                 Text(
                   trailingText!,
                   style: const TextStyle(
-                      fontSize: 13, color: AppColors.kTextMuted),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.kTextMuted,
+                  ),
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: 8),
               ],
-              const Icon(Icons.chevron_right,
-                  size: 18, color: AppColors.kTextMuted),
+              const Icon(
+                Icons.chevron_right_rounded,
+                size: 20,
+                color: AppColors.kTextMuted,
+              ),
             ],
           ),
         ),
@@ -355,14 +509,17 @@ class _SettingsTile extends StatelessWidget {
   }
 }
 
-/// A row with an icon, label, and a Switch (e.g. Dark Mode, Biometric Login).
+/// A stylized switch tile with a colored icon background.
 class _SwitchTile extends StatelessWidget {
   final IconData icon;
+  final Color iconColor;
   final String label;
   final bool value;
   final ValueChanged<bool> onChanged;
+  
   const _SwitchTile({
     required this.icon,
+    required this.iconColor,
     required this.label,
     required this.value,
     required this.onChanged,
@@ -371,20 +528,32 @@ class _SwitchTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: AppColors.kTextMuted),
-          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 20, color: iconColor),
+          ),
+          const SizedBox(width: 16),
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(fontSize: 14, color: AppColors.kTextDark),
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                color: AppColors.kTextDark,
+              ),
             ),
           ),
           Switch(
             value: value,
-            activeThumbColor: AppColors.kGold,
+            activeColor: AppColors.kGold, // Color of the toggle when ON
+            activeTrackColor: AppColors.kGold.withOpacity(0.2), // Track color
             onChanged: onChanged,
           ),
         ],

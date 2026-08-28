@@ -13,6 +13,47 @@ import '../../models/repayment_installment.dart';
 import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
 import '../../widgets/app_upload.dart';
+import '../../l10n/generated/app_localizations.dart';
+import '../loans/loans_screen.dart'
+    show localizedStatusLabel, friendlyCollectionTypeLabel, collectionTypeOptionKey;
+
+/// Maps an internal period-filter key to its localized chip label. Internal
+/// keys ('Today', 'This Week', 'This Month', 'All') stay English-constant
+/// since they're also used for date-range comparisons in [_matchesPeriod].
+String localizedPeriodLabel(String key, AppLocalizations l10n) {
+  switch (key) {
+    case 'Today':
+      return l10n.collectionsPeriodToday;
+    case 'This Week':
+      return l10n.collectionsPeriodThisWeek;
+    case 'This Month':
+      return l10n.collectionsPeriodThisMonth;
+    case 'All':
+      return l10n.loansFilterAll;
+    default:
+      return key;
+  }
+}
+
+/// Maps an internal payment-method key to its localized display text.
+/// Internal keys stay English-constant since they're round-tripped through
+/// [_apiMethodValue] when saving back to the API.
+String localizedPaymentMethodLabel(String key, AppLocalizations l10n) {
+  switch (key) {
+    case 'Cash':
+      return l10n.collectionsMethodCash;
+    case 'UPI':
+      return l10n.collectionsMethodUpi;
+    case 'Bank Transfer':
+      return l10n.collectionsMethodBank;
+    case 'Cheque':
+      return l10n.collectionsMethodCheque;
+    case 'Card':
+      return l10n.collectionsMethodCard;
+    default:
+      return key;
+  }
+}
 
 class CollectionsScreen extends StatefulWidget {
   const CollectionsScreen({super.key});
@@ -26,6 +67,7 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
   String _period = 'All';
   bool _isLoading = true; // NEW
   String? _loadError; // NEW
+  bool _showAll = false;
 
   final List<String> _periods = const [
     'Today',    'This Week',    'This Month',    'All'
@@ -42,7 +84,9 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadCollections();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadCollections();
+    });
   }
 
   // ---------- API <-> UI mapping ----------
@@ -79,6 +123,8 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
     return '₹$buf';
   }
 
+  // NOTE: returns internal (English) keys — see [localizedPaymentMethodLabel]
+  // for the display-ready label.
   String _formatMethod(dynamic raw) {
     switch ((raw ?? '').toString()) {
       case 'cash':
@@ -157,19 +203,29 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
       _loadError = null;
     });
 
+    final l10n = AppLocalizations.of(context);
+
     try {
-      final customers = await LoanService.instance.fetchCustomers();
-      final agents = await LoanService.instance.fetchAgents();
+      final customersFuture = LoanService.instance.fetchCustomers();
+      final agentsFuture = LoanService.instance.fetchAgents();
+      final customers = await customersFuture;
+      final agents = await agentsFuture;
       final loans = await LoanService.instance.fetchLoans(
         customers: customers,
         agents: agents,
       );
-      final schedules = <String, List<RepaymentInstallment>>{};
-      for (final loan in loans) {
-        schedules[loan.id] =
-            await LoanService.instance.fetchRepaymentSchedule(loan.id);
-      }
-      final rows = await CollectionApiService.fetchCollections();
+      final schedulesFuture = Future.wait(
+        loans.map((loan) async => MapEntry(
+              loan.id,
+              await LoanService.instance.fetchRepaymentSchedule(loan.id),
+            )),
+      );
+      final rowsFuture = CollectionApiService.fetchCollections();
+      final scheduleEntries = await schedulesFuture;
+      final rows = await rowsFuture;
+      final schedules = Map<String, List<RepaymentInstallment>>.fromEntries(
+        scheduleEntries,
+      );
       final mapped = rows.map(_mapRow).toList();
       if (!mounted) return;
       setState(() {
@@ -187,7 +243,7 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
         _isLoading = false;
       });
       ToastService.show(
-        title: 'Failed to load collections',
+        title: l10n.collectionsLoadFailedTitle,
         message: e.toString(),
         type: ToastType.error,
       );
@@ -370,6 +426,7 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
 
   // NEW: build the JSON payload the CollectionController expects and POST it
   Future<void> _createCollectionOnBackend(Map<String, String> record) async {
+    final l10n = AppLocalizations.of(context);
     try {
       final payload = {
         'receipt_number': record['receipt'],
@@ -392,13 +449,13 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
       await CollectionApiService.createCollection(payload);
       await _loadCollections(); // refresh from source of truth
       ToastService.show(
-        title: 'Collection recorded',
+        title: l10n.collectionsRecordedTitle,
         message: record['customer'] ?? '',
         type: ToastType.success,
       );
     } catch (e) {
       ToastService.show(
-        title: 'Failed to save collection',
+        title: l10n.collectionsSaveFailedTitle,
         message: e.toString(),
         type: ToastType.error,
       );
@@ -408,11 +465,12 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
   // NEW: PATCH by real id (looked up via receipt number)
  Future<void> _updateCollectionOnBackend(
       Map<String, String> original, Map<String, String> updated) async {
+    final l10n = AppLocalizations.of(context);
     final id = original['id'];
     if (id == null || id.isEmpty) {
       ToastService.show(
-        title: 'Update failed',
-        message: 'Could not find record id',
+        title: l10n.collectionsUpdateFailedTitle,
+        message: l10n.collectionsRecordIdNotFound,
         type: ToastType.error,
       );
       return;
@@ -439,13 +497,13 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
       await CollectionApiService.updateCollection(id, payload);
       await _loadCollections();
       ToastService.show(
-        title: 'Collection updated',
+        title: l10n.collectionsUpdatedTitle,
         message: updated['customer'] ?? '',
         type: ToastType.success,
       );
     } catch (e) {
       ToastService.show(
-        title: 'Failed to update collection',
+        title: l10n.collectionsUpdateApiFailedTitle,
         message: e.toString(),
         type: ToastType.error,
       );
@@ -461,12 +519,13 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
   }
 
   void _showDeleteConfirmDialog(Map<String, String> record) async {
+    final l10n = AppLocalizations.of(context);
     final confirmed = await AppConfirmDialog.show(
       context: context,
-      title: 'Delete Collection',
-      message:
-          'Delete the collection record for ${record['customer']} (${record['receipt']})? This cannot be undone.',
-      confirmLabel: 'Delete',
+      title: l10n.collectionsDeleteTitle,
+      message: l10n.collectionsDeleteMessage(
+          record['customer'] ?? '', record['receipt'] ?? ''),
+      confirmLabel: l10n.collectionsActionDelete,
       confirmButtonColor: AppColors.kDanger,
     );
 
@@ -474,8 +533,8 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
       final id = record['id'];
       if (id == null || id.isEmpty) {
         ToastService.show(
-          title: 'Delete failed',
-          message: 'Could not find record id',
+          title: l10n.collectionsDeleteFailedTitle,
+          message: l10n.collectionsRecordIdNotFound,
           type: ToastType.error,
         );
         return;
@@ -484,13 +543,13 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
         await CollectionApiService.deleteCollection(id);
         await _loadCollections();
         ToastService.show(
-          title: 'Collection deleted',
+          title: l10n.collectionsDeletedTitle,
           message: record['receipt'],
           type: ToastType.success,
         );
       } catch (e) {
         ToastService.show(
-          title: 'Failed to delete collection',
+          title: l10n.collectionsDeleteApiFailedTitle,
           message: e.toString(),
           type: ToastType.error,
         );
@@ -501,9 +560,10 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
     return AppShell(
       currentRoute: AppRoutes.collections,
-      title: 'Collections',
+      title: l10n.collectionsTitle,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _loadError != null
@@ -511,7 +571,7 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text('Failed to load collections',
+                      Text(l10n.collectionsLoadFailedTitle,
                           style: TextStyle(color: scheme.error)),
                       const SizedBox(height: 8),
                       Text(_loadError!,
@@ -519,7 +579,7 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: _loadCollections,
-                        child: const Text('Retry'),
+                        child: Text(l10n.retry),
                       ),
                     ],
                   ),
@@ -535,9 +595,8 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             PageHeader(
-                              title: 'Collections',
-                              subtitle:
-                                  'Record and track daily collections across all loans',
+                              title: l10n.collectionsTitle,
+                              subtitle: l10n.collectionsSubtitle,
                               actions: [
                                 Align(
                                   alignment: Alignment.centerLeft,
@@ -546,7 +605,7 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
                                     child: ElevatedButton.icon(
                                       onPressed: _showAddCollectionDialog,
                                       icon: const Icon(Icons.add),
-                                      label: const Text('Add Collection'),
+                                      label: Text(l10n.collectionsAddButton),
                                       style: ElevatedButton.styleFrom(
                                         padding: const EdgeInsets.symmetric(
                                             horizontal: 12),
@@ -556,11 +615,11 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
                                 ),
                               ],
                             ),
-                            _buildStatCards(isNarrow),
+                            _buildStatCards(isNarrow, l10n),
                             const SizedBox(height: 16),
-                            _buildSearchAndFilters(),
+                            _buildSearchAndFilters(l10n),
                             const SizedBox(height: 8),
-                            _buildCollectionsTable(isNarrow),
+                            _buildCollectionsTable(isNarrow, l10n),
                             const SizedBox(height: 16),
                           ],
                         ),
@@ -571,31 +630,31 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
     );
   }
 
-  Widget _buildStatCards(bool isNarrow) {
+  Widget _buildStatCards(bool isNarrow, AppLocalizations l10n) {
     final cards = [
       _StatCardData(
-        label: "TODAY'S TOTAL",
+        label: l10n.collectionsStatTodayTotal,
         value: _fmt(_todayTotal),
         icon: Icons.account_balance_wallet_outlined,
         iconColor: AppColors.kSuccess,
         iconBg: const Color(0xFFE7F7EE),
       ),
       _StatCardData(
-        label: 'THIS WEEK',
+        label: l10n.collectionsStatThisWeek,
         value: _fmt(_weekTotal),
         icon: Icons.currency_rupee,
         iconColor: AppColors.kInfo,
         iconBg: const Color(0xFFEAF1FF),
       ),
       _StatCardData(
-        label: 'THIS MONTH',
+        label: l10n.collectionsStatThisMonth,
         value: _fmt(_monthTotal),
         icon: Icons.description_outlined,
         iconColor: const Color(0xFF7C3AED),
         iconBg: const Color(0xFFF1EAFE),
       ),
       _StatCardData(
-        label: 'TOTAL RECORDS',
+        label: l10n.collectionsStatTotalRecords,
         value: '${_collections.length}',
         icon: Icons.check_circle_outline,
         iconColor: AppColors.kWarning,
@@ -618,7 +677,7 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
     );
   }
 
-  Widget _buildSearchAndFilters() {
+  Widget _buildSearchAndFilters(AppLocalizations l10n) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Container(
@@ -632,22 +691,22 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             TextField(
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.search),
-                hintText: 'Search customer, loan or receipt number...',
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.search),
+                hintText: l10n.collectionsSearchHint,
                 isDense: true,
               ),
               onChanged: (v) => setState(() => _query = v),
             ),
             const SizedBox(height: 12),
-            _buildPeriodSelector(),
+            _buildPeriodSelector(l10n),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildPeriodSelector() {
+  Widget _buildPeriodSelector(AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -677,7 +736,7 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
                 ),
                 alignment: Alignment.center,
                 child: Text(
-                  p,
+                  localizedPeriodLabel(p, l10n),
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
@@ -692,8 +751,10 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
     );
   }
 
-Widget _buildCollectionsTable(bool isNarrow) {
-    final items = _filtered;
+Widget _buildCollectionsTable(bool isNarrow, AppLocalizations l10n) {
+    final allItems = _filtered;
+    // Show only 6 items unless _showAll is expanded
+    final items = _showAll ? allItems : allItems.take(6).toList();
 
     final table = DataTable(
       dataRowMinHeight: 60, 
@@ -708,14 +769,14 @@ Widget _buildCollectionsTable(bool isNarrow) {
         color: AppColors.kTextDark,
       ),
       dividerThickness: 0,
-      columns: const [
-        DataColumn(label: Text('CUSTOMER')),
-        DataColumn(label: Text('LOAN NUMBER')), // Header changed
-        DataColumn(label: Text('AMOUNT')),
-        DataColumn(label: Text('METHOD')),
-        DataColumn(label: Text('DATE')),
-        DataColumn(label: Text('AGENT')),
-        DataColumn(label: Text('ACTIONS')),
+      columns: [
+        DataColumn(label: Text(l10n.collectionsColCustomer)),
+        DataColumn(label: Text(l10n.collectionsColLoanNumber)),
+        DataColumn(label: Text(l10n.collectionsColAmount)),
+        DataColumn(label: Text(l10n.collectionsColMethod)),
+        DataColumn(label: Text(l10n.collectionsColDate)),
+        DataColumn(label: Text(l10n.collectionsColAgent)),
+        DataColumn(label: Text(l10n.collectionsColActions)),
       ],
       rows: items.map((c) {
         return DataRow(cells: [
@@ -724,7 +785,7 @@ Widget _buildCollectionsTable(bool isNarrow) {
             children: [
               CircleAvatar(
                 radius: 16,
-                backgroundColor: const Color(0xFFB38222), // Golden-brown matching image
+                backgroundColor: const Color(0xFFB38222),
                 child: Text(
                   c['initials']!,
                   style: const TextStyle(
@@ -744,16 +805,14 @@ Widget _buildCollectionsTable(bool isNarrow) {
                   Text(c['receipt']!,
                       style: const TextStyle(
                           fontSize: 12, color: AppColors.kTextMuted)),
-                  // Removed the 3rd line containing loan and loan_type
                 ],
               ),
             ],
           )),
-          DataCell(Text(c['loan']!)), // Removed the newline and loan_type
+          DataCell(Text(c['loan']!)),
           DataCell(Text(c['amount']!,
               style: const TextStyle(fontWeight: FontWeight.w700))),
           DataCell(
-            // Styled as a pill/chip
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
@@ -761,7 +820,7 @@ Widget _buildCollectionsTable(bool isNarrow) {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                c['method']!,
+                localizedPaymentMethodLabel(c['method']!, l10n),
                 style: const TextStyle(
                   color: Color(0xFF4A90E2), 
                   fontSize: 12,
@@ -775,24 +834,17 @@ Widget _buildCollectionsTable(bool isNarrow) {
           DataCell(Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Reordered to: Edit, Print, Delete
               IconButton(
                 icon: const Icon(Icons.edit_outlined, size: 20),
                 color: AppColors.kTextMuted,
                 onPressed: () => _showEditCollectionDialog(c),
-                tooltip: 'Edit',
+                tooltip: l10n.collectionsActionEdit,
               ),
-              // IconButton(
-              //   icon: const Icon(Icons.print_outlined, size: 20),
-              //   color: AppColors.kTextMuted,
-              //   onPressed: () => _printReceipt(c),
-              //   tooltip: 'Print',
-              // ),
               IconButton(
                 icon: const Icon(Icons.delete_outline, size: 20),
                 color: AppColors.kDanger,
                 onPressed: () => _showDeleteConfirmDialog(c),
-                tooltip: 'Delete',
+                tooltip: l10n.collectionsActionDelete,
               ),
             ],
           )),
@@ -802,7 +854,7 @@ Widget _buildCollectionsTable(bool isNarrow) {
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: isNarrow ? 20 : 24),
-      child: items.isEmpty
+      child: allItems.isEmpty
           ? Container(
               margin: const EdgeInsets.only(top: 8),
               padding: const EdgeInsets.symmetric(vertical: 40),
@@ -811,38 +863,71 @@ Widget _buildCollectionsTable(bool isNarrow) {
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: AppColors.kBorder),
               ),
-              child: const Center(
-                child: Text('No collections found',
-                    style: TextStyle(color: AppColors.kTextMuted)),
+              child: Center(
+                child: Text(l10n.collectionsNoneFound,
+                    style: const TextStyle(color: AppColors.kTextMuted)),
               ),
             )
-          : Card(
-              margin: const EdgeInsets.only(top: 8),
-              color: AppColors.kSurface,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                side: const BorderSide(color: AppColors.kBorder),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Scrollbar(
-                  thumbVisibility: true,
-                  trackVisibility: true,
-                  notificationPredicate: (notification) =>
-                      notification.depth == 0,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    physics: const ClampingScrollPhysics(),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(minWidth: 900),
+          : Column(
+              children: [
+                Card(
+                  margin: const EdgeInsets.only(top: 8),
+                  color: AppColors.kSurface,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    side: const BorderSide(color: AppColors.kBorder),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Scrollbar(
+                      thumbVisibility: true,
+                      trackVisibility: true,
+                      notificationPredicate: (notification) =>
+                          notification.depth == 0,
                       child: SingleChildScrollView(
-                        child: table,
+                        scrollDirection: Axis.horizontal,
+                        physics: const ClampingScrollPhysics(),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(minWidth: 900),
+                          child: SingleChildScrollView(
+                            child: table,
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
+                
+                // Show More / Show Less Button
+                if (allItems.length > 6)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Center(
+                      child: TextButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _showAll = !_showAll;
+                          });
+                        },
+                        icon: Icon(
+                          _showAll ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                          color: AppColors.kInfo,
+                        ),
+                        label: Text(
+                          _showAll
+                              ? l10n.collectionsShowLess
+                              : l10n.collectionsShowMore(allItems.length - 6),
+                          style: const TextStyle(
+                            color: AppColors.kInfo,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
     );
   }
@@ -1088,11 +1173,12 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
 
   Future<void> _save() async {
     if (!_canSave) return;
+    final l10n = AppLocalizations.of(context);
     final customer = _selectedCustomer;
     if (customer == null) {
       ToastService.show(
-        title: 'Select a customer',
-        message: 'Please choose a customer before saving.',
+        title: l10n.collectionsSelectCustomerTitle,
+        message: l10n.collectionsSelectCustomerMessage,
         type: ToastType.error,
       );
       return;
@@ -1140,7 +1226,7 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
     widget.onSaved?.call(record);
     Navigator.of(context).pop();
     ToastService.show(
-      title: _isEdit ? 'Collection updated' : 'Collection recorded',
+      title: _isEdit ? l10n.collectionsUpdatedTitle : l10n.collectionsRecordedTitle,
       message: record['customer'],
       type: ToastType.success,
     );
@@ -1152,16 +1238,20 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
   }
 
   void _generateReceipt() {
+    final l10n = AppLocalizations.of(context);
     ToastService.show(
-      title: 'Generating receipt...',
+      title: l10n.collectionsGeneratingReceiptTitle,
       type: ToastType.info,
     );
   }
 
   Future<void> _pickFile({required bool isSignature}) async {
+    final l10n = AppLocalizations.of(context);
     final XFile? picked = await AppUpload.showImagePickerModal(
       context,
-      title: isSignature ? 'Add Customer Signature' : 'Upload Payment Screenshot',
+      title: isSignature
+          ? l10n.collectionsUploadSignatureTitle
+          : l10n.collectionsUploadScreenshotTitle,
     );
     if (picked == null) return;
     setState(() {
@@ -1218,14 +1308,6 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
     return null;
   }
 
-  String _loanTypeLabel(LoanRecord loan) {
-    if (loan.collectionType == 'Monthly' &&
-        (loan.notes ?? '').contains('[[subtype:monthly_interest]]')) {
-      return 'Monthly Interest';
-    }
-    return loan.collectionType == 'Monthly' ? 'Monthly EMI' : loan.collectionType;
-  }
-
   void _setAmountWithPurpose(double amount, String? purpose) {
     _amountController.text = amount.round().toString();
     _paymentPurpose = purpose;
@@ -1235,7 +1317,7 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
     setState(() {});
   }
 
-  Widget _buildLoanSummary(LoanRecord loan) {
+  Widget _buildLoanSummary(LoanRecord loan, AppLocalizations l10n) {
     final totalDue = _fullBalance(loan);
     final overdueDue = _overdueDueAmount(loan);
     return Container(
@@ -1249,28 +1331,32 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('${_loanTypeLabel(loan)} • ${loan.status}',
+          Text(
+              '${friendlyCollectionTypeLabel(loan, l10n)} • ${localizedStatusLabel(loan.status, l10n)}',
               style: const TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 6),
-          Text('Agent: ${loan.agentName}'),
-          Text('Principal: ${loan.formattedAmount}'),
-          Text('Installment: ${LoanRecord.formatRupees(_nextInstallmentAmount(loan))}'),
-          Text('Outstanding: ${loan.formattedOutstanding}'),
-          Text('Overdue due: ${LoanRecord.formatRupees(overdueDue)}'),
-          Text('Penalty: ${loan.formattedPenalty}'),
-          Text('Total due: ${LoanRecord.formatRupees(totalDue)}',
+          Text(l10n.collectionsSummaryAgent(loan.agentName)),
+          Text(l10n.collectionsSummaryPrincipal(loan.formattedAmount)),
+          Text(l10n.collectionsSummaryInstallment(
+              LoanRecord.formatRupees(_nextInstallmentAmount(loan)))),
+          Text(l10n.collectionsSummaryOutstanding(loan.formattedOutstanding)),
+          Text(l10n.collectionsSummaryOverdueDue(
+              LoanRecord.formatRupees(overdueDue))),
+          Text(l10n.collectionsSummaryPenalty(loan.formattedPenalty)),
+          Text(l10n.collectionsSummaryTotalDue(
+              LoanRecord.formatRupees(totalDue)),
               style: const TextStyle(fontWeight: FontWeight.w700)),
         ],
       ),
     );
   }
 
-  Widget _buildAmountPresets(LoanRecord loan) {
+  Widget _buildAmountPresets(LoanRecord loan, AppLocalizations l10n) {
     final installment = _nextInstallmentAmount(loan);
     final principalPartPayment = loan.outstandingBalance;
     final fullBalance = _fullBalance(loan);
     final overdueDue = _overdueDueAmount(loan);
-    final isInterestOnly = _loanTypeLabel(loan) == 'Monthly Interest';
+    final isInterestOnly = collectionTypeOptionKey(loan) == 'Monthly Interest';
 
     Widget preset(String label, double amount, IconData icon,
         [String? purpose]) {
@@ -1290,20 +1376,29 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
           spacing: 8,
           runSpacing: 8,
           children: [
-            preset(isInterestOnly ? 'Fill Interest' : '1 EMI', installment,
+            preset(
+              isInterestOnly
+                  ? l10n.collectionsPresetFillInterest
+                  : l10n.collectionsPresetOneEmi,
+              installment,
               Icons.bolt,
-              isInterestOnly ? 'Monthly Interest Payment' : null),
+              isInterestOnly ? l10n.collectionsPurposeMonthlyInterest : null,
+            ),
             if (overdueDue > 0)
-              preset('Pay Due Amount', overdueDue, Icons.warning_amber_outlined),
-            preset('Principal Part-Payment', principalPartPayment,
-              Icons.payments_outlined, 'Principal Part-Payment'),
-            preset('Full Balance', fullBalance, Icons.bolt),
+              preset(l10n.collectionsPresetPayDue, overdueDue,
+                  Icons.warning_amber_outlined),
+            preset(l10n.collectionsPresetPrincipalPartPayment,
+                principalPartPayment, Icons.payments_outlined,
+                l10n.collectionsPresetPrincipalPartPayment),
+            preset(l10n.collectionsPresetFullBalance, fullBalance, Icons.bolt),
           ],
         ),
         if (entered > 0) ...[
           const SizedBox(height: 8),
           Text(
-            'Payment: ${LoanRecord.formatRupees(entered)} • Remaining balance: ${LoanRecord.formatRupees(remaining)}',
+            l10n.collectionsPaymentSummaryLine(
+                LoanRecord.formatRupees(entered),
+                LoanRecord.formatRupees(remaining)),
             style: const TextStyle(fontSize: 12, color: AppColors.kTextMuted),
           ),
         ],
@@ -1313,6 +1408,7 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final customerOptions = [...widget.customers]
       ..sort((a, b) => a.fullName.compareTo(b.fullName));
     final availableLoans = _availableLoans;
@@ -1327,7 +1423,7 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(_isEdit ? 'Edit Collection' : 'Add Collection',
+              Text(_isEdit ? l10n.collectionsEditTitle : l10n.collectionsAddButton,
                   style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -1341,12 +1437,12 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
             ],
           ),
           const SizedBox(height: 24),
-          _label('CUSTOMER *'),
+          _label(l10n.collectionsCustomerRequiredLabel),
           DropdownButtonFormField<String>(
             isExpanded: true,
             initialValue: _customerId,
-            decoration: const InputDecoration(
-                hintText: 'Select customer', isDense: true),
+            decoration: InputDecoration(
+                hintText: l10n.collectionsSelectCustomerHint, isDense: true),
             items: customerOptions
                 .map((customer) => DropdownMenuItem(
                     value: customer.id,
@@ -1360,13 +1456,14 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
             }),
           ),
           const SizedBox(height: 16),
-          _label('LOAN NUMBER'),
+          _label(l10n.collectionsLoanNumberLabel),
           DropdownButtonFormField<String>(
             isExpanded: true,
             initialValue: _loanNumber,
             decoration: InputDecoration(
-              hintText:
-                  _customerId == null ? 'Select customer first' : 'Select loan',
+              hintText: _customerId == null
+                  ? l10n.collectionsSelectCustomerFirstHint
+                  : l10n.collectionsSelectLoanHint,
               isDense: true,
             ),
             items: availableLoans
@@ -1374,8 +1471,9 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
                     value: loan.loanNumber,
                     child: Text(
                       '${loan.loanNumber} • ${LoanRecord.formatRupees(loan.principalAmount)} • '
-                      '${_loanTypeLabel(loan)}: ${LoanRecord.formatRupees(loan.emiAmount)} • '
-                      'Out: ${loan.formattedOutstandingWithPenalty} (${loan.status})',
+                      '${friendlyCollectionTypeLabel(loan, l10n)}: ${LoanRecord.formatRupees(loan.emiAmount)} • '
+                      '${l10n.collectionsOutstandingAbbrev}: ${loan.formattedOutstandingWithPenalty} '
+                      '(${localizedStatusLabel(loan.status, l10n)})',
                     ),
                   ))
                 .toList(),
@@ -1389,17 +1487,17 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
           const SizedBox(height: 6),
           Text(
               selectedLoan == null
-                  ? 'Select a loan to view its live details'
-                  : '${availableLoans.length} loan${availableLoans.length == 1 ? '' : 's'} linked to the selected customer',
+                  ? l10n.collectionsSelectLoanPrompt
+                  : l10n.collectionsLoansLinkedCount(availableLoans.length),
               style: TextStyle(fontSize: 12, color: AppColors.kTextMuted)),
           if (selectedLoan != null) ...[
             const SizedBox(height: 12),
-            _buildLoanSummary(selectedLoan),
+            _buildLoanSummary(selectedLoan, l10n),
             const SizedBox(height: 12),
-            _buildAmountPresets(selectedLoan),
+            _buildAmountPresets(selectedLoan, l10n),
           ],
           const SizedBox(height: 16),
-          _label('AMOUNT RECEIVED *'),
+          _label(l10n.collectionsAmountReceivedLabel),
           TextField(
             controller: _amountController,
             keyboardType: TextInputType.number,
@@ -1408,18 +1506,19 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
             onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: 16),
-          _label('PAYMENT METHOD *'),
+          _label(l10n.collectionsPaymentMethodLabel),
           DropdownButtonFormField<String>(
             isExpanded: true,
             initialValue: _paymentMethod,
             decoration: const InputDecoration(isDense: true),
             items: _paymentMethods
-                .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+                .map((m) => DropdownMenuItem(
+                    value: m, child: Text(localizedPaymentMethodLabel(m, l10n))))
                 .toList(),
             onChanged: (v) => setState(() => _paymentMethod = v ?? 'Cash'),
           ),
           const SizedBox(height: 16),
-          _label('COLLECTION DATE *'),
+          _label(l10n.collectionsCollectionDateLabel),
           TextField(
             controller: _dateController,
             readOnly: true,
@@ -1430,12 +1529,12 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
             ),
           ),
           const SizedBox(height: 16),
-          _label('AGENT'),
+          _label(l10n.collectionsColAgent),
           DropdownButtonFormField<String>(
             isExpanded: true,
             initialValue: _agent,
-            decoration:
-                const InputDecoration(hintText: 'Select agent', isDense: true),
+            decoration: InputDecoration(
+                hintText: l10n.collectionsSelectAgentHint, isDense: true),
             items: {
               ...widget.agents,
               'Unassigned',
@@ -1447,22 +1546,21 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
             onChanged: (v) => setState(() => _agent = v),
           ),
           const SizedBox(height: 16),
-          _label('NOTES'),
+          _label(l10n.collectionsNotesLabel),
           TextField(
             controller: _notesController,
             maxLines: 3,
-            decoration: const InputDecoration(
-                hintText: 'Any remarks about this collection...',
-                isDense: true),
+            decoration: InputDecoration(
+                hintText: l10n.collectionsNotesHint, isDense: true),
           ),
           const SizedBox(height: 16),
-          _label('PAYMENT SCREENSHOT'),
+          _label(l10n.collectionsPaymentScreenshotLabel),
           _UploadBox(
             fileName: _screenshotFileName,
             onTap: () => _pickFile(isSignature: false),
           ),
           const SizedBox(height: 16),
-          _label('CUSTOMER SIGNATURE'),
+          _label(l10n.collectionsCustomerSignatureLabel),
           _UploadBox(
             fileName: _signatureFileName,
             accent: true,
@@ -1474,7 +1572,7 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
               Expanded(
                 child: OutlinedButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  child: Text(l10n.collectionsCancelButton),
                 ),
               ),
               const SizedBox(width: 12),
@@ -1482,7 +1580,7 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
                 child: OutlinedButton.icon(
                   onPressed: _canSave ? _generateReceipt : null,
                   icon: const Icon(Icons.description_outlined, size: 18),
-                  label: const Text('Receipt'),
+                  label: Text(l10n.collectionsReceiptButton),
                 ),
               ),
               const SizedBox(width: 12),
@@ -1493,7 +1591,9 @@ class _AddCollectionDialogState extends State<AddCollectionDialog> {
                   ),
                   onPressed: _canSave ? _save : null,
                   icon: const Icon(Icons.check_circle_outline, size: 18),
-                  label: Text(_isEdit ? 'Update' : 'Save'),
+                  label: Text(_isEdit
+                      ? l10n.collectionsUpdateButton
+                      : l10n.collectionsSaveButton),
                 ),
               ),
             ],
@@ -1523,6 +1623,7 @@ class _UploadBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final hasFile = fileName != null;
     return InkWell(
       onTap: onTap,
@@ -1554,7 +1655,7 @@ class _UploadBox extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                hasFile ? fileName! : 'Upload document...',
+                hasFile ? fileName! : l10n.collectionsUploadPlaceholder,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 13,

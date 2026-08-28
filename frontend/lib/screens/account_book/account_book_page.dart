@@ -10,6 +10,19 @@ import '../../models/account_ledger_model.dart';
 import '../../services/account_ledger_service.dart';
 import '../../l10n/generated/app_localizations.dart';
 
+String localizedTabLabel(String key, AppLocalizations l10n) {
+  switch (key) {
+    case 'All Entries':
+      return l10n.accountTabAllEntries;
+    case 'Cash In Hand':
+      return l10n.accountTabCashInHand;
+    case 'Outstanding Lent':
+      return l10n.accountTabOutstandingLent;
+    default:
+      return key;
+  }
+}
+
 class AccountBookScreen extends StatefulWidget {
   const AccountBookScreen({super.key});
 
@@ -123,19 +136,20 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
   }
 
   // Dynamic Button Label based on Active Tab
-  String get _addButtonLabel {
+  String _addButtonLabel(AppLocalizations l10n) {
     if (_selectedTab == 'Cash In Hand') {
-      return 'Add Cash Entry';
+      return l10n.accountAddCashEntryButton;
     } else if (_selectedTab == 'Outstanding Lent') {
-      return 'Add Money Lent';
+      return l10n.accountAddMoneyLentButton;
     }
-    return 'Add Entry';
+    return l10n.accountAddEntryButton;
   }
 
   // ==========================================
   // CREATE / EDIT
   // ==========================================
   void _showAddEntryDialog({AccountLedgerEntry? existingEntry}) {
+    final l10n = AppLocalizations.of(context);
     final defaultType = _selectedTab == 'Outstanding Lent'
         ? LedgerEntryType.moneyLent
         : LedgerEntryType.cashIn;
@@ -162,10 +176,12 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
             });
             _refreshSummary();
             ToastService.show(
-              title: existingEntry != null ? 'Entry Updated' : 'Entry Saved',
+              title: existingEntry != null
+                  ? l10n.accountEntryUpdatedTitle
+                  : l10n.accountEntrySavedTitle,
               message: existingEntry != null
-                  ? 'Ledger record updated successfully.'
-                  : 'New ledger record added successfully.',
+                  ? l10n.accountEntryUpdatedMessage
+                  : l10n.accountEntrySavedMessage,
               type: ToastType.success,
             );
           },
@@ -183,8 +199,7 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
     final confirmed = await AppConfirmDialog.show(
       context: context,
       title: l10n.deleteEntry,
-      message:
-          'Are you sure you want to delete "${entry.title}"? This cannot be undone.',
+      message: l10n.accountDeleteConfirmMessage(entry.title),
       confirmLabel: l10n.delete,
       confirmButtonColor: AppColors.kDanger,
     );
@@ -201,15 +216,15 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
       await _refreshSummary();
       if (!mounted) return;
       ToastService.show(
-        title: 'Entry Deleted',
-        message: 'Ledger record removed successfully.',
+        title: l10n.accountEntryDeletedTitle,
+        message: l10n.accountEntryDeletedMessage,
         type: ToastType.success,
       );
     } catch (e) {
       if (!mounted) return;
       setState(() => _transactions = previous);
       ToastService.show(
-        title: 'Delete Failed',
+        title: l10n.accountDeleteFailedTitle,
         message: e.toString(),
         type: ToastType.error,
       );
@@ -264,8 +279,7 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
               children: [
                 PageHeader(
                   title: l10n.accountBook,
-                  subtitle:
-                      'Home / RR Groups Branch / Real-Time Working Capital',
+                  subtitle: l10n.accountBookSubtitle,
                   // actions: [
                   //   Align(
                   //     alignment: Alignment.centerLeft,
@@ -291,18 +305,18 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
                   child: Column(
                     children: [
                       const SizedBox(height: 12),
-                      _buildNetBalanceSummary(),
+                      _buildNetBalanceSummary(l10n),
                       const SizedBox(height: 16),
-                      _buildCashInHandCard(),
+                      _buildCashInHandCard(l10n),
                       const SizedBox(height: 16),
-                      _buildOutstandingMoneyCard(),
+                      _buildOutstandingMoneyCard(l10n),
                       const SizedBox(height: 24),
-                      _buildFilterAndControlCard(isNarrow),
+                      _buildFilterAndControlCard(isNarrow, l10n),
                     ],
                   ),
                 ),
                 const SizedBox(height: 16),
-                _buildContentArea(isNarrow),
+                _buildContentArea(isNarrow, l10n),
                 const SizedBox(height: 32),
               ],
             ),
@@ -317,7 +331,7 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
   // NOTE: these totals combine loan/chit/fund data from elsewhere in the app;
   // only the "refresh" action here also re-syncs the ledger list below.
   // ==========================================
-  Widget _buildNetBalanceSummary() {
+  Widget _buildNetBalanceSummary(AppLocalizations l10n) {
     final summary = _summary;
     return Container(
       padding: const EdgeInsets.all(20),
@@ -345,9 +359,9 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Net Balance Summary\n',
-                style: TextStyle(
+              Text(
+                '${l10n.accountNetBalanceSummaryTitle}\n',
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -361,12 +375,12 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
           ),
           const SizedBox(height: 16),
           _buildDarkSummaryBox(
-            'CASH IN HAND',
+            l10n.accountCashInHandLabel,
             _summaryAmount(summary?.cashInHand),
           ),
           const SizedBox(height: 12),
           _buildDarkSummaryBox(
-            'OUTSTANDING',
+            l10n.accountOutstandingLabel,
             _summaryAmount(summary?.outstandingMoneyLent),
           ),
           const SizedBox(height: 16),
@@ -383,8 +397,9 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('NET BALANCE',
-                        style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    Text(l10n.accountNetBalanceLabel,
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 12)),
                     const SizedBox(height: 4),
                     Text(_summaryAmount(summary?.netBalance),
                         style: const TextStyle(
@@ -401,7 +416,9 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    _isSummaryLoading ? 'UPDATING' : 'LIVE',
+                    _isSummaryLoading
+                        ? l10n.accountUpdatingBadge
+                        : l10n.accountLiveBadge,
                     style: const TextStyle(fontSize: 10, color: Colors.white),
                   ),
                 )
@@ -411,7 +428,7 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
           if (_summaryError != null) ...[
             const SizedBox(height: 12),
             Text(
-              'Summary could not be refreshed: $_summaryError',
+              l10n.accountSummaryRefreshError(_summaryError!),
               style: const TextStyle(color: Colors.white70, fontSize: 12),
             ),
           ],
@@ -447,23 +464,23 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
   // ==========================================
   // CASH IN HAND CARD
   // ==========================================
-  Widget _buildCashInHandCard() {
+  Widget _buildCashInHandCard(AppLocalizations l10n) {
     final summary = _summary;
     return _buildWhiteCard(
-      title: 'Cash In Hand',
-      subtitle: 'Total money currently physical available',
+      title: localizedTabLabel('Cash In Hand', l10n),
+      subtitle: l10n.accountCashInHandSubtitle,
       amount: _summaryAmount(summary?.cashInHand),
       accentColor: const Color(0xFF10B981),
       icon: Icons.account_balance_wallet_outlined,
       children: [
-        _buildBreakdownItem('LOAN COLLECTION',
+        _buildBreakdownItem(l10n.accountBreakdownLoanCollection,
             _summaryAmount(summary?.loanCollections), Colors.teal),
-        _buildBreakdownItem('FUND DEPOSITS',
+        _buildBreakdownItem(l10n.accountBreakdownFundDeposits,
             _summaryAmount(summary?.fundDeposits), Colors.purple),
-        _buildBreakdownItem('CHIT COLLECTION',
+        _buildBreakdownItem(l10n.accountBreakdownChitCollection,
             _summaryAmount(summary?.chitCollected), Colors.blue),
         _buildBreakdownItem(
-          'CUSTOM CASH (NET)',
+          l10n.accountBreakdownCustomCashNet,
           _summaryAmount(summary?.customCashNet, signed: true),
           Colors.orange,
           isPositive: (summary?.customCashNet ?? 0) >= 0,
@@ -475,22 +492,22 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
   // ==========================================
   // OUTSTANDING MONEY CARD
   // ==========================================
-  Widget _buildOutstandingMoneyCard() {
+  Widget _buildOutstandingMoneyCard(AppLocalizations l10n) {
     final summary = _summary;
     return _buildWhiteCard(
-      title: 'Outstanding Money',
-      subtitle: 'Total money currently given to customers',
+      title: l10n.accountOutstandingMoneyTitle,
+      subtitle: l10n.accountOutstandingMoneySubtitle,
       amount: _summaryAmount(summary?.outstandingMoneyLent),
       accentColor: const Color(0xFF2563EB),
       icon: Icons.account_balance_outlined,
       children: [
-        _buildBreakdownItem('LOAN OUTSTANDING',
+        _buildBreakdownItem(l10n.accountBreakdownLoanOutstanding,
             _summaryAmount(summary?.totalLoanOutstanding), Colors.blue),
-        _buildBreakdownItem('CHIT PENDING',
+        _buildBreakdownItem(l10n.accountBreakdownChitPending,
             _summaryAmount(summary?.chitPendingAmount), Colors.indigo),
-        _buildBreakdownItem('FUND PENDING',
+        _buildBreakdownItem(l10n.accountBreakdownFundPending,
             _summaryAmount(summary?.fundPendingAmount), Colors.purple),
-        _buildBreakdownItem('CUSTOM MONEY LENT',
+        _buildBreakdownItem(l10n.accountBreakdownCustomMoneyLent,
             _summaryAmount(summary?.customLentNet), Colors.orange),
       ],
     );
@@ -608,7 +625,7 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
   // ==========================================
   // FILTER TABS & SEARCH BAR CONTAINER
   // ==========================================
-  Widget _buildFilterAndControlCard(bool isNarrow) {
+  Widget _buildFilterAndControlCard(bool isNarrow, AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -669,7 +686,7 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
                                     : Colors.black54),
                             const SizedBox(width: 8),
                             Text(
-                              tab,
+                              localizedTabLabel(tab, l10n),
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: isSelected
@@ -691,17 +708,17 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
           ),
           const SizedBox(height: 12),
           // Search & Dynamic Add Entry Button
-          _buildSearchAndAddControls(isNarrow),
+          _buildSearchAndAddControls(isNarrow, l10n),
         ],
       ),
     );
   }
 
-  Widget _buildSearchAndAddControls(bool isNarrow) {
+  Widget _buildSearchAndAddControls(bool isNarrow, AppLocalizations l10n) {
     final searchField = TextField(
       decoration: InputDecoration(
         prefixIcon: const Icon(Icons.search, size: 20, color: Colors.black45),
-        hintText: 'Search entries...',
+        hintText: l10n.accountSearchHint,
         hintStyle: const TextStyle(fontSize: 13, color: Colors.black38),
         filled: true,
         fillColor: Colors.white,
@@ -724,7 +741,7 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
       onPressed: () => _showAddEntryDialog(),
       icon: const Icon(Icons.add, size: 18, color: Colors.white),
       label: Text(
-        _addButtonLabel,
+        _addButtonLabel(l10n),
         style: const TextStyle(
             color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
       ),
@@ -762,7 +779,7 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
   // ==========================================
   // TABLE / LOADING / ERROR / EMPTY STATE AREA
   // ==========================================
-  Widget _buildContentArea(bool isNarrow) {
+  Widget _buildContentArea(bool isNarrow, AppLocalizations l10n) {
     final horizontalPadding = isNarrow ? 12.0 : 24.0;
 
     if (_isLoading) {
@@ -800,9 +817,9 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
               const Icon(Icons.error_outline,
                   size: 36, color: Colors.redAccent),
               const SizedBox(height: 12),
-              const Text(
-                'Could not load ledger entries',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              Text(
+                l10n.accountLoadFailedTitle,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
               ),
               const SizedBox(height: 6),
               Text(
@@ -814,7 +831,7 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
               OutlinedButton.icon(
                 onPressed: _loadEntries,
                 icon: const Icon(Icons.refresh, size: 18),
-                label: const Text('Retry'),
+                label: Text(l10n.retry),
               ),
             ],
           ),
@@ -851,20 +868,20 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'No custom entries yet',
-                style: TextStyle(
+              Text(
+                l10n.accountEmptyStateTitle,
+                style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF1E293B),
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Click "Add Entry" to create your first custom account book record.\nLoan, Chit & Fund data is shown automatically above.',
+              Text(
+                l10n.accountEmptyStateBody,
                 textAlign: TextAlign.center,
-                style:
-                    TextStyle(fontSize: 12, color: Colors.black54, height: 1.4),
+                style: const TextStyle(
+                    fontSize: 12, color: Colors.black54, height: 1.4),
               ),
             ],
           ),
@@ -872,11 +889,11 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
       );
     }
 
-    return _buildTransactionsTable(isNarrow, list);
+    return _buildTransactionsTable(isNarrow, list, l10n);
   }
 
   Widget _buildTransactionsTable(
-      bool isNarrow, List<AccountLedgerEntry> items) {
+      bool isNarrow, List<AccountLedgerEntry> items, AppLocalizations l10n) {
     final table = DataTable(
       columnSpacing: isNarrow ? 20 : 32,
       horizontalMargin: 24,
@@ -888,14 +905,14 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
         fontWeight: FontWeight.bold,
         fontSize: 12,
       ),
-      columns: const [
-        DataColumn(label: Text('Date')),
-        DataColumn(label: Text('Title')),
-        DataColumn(label: Text('Category')),
-        DataColumn(label: Text('Section')),
-        DataColumn(label: Text('Type')),
-        DataColumn(label: Text('Amount')),
-        DataColumn(label: Text('Actions')),
+      columns: [
+        DataColumn(label: Text(l10n.accountColDate)),
+        DataColumn(label: Text(l10n.accountColTitle)),
+        DataColumn(label: Text(l10n.accountColCategory)),
+        DataColumn(label: Text(l10n.accountColSection)),
+        DataColumn(label: Text(l10n.accountColType)),
+        DataColumn(label: Text(l10n.accountColAmount)),
+        DataColumn(label: Text(l10n.accountColActions)),
       ],
       rows: items.map((tx) {
         return DataRow(
@@ -930,7 +947,7 @@ class _AccountBookScreenState extends State<AccountBookScreen> {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  tx.section,
+                  localizedTabLabel(tx.section, l10n),
                   style: TextStyle(
                     fontSize: 13,
                     color: tx.section == 'Cash In Hand'
@@ -1090,6 +1107,7 @@ class _AddLedgerEntrySheetState extends State<AddLedgerEntrySheet> {
 
   // Open Down-to-Up Stylish Custom Dropdown Sheet
   void _openEntryTypePicker() {
+    final l10n = AppLocalizations.of(context);
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -1107,11 +1125,12 @@ class _AddLedgerEntrySheetState extends State<AddLedgerEntrySheet> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Group 1: Cash In Hand
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 8),
                   child: Text(
-                    'Cash In Hand',
-                    style: TextStyle(
+                    localizedTabLabel('Cash In Hand', l10n),
+                    style: const TextStyle(
                       color: Colors.white54,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -1126,11 +1145,12 @@ class _AddLedgerEntrySheetState extends State<AddLedgerEntrySheet> {
                 const SizedBox(height: 12),
 
                 // Group 2: Outstanding Lent
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 8),
                   child: Text(
-                    'Outstanding Lent',
-                    style: TextStyle(
+                    localizedTabLabel('Outstanding Lent', l10n),
+                    style: const TextStyle(
                       color: Colors.white54,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -1185,10 +1205,11 @@ class _AddLedgerEntrySheetState extends State<AddLedgerEntrySheet> {
   }
 
   Future<void> _handleSave() async {
+    final l10n = AppLocalizations.of(context);
     if (_titleController.text.trim().isEmpty) {
       ToastService.show(
-        title: 'Missing Title',
-        message: 'Please enter entry title',
+        title: l10n.accountMissingTitleTitle,
+        message: l10n.accountMissingTitleMessage,
         type: ToastType.error,
       );
       return;
@@ -1197,8 +1218,8 @@ class _AddLedgerEntrySheetState extends State<AddLedgerEntrySheet> {
     final parsedDate = _parseField(_dateController.text);
     if (_dateController.text.trim().isNotEmpty && parsedDate == null) {
       ToastService.show(
-        title: 'Invalid Date',
-        message: 'Please enter the date as dd/MM/yyyy',
+        title: l10n.accountInvalidDateTitle,
+        message: l10n.accountInvalidDateMessage,
         type: ToastType.error,
       );
       return;
@@ -1231,7 +1252,9 @@ class _AddLedgerEntrySheetState extends State<AddLedgerEntrySheet> {
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       ToastService.show(
-        title: _isEditMode ? 'Update Failed' : 'Save Failed',
+        title: _isEditMode
+            ? l10n.accountUpdateFailedTitle
+            : l10n.accountSaveFailedTitle,
         message: e.toString(),
         type: ToastType.error,
       );
@@ -1253,7 +1276,9 @@ class _AddLedgerEntrySheetState extends State<AddLedgerEntrySheet> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                _isEditMode ? 'Edit Ledger Entry' : 'Add Ledger Entry',
+                _isEditMode
+                    ? l10n.accountEditEntryTitle
+                    : l10n.accountAddEntryTitle,
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -1271,13 +1296,12 @@ class _AddLedgerEntrySheetState extends State<AddLedgerEntrySheet> {
           const SizedBox(height: 20),
 
           // Title
-          _buildLabel('ENTRY TITLE*'),
+          _buildLabel(l10n.accountEntryTitleLabel),
           const SizedBox(height: 6),
           TextField(
             controller: _titleController,
             enabled: !_isSaving,
-            decoration:
-                _inputDecoration('e.g. Capital Investment, Money Lent...'),
+            decoration: _inputDecoration(l10n.accountEntryTitleHint),
           ),
           const SizedBox(height: 16),
 
@@ -1288,7 +1312,7 @@ class _AddLedgerEntrySheetState extends State<AddLedgerEntrySheet> {
               final typeField = Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildLabel('ENTRY TYPE *'),
+                  _buildLabel(l10n.accountEntryTypeLabel),
                   const SizedBox(height: 6),
                   InkWell(
                     onTap: _isSaving ? null : _openEntryTypePicker,
@@ -1323,14 +1347,14 @@ class _AddLedgerEntrySheetState extends State<AddLedgerEntrySheet> {
               final amountField = Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildLabel('AMOUNT ₹ *'),
+                  _buildLabel(l10n.accountAmountLabel),
                   const SizedBox(height: 6),
                   TextField(
                     controller: _amountController,
                     enabled: !_isSaving,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    decoration: _inputDecoration('0.00'),
+                    decoration: _inputDecoration(l10n.accountAmountHint),
                   ),
                 ],
               );
@@ -1364,7 +1388,7 @@ class _AddLedgerEntrySheetState extends State<AddLedgerEntrySheet> {
               final catField = Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildLabel('CATEGORY '),
+                  _buildLabel(l10n.accountCategoryLabel),
                   const SizedBox(height: 6),
                   TextField(
                     controller: _categoryController,
@@ -1377,12 +1401,12 @@ class _AddLedgerEntrySheetState extends State<AddLedgerEntrySheet> {
               final dateField = Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildLabel('ENTRY DATE * (dd/MM/yyyy)'),
+                  _buildLabel(l10n.accountEntryDateLabel),
                   const SizedBox(height: 6),
                   TextField(
                     controller: _dateController,
                     enabled: !_isSaving,
-                    decoration: _inputDecoration('dd/MM/yyyy'),
+                    decoration: _inputDecoration(l10n.accountEntryDateHint),
                   ),
                 ],
               );
@@ -1410,13 +1434,13 @@ class _AddLedgerEntrySheetState extends State<AddLedgerEntrySheet> {
           const SizedBox(height: 16),
 
           // Notes
-          _buildLabel('NOTES'),
+          _buildLabel(l10n.accountNotesLabel),
           const SizedBox(height: 6),
           TextField(
             controller: _notesController,
             enabled: !_isSaving,
             maxLines: 3,
-            decoration: _inputDecoration('Optional notes...'),
+            decoration: _inputDecoration(l10n.accountNotesHint),
           ),
 
           const SizedBox(height: 24),
@@ -1455,7 +1479,9 @@ class _AddLedgerEntrySheetState extends State<AddLedgerEntrySheet> {
                     : const Icon(Icons.check_circle_outline,
                         size: 18, color: Colors.white),
                 label: Text(
-                  _isEditMode ? 'Update Entry' : 'Save Entry',
+                  _isEditMode
+                      ? l10n.accountUpdateEntryButton
+                      : l10n.accountSaveEntryButton,
                   style: const TextStyle(
                       color: Colors.white, fontWeight: FontWeight.bold),
                 ),

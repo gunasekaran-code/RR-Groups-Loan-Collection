@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
+import 'package:intl/intl.dart';
+import '../../l10n/generated/app_localizations.dart';
 import '../../routes/app_routes.dart';
-import '../../theme/app_theme.dart'; 
+import '../../theme/app_theme.dart';
 import '../../widgets/app_shell.dart';
 import '../../theme/glass_toast.dart';
 import '../../models/report_model.dart';
@@ -39,11 +42,7 @@ String formatCompact(num value) {
   return value.round().toString();
 }
 
-String formatSlashDate(DateTime d) {
-  final dd = d.day.toString().padLeft(2, '0');
-  final mm = d.month.toString().padLeft(2, '0');
-  return '$dd/$mm/${d.year}';
-}
+String formatSlashDate(DateTime d) => DateFormat('dd/MM/yyyy').format(d);
 
 /// Formats an ISO-ish date/time string coming from the backend
 /// (e.g. "2026-07-30 14:05:00" or "2026-07-30") into "30/07/2026".
@@ -59,10 +58,7 @@ String formatBackendDate(String raw) {
 String formatBackendTime(String raw) {
   final parsed = DateTime.tryParse(raw);
   if (parsed == null) return '';
-  final hour = parsed.hour % 12 == 0 ? 12 : parsed.hour % 12;
-  final minute = parsed.minute.toString().padLeft(2, '0');
-  final period = parsed.hour >= 12 ? 'PM' : 'AM';
-  return '$hour:$minute $period';
+  return DateFormat('h:mm a').format(parsed);
 }
 
 /// -----------------------------------------------------------------------
@@ -145,7 +141,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
       setState(() => _errorMessage = e.message);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _errorMessage = 'Something went wrong while loading the report.');
+      final l10n = AppLocalizations.of(context)!;
+      setState(() => _errorMessage = l10n.reportsGenericErrorMessage);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -183,36 +180,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
     _loadData();
   }
 
-  // Future<void> _exportPdf() async {
-  //   ToastService.show(
-  //     title: 'Exporting PDF',
-  //     message: 'Your report is being prepared...',
-  //     type: ToastType.info,
-  //   );
-
-  //   try {
-  
-  //     // Example: await backendService.generatePdf();
-
-  //     // ToastService.show(
-  //     //   title: 'Export Complete',
-  //     //   message: 'PDF has been downloaded successfully.',
-  //     //   type: ToastType.success,
-  //     // );
-  //   }
-  //    catch (error) {
-  //     ToastService.show(
-  //       title: 'Export Failed',
-  //       message: error.toString(),
-  //       type: ToastType.error,
-  //     );
-  //   }
-  // }
-
   Future<void> _exportExcel() async {
+    final l10n = AppLocalizations.of(context)!;
     ToastService.show(
-      title: 'Exporting Excel',
-      message: 'Compiling spreadsheet cells...',
+      title: l10n.reportsExportingExcelTitle,
+      message: l10n.reportsExportingExcelMessage,
       type: ToastType.info,
     );
 
@@ -221,14 +193,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
       // Example: await backendService.generateExcel();
 
       ToastService.show(
-        title: 'Export Complete',
-        message: 'Excel sheet generated successfully.',
+        title: l10n.reportsExportCompleteTitle,
+        message: l10n.reportsExportCompleteMessage,
         type: ToastType.success,
       );
     } catch (error) {
       ToastService.show(
-        title: 'Export Failed',
-        message: 'Could not generate spreadsheet. Technical reason: $error',
+        title: l10n.reportsExportFailedTitle,
+        message: l10n.reportsExportFailedMessage(error.toString()),
         type: ToastType.error,
       );
     }
@@ -236,9 +208,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return AppShell(
       currentRoute: AppRoutes.reports,
-      title: 'Reports & Analytics',
+      title: l10n.reportsScreenTitle,
       body: RefreshIndicator(
         onRefresh: _loadData,
         child: ListView(
@@ -246,9 +219,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
           children: [
             const SizedBox(height: 6),
-            const Text(
-              'Daily, monthly and agent performance insights',
-              style: TextStyle(color: AppColors.kTextMuted, fontSize: 14),
+            Text(
+              l10n.reportsSubtitle,
+              style: const TextStyle(color: AppColors.kTextMuted, fontSize: 14),
             ),
             const SizedBox(height: 16),
             LayoutBuilder(
@@ -257,13 +230,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 // final pdfBtn = OutlinedButton.icon(
                 //   onPressed: _exportPdf,
                 //   icon: const Icon(Icons.description_outlined, size: 18),
-                //   label: const Text('Export PDF'),
+                //   label: Text(l10n.reportsExportPdfButton),
                 // );
                 // final excelBtn = ElevatedButton.icon(
                 //   onPressed: _exportExcel,
                 //   icon: const Icon(Icons.file_download_outlined, size: 18),
-                //   label: const Text('Export Excel',
-                //       style: TextStyle(fontWeight: FontWeight.w600)),
+                //   label: Text(l10n.reportsExportExcelButton,
+                //       style: const TextStyle(fontWeight: FontWeight.w600)),
                 // );
                 if (narrow) {
                   return Column(
@@ -315,20 +288,20 @@ class _ReportsScreenState extends State<ReportsScreen> {
             ),
             if (_tab == ReportTab.daily) ...[
               const SizedBox(height: 6),
-              const Text(
-                'Daily report shows data for the end date above.',
-                style: TextStyle(color: AppColors.kTextMuted, fontSize: 12),
+              Text(
+                l10n.reportsDailyHint,
+                style: const TextStyle(color: AppColors.kTextMuted, fontSize: 12),
               ),
             ],
             const SizedBox(height: 20),
-            _buildBody(),
+            _buildBody(l10n),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(AppLocalizations l10n) {
     if (_isLoading) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 60),
@@ -364,6 +337,7 @@ class _ErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
       decoration: BoxDecoration(
@@ -384,7 +358,7 @@ class _ErrorState extends StatelessWidget {
           OutlinedButton.icon(
             onPressed: onRetry,
             icon: const Icon(Icons.refresh, size: 18),
-            label: const Text('Retry'),
+            label: Text(l10n.reportsRetryButton),
           ),
         ],
       ),
@@ -402,6 +376,7 @@ class _SegmentedTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -410,9 +385,9 @@ class _SegmentedTabs extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _tabButton(context, ReportTab.daily, 'Daily\nReport'),
-          _tabButton(context, ReportTab.monthly, 'Monthly\nReport'),
-          _tabButton(context, ReportTab.agent, 'Agent\nPerformance'),
+          _tabButton(context, ReportTab.daily, l10n.reportsTabDaily),
+          _tabButton(context, ReportTab.monthly, l10n.reportsTabMonthly),
+          _tabButton(context, ReportTab.agent, l10n.reportsTabAgent),
         ],
       ),
     );
@@ -486,9 +461,6 @@ class _DateField extends StatelessWidget {
   }
 }
 
-/// -----------------------------------------------------------------------
-/// SECTION CARD (header with icon + title + count badge)
-/// -----------------------------------------------------------------------
 class _SectionCard extends StatelessWidget {
   const _SectionCard({
     required this.icon,
@@ -600,15 +572,13 @@ class _EmptyMini extends StatelessWidget {
   }
 }
 
-/// -----------------------------------------------------------------------
-/// DAILY REPORT
-/// -----------------------------------------------------------------------
 class _DailyReportSection extends StatelessWidget {
   const _DailyReportSection({required this.report});
   final DailyReport report;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final collections = report.collections;
     final newLoans = report.newLoans;
 
@@ -617,13 +587,13 @@ class _DailyReportSection extends StatelessWidget {
         _SectionCard(
           icon: Icons.account_balance_wallet_outlined,
           iconColor: AppColors.kInfo,
-          title: "Today's Collections",
+          title: l10n.reportsTodaysCollectionsTitle,
           count: collections.length,
           child: collections.isEmpty
-              ? const _EmptyMini(
+              ? _EmptyMini(
                   icon: Icons.account_balance_wallet_outlined,
-                  title: 'No collections today',
-                  message: 'Collections made today will appear here.',
+                  title: l10n.reportsNoCollectionsTodayTitle,
+                  message: l10n.reportsNoCollectionsTodayMessage,
                 )
               : Column(
                   children: collections
@@ -647,13 +617,13 @@ class _DailyReportSection extends StatelessWidget {
         _SectionCard(
           icon: Icons.currency_rupee_rounded,
           iconColor: const Color(0xFF7C3AED),
-          title: 'New Loans Created Today',
+          title: l10n.reportsNewLoansTodayTitle,
           count: newLoans.length,
           child: newLoans.isEmpty
-              ? const _EmptyMini(
+              ? _EmptyMini(
                   icon: Icons.description_outlined,
-                  title: 'No new loans today',
-                  message: 'Loans created today will appear here.',
+                  title: l10n.reportsNoNewLoansTodayTitle,
+                  message: l10n.reportsNoNewLoansTodayMessage,
                 )
               : Column(
                   children: newLoans
@@ -687,12 +657,13 @@ class _MonthlyReportSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final s = report.summary;
 
     return Column(
       children: [
         _MetricRow(
-          label: 'LOAN DISBURSEMENT',
+          label: l10n.reportsMetricDisbursement,
           value: formatIndianCurrency(s.disbursement),
           icon: Icons.account_balance_wallet_outlined,
           iconBg: const Color(0xFFDCEAFE),
@@ -700,7 +671,7 @@ class _MonthlyReportSection extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         _MetricRow(
-          label: 'INTEREST EARNED',
+          label: l10n.reportsMetricInterest,
           value: formatIndianCurrency(s.interest),
           icon: Icons.trending_up_rounded,
           iconBg: const Color(0xFFDCFCE7),
@@ -708,7 +679,7 @@ class _MonthlyReportSection extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         _MetricRow(
-          label: 'COLLECTION TOTAL',
+          label: l10n.reportsMetricCollectionTotal,
           value: formatIndianCurrency(s.collected),
           icon: Icons.currency_rupee_rounded,
           iconBg: const Color(0xFFEDE9FE),
@@ -716,7 +687,7 @@ class _MonthlyReportSection extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         _MetricRow(
-          label: 'NEW CUSTOMERS',
+          label: l10n.reportsMetricNewCustomers,
           value: '${s.newCustomers}',
           icon: Icons.people_alt_outlined,
           iconBg: const Color(0xFFFEF3C7),
@@ -724,14 +695,14 @@ class _MonthlyReportSection extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         _ChartCard(
-          title: 'Collections Trend',
-          subtitle: 'Last ${report.collectionTrend.length} months',
+          title: l10n.reportsCollectionsTrendTitle,
+          subtitle: l10n.reportsLastNMonths(report.collectionTrend.length),
           child: _SimpleLineChart(points: report.collectionTrend),
         ),
         const SizedBox(height: 16),
         _ChartCard(
-          title: 'Loan Disbursement',
-          subtitle: 'By month',
+          title: l10n.reportsLoanDisbursementTitle,
+          subtitle: l10n.reportsByMonth,
           child: _SimpleBarChart(
               points: report.disbursementTrend, valueFormatter: formatCompact),
         ),
@@ -802,15 +773,13 @@ class _MetricRow extends StatelessWidget {
   }
 }
 
-/// -----------------------------------------------------------------------
-/// AGENT PERFORMANCE
-/// -----------------------------------------------------------------------
 class _AgentPerformanceSection extends StatelessWidget {
   const _AgentPerformanceSection({required this.report});
   final AgentReport report;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final agents = report.agents;
 
     return Column(
@@ -818,13 +787,13 @@ class _AgentPerformanceSection extends StatelessWidget {
         _SectionCard(
           icon: Icons.people_alt_outlined,
           iconColor: AppColors.kInfo,
-          title: 'Agent Performance',
+          title: l10n.reportsAgentPerformanceTitle,
           count: agents.length,
           child: agents.isEmpty
-              ? const _EmptyMini(
+              ? _EmptyMini(
                   icon: Icons.people_alt_outlined,
-                  title: 'No agent data',
-                  message: 'Agent performance will appear here once agents are active.',
+                  title: l10n.reportsNoAgentDataTitle,
+                  message: l10n.reportsNoAgentDataMessage,
                 )
               : SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
@@ -841,11 +810,11 @@ class _AgentPerformanceSection extends StatelessWidget {
                     ),
                     dataTextStyle: const TextStyle(
                         fontSize: 14, color: AppColors.kTextDark),
-                    columns: const [
-                      DataColumn(label: Text('AGENT')),
-                      DataColumn(label: Text('ASSIGNED')),
-                      DataColumn(label: Text('COLLECTED')),
-                      DataColumn(label: Text('EFFICIENCY')),
+                    columns: [
+                      DataColumn(label: Text(l10n.reportsColumnAgent)),
+                      DataColumn(label: Text(l10n.reportsColumnAssigned)),
+                      DataColumn(label: Text(l10n.reportsColumnCollected)),
+                      DataColumn(label: Text(l10n.reportsColumnEfficiency)),
                     ],
                     rows: agents
                         .map(
@@ -867,8 +836,8 @@ class _AgentPerformanceSection extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         _ChartCard(
-          title: 'Collections by Agent',
-          subtitle: 'Total amount collected',
+          title: l10n.reportsCollectionsByAgentTitle,
+          subtitle: l10n.reportsTotalAmountCollected,
           child: _SimpleBarChart(
               points: report.chart, valueFormatter: formatCompact),
         ),
@@ -877,9 +846,6 @@ class _AgentPerformanceSection extends StatelessWidget {
   }
 }
 
-/// -----------------------------------------------------------------------
-/// CHART CARD WRAPPER
-/// -----------------------------------------------------------------------
 class _ChartCard extends StatelessWidget {
   const _ChartCard(
       {required this.title, required this.subtitle, required this.child});
@@ -916,9 +882,6 @@ class _ChartCard extends StatelessWidget {
   }
 }
 
-/// -----------------------------------------------------------------------
-/// SIMPLE LINE / AREA CHART (no external chart package required)
-/// -----------------------------------------------------------------------
 class _SimpleLineChart extends StatelessWidget {
   const _SimpleLineChart({required this.points});
   final List<MonthPoint> points;
@@ -926,9 +889,10 @@ class _SimpleLineChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (points.isEmpty) {
-      return const Center(
-          child:
-              Text('No data', style: TextStyle(color: AppColors.kTextMuted)));
+      final l10n = AppLocalizations.of(context)!;
+      return Center(
+          child: Text(l10n.reportsNoData,
+              style: const TextStyle(color: AppColors.kTextMuted)));
     }
     return CustomPaint(
       painter: _LineChartPainter(points: points),
@@ -1002,13 +966,14 @@ class _LineChartPainter extends CustomPainter {
 
     const textStyle = TextStyle(color: AppColors.kTextMuted, fontSize: 10);
     for (int i = 0; i < points.length; i++) {
-      final tp = TextPainter(
-        text: TextSpan(text: points[i].label, style: textStyle),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      final x = (stepX * i - tp.width / 2).clamp(0, size.width - tp.width);
-      tp.paint(canvas, Offset(x.toDouble(), chartHeight + 4));
-    }
+  final tp = TextPainter(
+    text: TextSpan(text: points[i].label, style: textStyle),
+    textDirection: ui.TextDirection.ltr,
+  )..layout();
+  
+  final x = (stepX * i - tp.width / 2).clamp(0.0, size.width - tp.width);
+  tp.paint(canvas, Offset(x.toDouble(), chartHeight + 4));
+}
   }
 
   @override
@@ -1016,9 +981,6 @@ class _LineChartPainter extends CustomPainter {
       oldDelegate.points != points;
 }
 
-/// -----------------------------------------------------------------------
-/// SIMPLE BAR CHART (no external chart package required)
-/// -----------------------------------------------------------------------
 class _SimpleBarChart extends StatelessWidget {
   const _SimpleBarChart({required this.points, required this.valueFormatter});
   final List<MonthPoint> points;
@@ -1027,9 +989,10 @@ class _SimpleBarChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (points.isEmpty) {
-      return const Center(
-          child:
-              Text('No data', style: TextStyle(color: AppColors.kTextMuted)));
+      final l10n = AppLocalizations.of(context)!;
+      return Center(
+          child: Text(l10n.reportsNoData,
+              style: const TextStyle(color: AppColors.kTextMuted)));
     }
     final maxVal =
         points.map((p) => p.value).fold<double>(0, (a, b) => a > b ? a : b);

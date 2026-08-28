@@ -1,6 +1,6 @@
 {
   "@@locale": "en",
-  "appTitle": "FinCollect",
+  "appTitle": "RR Groups",
   "welcomeMessage": "Welcome to FinCollect",
   "loans": "Loans",
   "collections": "Collections",
@@ -28,5 +28,2960 @@
   "deleteEntry": "Delete Entry",
   "delete": "Delete",
   "printStatement": "Print Statement",
-  "accountBook": "Account Book"
+  "accountBook": "Account Book",
+  "recycleBinTitle": "Recycle Bin",
+  "recycleBinSubtitle": "Everything deleted anywhere in the app — by an admin, an agent or a customer",
+  "recycleBinSearchHint": "Search by name, type or who deleted it...",
+  "recycleBinEmptyButton": "Empty Recycle Bin",
+  "recycleBinRestoreLabel": "Restore",
+  "recycleBinRestoredBadge": "Restored",
+  "recycleBinDeletePermanentlyTitle": "Delete Permanently?",
+  "recycleBinEmptyTitle": "Empty Recycle Bin?",
+  "recycleBinEmptyMessage": "Are you sure you want to permanently delete all items? This action cannot be undone.",
+  "recycleBinNoItems": "No matching items found.",
+  "customersTitle": "Customers",
+  "customersSubtitle": "Manage customer information and details",
+  "customersAddButton": "Add Customer",
+  "customersSearchHint": "Search by name...",
+  "customersFilterAll": "All Status",
+  "customersFilterActive": "Active",
+  "customersFilterOverdue": "Overdue",
+  "customersFilterInactive": "Inactive",
+  "customersNoResults": "No customers found",
+  "retry": "Retry",
+
+  "customersLoadFailedTitle": "Failed to load customers",
+
+  "customersDeleteTitle": "Delete Customer",
+  "customersDeleteMessage": "Are you sure you want to delete {name}? They will be moved to the Recycle Bin and can be restored later.",
+  "@customersDeleteMessage": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "delete": "Delete",
+  "customersDeletedTitle": "Customer deleted",
+  "customersDeletedMessage": "{name} was removed successfully",
+  "@customersDeletedMessage": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "customersDeleteFailedTitle": "Delete failed",
+
+  "customersUpdatedTitle": "Customer updated",
+  "customersAddedTitle": "Customer added",
+  "customersUpdatedMessage": "{name} was updated successfully",
+  "@customersUpdatedMessage": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "customersAddedMessage": "{name} was added successfully",
+  "@customersAddedMessage": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "customersSaveFailedTitle": "Something went wrong",
+
+  "customerViewClose": "Close",
+  "customerFieldId": "CUSTOMER ID",
+  "customerFieldMobile": "MOBILE",
+  "customerFieldAddress": "ADDRESS",
+  "customerFieldAadhaar": "AADHAAR",
+  "customerFieldPan": "PAN",
+  "customerFieldOccupation": "OCCUPATION",
+  "customerFieldAgent": "ASSIGNED AGENT",
+  "customerFieldLoanStatus": "LOAN STATUS",
+
+  "customerActionView": "View",
+  "customerActionEdit": "Edit",
+  "customerActionDelete": "Delete",
+  "customerUnassigned": "Unassigned",
+
+  "customerFormEditTitle": "Edit Customer",
+  "customerFormAddTitle": "Add Customer",
+  "customerFormEditSubtitle": "Update customer details",
+  "customerFormAddSubtitle": "Fill in the details below",
+
+  "customerSectionPersonal": "Personal Details",
+  "customerSectionAssignment": "Assignment",
+  "customerSectionPortalLogin": "Portal Login (optional)",
+  "customerSectionPhoto": "Photo",
+
+  "customerLabelFullName": "FULL NAME *",
+  "customerHintFullName": "e.g. Ramesh Kumar",
+  "customerLabelMobile": "MOBILE NUMBER *",
+  "customerHintMobile": "10-digit mobile number",
+  "customerLabelAddress": "ADDRESS *",
+  "customerHintAddress": "Full residential address",
+  "customerLabelAadhaar": "AADHAAR (optional)",
+  "customerHintAadhaar": "12-digit Aadhaar number",
+  "customerLabelPan": "PAN (optional)",
+  "customerHintPan": "e.g. ABCDE1234F",
+  "customerLabelOccupation": "OCCUPATION (optional)",
+  "customerHintOccupation": "e.g. Shop owner",
+
+  "customerLabelAssignedAgent": "ASSIGNED AGENT",
+
+  "customerMapLocationTitle": "Map Location",
+  "customerMapLocationSubtitle": "for agent route",
+  "customerPinFromAddress": "Pin from address",
+  "customerUseMyGps": "Use my GPS",
+  "customerMapHelpText": "Shows this customer on the agent's live Route Map. \"Pin from address\" looks up the address above; \"Use my GPS\" captures where you're standing.",
+  "customerLatitudeLabel": "LATITUDE",
+  "customerLongitudeLabel": "LONGITUDE",
+  "customerLatLngHint": "0.0000000",
+
+  "customerAddressRequiredTitle": "Address required",
+  "customerAddressRequiredMessage": "Enter an address first so it can be located on the map",
+  "customerAddressNotFoundTitle": "Couldn't find that address",
+  "customerLocationFailedTitle": "Couldn't get your location",
+  "customerPhotoFailedTitle": "Photo upload failed",
+
+  "customerPortalLoginHelp": "Set a password to let this customer sign in with their mobile number to view their own loans & payments. No email needed.",
+  "customerLabelEmail": "EMAIL (optional)",
+  "customerHintEmail": "customer@example.com",
+  "customerLabelPassword": "PASSWORD (optional)",
+  "customerHintPassword": "At least 6 characters",
+  "customerLoginNote": "Login uses the mobile number above as the username.",
+
+  "customerUploadPhoto": "Upload Photo",
+  "customerSaveChanges": "Save Changes",
+  "cancel": "Cancel",
+
+  "customerFormValidationTitle": "Check the form",
+  "customerFormValidationMessage": "Please fix the highlighted fields before saving",
+
+  "customerValidatorNameRequired": "Full name is required",
+  "customerValidatorNameMin": "Enter at least 3 characters",
+  "customerValidatorNameChars": "Only letters and spaces are allowed",
+  "customerValidatorMobileRequired": "Mobile number is required",
+  "customerValidatorMobileInvalid": "Enter a valid 10-digit mobile number",
+  "customerValidatorAddressRequired": "Address is required",
+  "customerValidatorAddressMin": "Enter a more complete address",
+  "customerValidatorAadhaarInvalid": "Aadhaar must be exactly 12 digits",
+  "customerValidatorPanInvalid": "Enter a valid PAN (e.g. ABCDE1234F)",
+  "customerValidatorOccupationInvalid": "Enter a valid occupation",
+  "customerValidatorNumberInvalid": "Enter a valid number",
+  "customerValidatorLatRange": "Must be between -90 and 90",
+  "customerValidatorLngRange": "Must be between -180 and 180",
+  "customerValidatorEmailInvalid": "Enter a valid email address",
+  "customerValidatorPasswordMin": "Password must be at least 6 characters",
+  
+
+  "dashboardTitle": "Dashboard",
+
+  "dashboardNotLinkedYet": "{label} is not linked yet",
+  "@dashboardNotLinkedYet": {
+    "placeholders": { "label": { "type": "String" } }
+  },
+
+  "dashboardGreetingMorning": "Good morning",
+  "dashboardGreetingAfternoon": "Good afternoon",
+  "dashboardGreetingEvening": "Good evening",
+  "dashboardGreetingWithName": "{greeting}, {name}",
+  "@dashboardGreetingWithName": {
+    "placeholders": {
+      "greeting": { "type": "String" },
+      "name": { "type": "String" }
+    }
+  },
+  "dashboardLiveFigures": "Live figures from the database: {amount} collected today and {count} active loans.",
+  "@dashboardLiveFigures": {
+    "placeholders": {
+      "amount": { "type": "String" },
+      "count": { "type": "int" }
+    }
+  },
+
+  "dashboardNetBalanceSummary": "Net Balance Summary",
+  "dashboardNetBalanceSubtitle": "Real-time working capital position",
+  "dashboardCashInHand": "CASH IN HAND",
+  "dashboardLoanCollections": "Loan Collections",
+  "dashboardFundDeposits": "Fund Deposits",
+  "dashboardCustomCashIn": "+ Custom Cash In",
+  "dashboardOutstandingMoneyLent": "OUTSTANDING MONEY LENT",
+  "dashboardLoansOutstanding": "Loans Outstanding",
+  "dashboardCustomLent": "+ Custom Lent",
+  "dashboardNetBalanceLabel": "NET BALANCE",
+  "dashboardTotalAssets": "TOTAL ASSETS",
+  "dashboardNetBalanceFormula": "Cash In Hand ({cash}) + Money Lent ({lent})",
+  "@dashboardNetBalanceFormula": {
+    "placeholders": {
+      "cash": { "type": "String" },
+      "lent": { "type": "String" }
+    }
+  },
+
+  "dashboardStatActiveLoans": "Active Loans",
+  "dashboardStatNewCustomers": "New Customers",
+  "dashboardStatTodaysCollections": "Today's Collections",
+  "dashboardStatOverdueAccounts": "Overdue Accounts",
+  "dashboardStatPendingApprovals": "Pending Approvals",
+  "dashboardStatTotalLoanAmount": "Total Loan Amount",
+  "dashboardStatInterestRevenue": "Interest Revenue",
+  "dashboardStatMonthlyCollection": "Monthly Collection",
+
+  "dashboardCollectionTrend": "Collection Trend",
+  "dashboardCollectionTrendSubtitle": "Last months from reports table",
+
+  "dashboardLoanStatus": "Loan Status",
+  "dashboardLoanStatusSubtitle": "Live database summary",
+  "dashboardDonutTotal": "Total",
+  "dashboardStatusActive": "Active",
+  "dashboardStatusOverdue": "Overdue",
+  "dashboardStatusClosedOther": "Closed/Other",
+
+  "dashboardAgentPerformance": "Agent Performance",
+  "dashboardAgentPerformanceSubtitle": "Top field agents from report",
+
+  "dashboardMonthlyProgress": "Monthly Collection Progress",
+  "dashboardMonthlyProgressSubtitle": "₹{collected} of ₹{target} target",
+  "@dashboardMonthlyProgressSubtitle": {
+    "placeholders": {
+      "collected": { "type": "String" },
+      "target": { "type": "String" }
+    }
+  },
+
+  "dashboardQuickActions": "Quick Actions",
+  "dashboardQuickAddCustomer": "Add Customer",
+  "dashboardQuickCreateLoan": "Create Loan",
+  "dashboardQuickChitGroup": "Chit Group",
+  "dashboardQuickAddAgent": "Add Agent",
+  "dashboardQuickReports": "Reports",
+
+  "dashboardRecentCollections": "Recent Collections",
+  "dashboardRecentCollectionsSubtitle": "Latest payments received",
+  "dashboardNoCollectionsToday": "No collections found for today.",
+
+  "dashboardRecentLoans": "Recent Loans",
+  "dashboardRecentLoansSubtitle": "Newly disbursed loans",
+  "dashboardNoLoansToday": "No new loans found for today.",
+
+  "dashboardViewAll": "View all",
+
+  "loansTitle": "Loans",
+  "loansSubtitle": "Manage customer loans and repayment schedules",
+  "loansCreateButton": "Create Loan",
+  "loansSearchHint": "Search by customer or loan number...",
+  "loansFilterAll": "All",
+  "loansStatusActive": "Active",
+  "loansStatusOverdue": "Overdue",
+  "loansStatusClosed": "Closed",
+  "loansStatusPending": "Pending",
+  "loansScheduleStatusPaid": "Paid",
+  "loansScheduleStatusDueToday": "Due Today",
+  "loansTypeMonthlyEmi": "Monthly EMI",
+  "loansTypeMonthlyInterest": "Monthly Interest",
+  "loansTypeWeekly": "Weekly",
+  "loansTypeDaily": "Daily",
+  "loansScheduleEmptyMessage": "No repayment schedule available.",
+  "loansScheduleColIndex": "#",
+  "loansScheduleColDueDate": "Due Date",
+  "loansScheduleColEmi": "EMI",
+  "loansScheduleColPaid": "Paid",
+  "loansScheduleColBalance": "Balance",
+  "loansScheduleColStatus": "Status",
+  "loansCouldNotLoad": "Could not load loans: {error}",
+  "@loansCouldNotLoad": { "placeholders": { "error": { "type": "String" } } },
+  "loansLoanCreatedTitle": "Loan created",
+  "loansLoanUpdatedTitle": "Loan updated",
+  "loansCloseLoanTitle": "Close Loan",
+  "loansCloseLoanMessage": "Are you sure you want to close loan {loanNumber}?",
+  "@loansCloseLoanMessage": { "placeholders": { "loanNumber": { "type": "String" } } },
+  "loansCloseLoanConfirm": "Close",
+  "loansLoanClosedTitle": "Loan closed",
+  "loansLoanClosedMessage": "Loan {loanNumber} was closed successfully.",
+  "@loansLoanClosedMessage": { "placeholders": { "loanNumber": { "type": "String" } } },
+  "loansCloseFailedTitle": "Close failed",
+  "loansCloseBlockedTitle": "Cannot close loan",
+  "loansCloseBlockedMessage": "This loan still has {amount} pending. Collect the full outstanding amount before closing it.",
+  "@loansCloseBlockedMessage": { "placeholders": { "amount": { "type": "String" } } },
+  "loansDeleteLoanTitle": "Delete Loan",
+  "loansDeleteLoanMessage": "Are you sure you want to delete loan {loanNumber}? It will be moved to the Recycle Bin.",
+  "@loansDeleteLoanMessage": { "placeholders": { "loanNumber": { "type": "String" } } },
+  "loansDeleteLoanConfirm": "Delete",
+  "loansLoanDeletedTitle": "Loan deleted",
+  "loansLoanDeletedMessage": "Loan {loanNumber} was moved to the Recycle Bin.",
+  "@loansLoanDeletedMessage": { "placeholders": { "loanNumber": { "type": "String" } } },
+  "loansDeleteFailedTitle": "Delete failed",
+  "loansNoLoansFound": "No loans found",
+  "loansColHpNo": "HP No.",
+  "loansColCustomer": "Customer",
+  "loansColType": "Type",
+  "loansColAmount": "Amount",
+  "loansColEmi": "EMI",
+  "loansColOutstanding": "Outstanding",
+  "loansColAgent": "Agent",
+  "loansColStatus": "Status",
+  "loansColStart": "Start Date",
+
+  "loansColActions": "Actions",
+  "loansActionView": "View",
+  "loansActionEdit": "Edit",
+  "loansActionClose": "Close",
+  "loansActionDelete": "Delete",
+
+  "loansDurationWeeks": "{count} weeks",
+  "@loansDurationWeeks": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "loansDurationDays": "{count} days",
+  "@loansDurationDays": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "loansDurationMonthsInterestOnly": "{count} months (interest only)",
+  "@loansDurationMonthsInterestOnly": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "loansDurationMonths": "{count} months",
+  "@loansDurationMonths": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+
+  "loansDetailTitle": "Loan {loanNumber}",
+  "@loansDetailTitle": {
+    "placeholders": { "loanNumber": { "type": "String" } }
+  },
+
+  "loansFieldCustomer": "Customer",
+  "loansFieldLoanType": "Loan Type",
+  "loansFieldLoanAmount": "Loan Amount",
+  "loansFieldMonthlyInterest": "Monthly Interest",
+  "loansFieldEmi": "EMI",
+  "loansFieldOutstanding": "Outstanding",
+  "loansFieldPenalty": "Penalty",
+  "loansFieldTotalDuePenalty": "Total Due (with Penalty)",
+  "loansFieldInterest": "Interest Rate",
+  "loansFieldDuration": "Duration",
+  "loansFieldStartDate": "Start Date",
+  "loansFieldAgent": "Agent",
+
+  "loansHideSchedule": "Hide Schedule",
+  "loansShowSchedule": "Show Schedule",
+  "loansRepaymentSchedule": "Repayment Schedule",
+  "loansRefreshScheduleTooltip": "Refresh schedule",
+  "loansInterestOnlyScheduleNote": "This is an interest-only loan. Principal repayment is flexible and isn't reflected in the schedule below.",
+
+  "loansCustomerRequiredTitle": "Customer Required",
+  "loansCustomerRequiredMessage": "Please select a customer before saving this loan.",
+  "loansSaveFailedTitle": "Save Failed",
+
+  "loansEditTitle": "Edit Loan",
+  "loansCreateTitle": "Create Loan",
+
+  "loansHpNumberLabel": "HP Number",
+  "loansHpNumberLoading": "Generating…",
+  "loansHpNumberAuto": "Auto-generated",
+
+  "loansProcessingFeeLabel": "Processing Fee",
+  "loansProcessingFeeHint": "Enter processing fee",
+
+  "loansNotesLabel": "Notes",
+  "loansNotesHint": "Add any additional notes",
+
+  "loansSave": "Save",
+  "loansApprove": "Approve",
+
+  "loansCustomerRequiredLabel": "Customer *",
+  "loansCustomerHint": "Search customer",
+
+  "loansAgentLabel": "Agent",
+  "loansAgentHint": "Search agent",
+
+  "loansCollectionTypeLabel": "Collection Type",
+
+  "loansLoanAmountLabel": "Loan Amount",
+  "loansLoanAmountHint": "Enter loan amount",
+
+  "loansInterestRateMonthlyLabel": "Monthly Interest Rate (%)",
+  "loansInterestRateHint25": "e.g. 2.5",
+
+  "loansDurationMonthsLabel": "Duration (Months)",
+  "loansDurationHint10": "e.g. 10",
+
+  "loansMonthlyInterestRateLabel": "Monthly Interest Rate (%)",
+  "loansLoanTenureLabel": "Loan Tenure (Months)",
+
+  "loansInterestRateLabel": "Interest Rate (%)",
+
+  "loansDurationFixedLabel": "Duration",
+  "loansDurationWeeksFixed": "10 weeks (fixed)",
+
+  "loansCollectionPlanLabel": "Collection Plan",
+  "loansPlan60Days": "60 Days",
+  "loansPlan100Days": "100 Days",
+
+  "loansInterestOnlyBoxTitle": "Interest-Only Loan",
+  "loansInterestOnlyBoxBody": "The borrower repays only the monthly interest. Principal can be repaid anytime and isn't part of the fixed schedule.",
+
+  "loansWeeklyPenaltyTitle": "Weekly Penalty",
+  "loansDailyPenaltyTitle": "Daily Penalty",
+  "loansWeeklyPenaltyHelper": "Apply a fixed penalty for missed weekly payments.",
+  "loansDailyPenaltyHelper": "Apply a daily penalty rate on overdue balances.",
+
+  "loansDailyPenaltyRateLabel": "Penalty Rate / Day",
+  "loansDailyPenaltyRateHint": "e.g. 50",
+  "loansDailyPenaltyExample": "Applied daily to any overdue balance.",
+
+  "loansWeeklyPenaltyAmountLabel": "Penalty Amount / Week",
+  "loansWeeklyPenaltyAmountHint": "e.g. 100",
+  "loansWeeklyPenaltyAutoNote": "Applied automatically each week a payment is missed.",
+
+  "loansSummaryMonthlyEmi": "Monthly EMI",
+  "loansSummaryPerMonth": "for {count} months",
+  "@loansSummaryPerMonth": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "loansSummaryTotalInterest": "Total Interest",
+  "loansSummaryPerMonthAmount": "{amount} per month",
+  "@loansSummaryPerMonthAmount": {
+    "placeholders": { "amount": { "type": "String" } }
+  },
+  "loansSummaryTotalRepayment": "Total Repayment",
+  "loansSummaryPrincipalPlusInterest": "Principal + Interest",
+
+  "loansSummaryMonthlyInterestDue": "Monthly Interest Due",
+  "loansSummaryRateOfPrincipal": "{rate}% of {principal}",
+  "@loansSummaryRateOfPrincipal": {
+    "placeholders": {
+      "rate": { "type": "String" },
+      "principal": { "type": "String" }
+    }
+  },
+  "loansSummaryPrincipalRepayment": "Principal Repayment",
+  "loansSummaryFlexibleInstallments": "Flexible",
+  "loansSummaryRepayAnytime": "Repay the principal anytime",
+  "loansSummaryPrincipalDisbursed": "Principal Disbursed",
+  "loansSummaryTenureMonths": "Over {count} months",
+  "@loansSummaryTenureMonths": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+
+  "loansSummaryWeeklyInstallment": "Weekly Installment",
+  "loansSummaryWeeksEqual": "10 weeks totalling {principal}",
+  "@loansSummaryWeeksEqual": {
+    "placeholders": { "principal": { "type": "String" } }
+  },
+  "loansSummaryInterestDeducted": "Interest Deducted",
+  "loansSummaryDeductedUpfront": "Deducted upfront",
+  "loansSummaryAmountDisbursed": "Amount Disbursed",
+  "loansSummaryPrincipalMinusInterest": "Principal − Interest",
+
+  "loansSummaryDailyInstallment": "Daily Installment",
+  "loansSummaryDaysEqual": "{days} days totalling {total}",
+  "@loansSummaryDaysEqual": {
+    "placeholders": {
+      "days": { "type": "int" },
+      "total": { "type": "String" }
+    }
+  },
+  "loansSummaryInterestAdded": "Interest Added",
+  "loansSummaryAddedToRepayment": "Added to total repayment",
+  "loansSummaryAmountDisbursedToBorrower": "Amount Disbursed to Borrower",
+  "loansSummaryFullLoanAmount": "Full loan amount",
+
+  "loansScheduleSectionTitle": "Repayment Schedule Preview",
+  "loansStartDateLabel": "Start Date",
+  "loansStartDateHint": "DD/MM/YYYY",
+
+  "repaymentTitle": "Repayment Schedule",
+  "repaymentSubtitle": "Track installment-wise EMI collections and outstanding balances",
+
+  "repaymentCouldNotLoadLoans": "Could not load loans",
+  "repaymentLoanLoadFailedTitle": "Loan load failed",
+  "repaymentCouldNotLoadSchedule": "Could not load repayment schedule",
+  "repaymentLoadFailedTitle": "Load failed",
+
+  "repaymentSelectLoanLabel": "SELECT LOAN",
+  "repaymentSelectLoanHint": "Select loan",
+  "repaymentLoanSwitchedTitle": "Loan switched",
+
+  "repaymentInstallmentBreakdown": "INSTALLMENT BREAKDOWN",
+  "repaymentNoInstallmentsFound": "No installments found for this loan",
+
+  "repaymentStatLoanNumber": "LOAN NUMBER",
+  "repaymentStatCustomer": "CUSTOMER",
+  "repaymentStatLoanAmount": "LOAN AMOUNT",
+  "repaymentStatEmi": "EMI",
+  "repaymentStatTotalRepayment": "TOTAL REPAYMENT",
+  "repaymentStatOutstanding": "OUTSTANDING",
+  "repaymentStatPenalty": "PENALTY",
+  "repaymentStatTotalDuePenalty": "TOTAL DUE + PENALTY",
+  "repaymentStatTotalInstallments": "TOTAL INST.",
+  "repaymentStatPaid": "PAID",
+  "repaymentStatPending": "PENDING",
+  "repaymentStatOverdue": "OVERDUE",
+  "repaymentStatNextDue": "NEXT DUE",
+
+  "repaymentColInstNo": "INST. NO",
+  "repaymentColDueDate": "DUE DATE",
+  "repaymentColEmiAmount": "EMI AMOUNT",
+  "repaymentColPaid": "PAID",
+  "repaymentColBalance": "BALANCE",
+  "repaymentColPenalty": "PENALTY",
+  "repaymentColStatus": "STATUS",
+
+  "repaymentNoLoanSelected": "No loan selected",
+
+  "repaymentPenaltyBannerTitle": "{type} Finance ({duration})",
+  "@repaymentPenaltyBannerTitle": {
+    "placeholders": {
+      "type": { "type": "String" },
+      "duration": { "type": "String" }
+    }
+  },
+  "repaymentPenaltyBannerWeeklyBody": "Automatic default penalty of ₹100 applies per ₹10,000 principal for every missed weekly payment.",
+  "repaymentPenaltyBannerRateBody": "A penalty of {rate} per day applies for every day a payment remains overdue.",
+  "@repaymentPenaltyBannerRateBody": {
+    "placeholders": {
+      "rate": { "type": "String" }
+    }
+  },
+  "repaymentAccruedPenaltyLabel": "ACCRUED PENALTY: {amount}",
+  "@repaymentAccruedPenaltyLabel": {
+    "placeholders": {
+      "amount": { "type": "String" }
+    }
+  },
+  "repaymentDurationWeeks": "{count, plural, one{1 Week} other{{count} Weeks}}",
+  "@repaymentDurationWeeks": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "repaymentDurationMonths": "{count, plural, one{1 Month} other{{count} Months}}",
+  "@repaymentDurationMonths": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "repaymentDurationDays": "{count, plural, one{1 Day} other{{count} Days}}",
+  "@repaymentDurationDays": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+
+  "repaymentRecordCollectionButton": "Record Collection",
+  "repaymentRecordCollectionSheetTitle": "Record Collection",
+  "repaymentRecordCollectionSubtitle": "{loanNumber} — {customer}",
+  "@repaymentRecordCollectionSubtitle": {
+    "placeholders": {
+      "loanNumber": { "type": "String" },
+      "customer": { "type": "String" }
+    }
+  },
+  "repaymentRecordCollectionInstallmentLabel": "INSTALLMENT",
+  "repaymentRecordCollectionGeneralPayment": "General Payment",
+  "repaymentRecordCollectionAmountLabel": "AMOUNT",
+  "repaymentRecordCollectionMethodLabel": "PAYMENT METHOD",
+  "repaymentRecordCollectionDateLabel": "PAYMENT DATE",
+  "repaymentRecordCollectionNotesLabel": "NOTES (OPTIONAL)",
+  "repaymentRecordCollectionNotesHint": "Add a note about this payment",
+  "repaymentRecordCollectionSubmit": "Save Collection",
+  "repaymentRecordCollectionCancel": "Cancel",
+  "repaymentRecordCollectionAllPaidTitle": "All caught up",
+  "repaymentRecordCollectionAllPaidMessage": "Every installment on this loan is already paid.",
+  "repaymentRecordCollectionSuccessTitle": "Collection recorded",
+  "repaymentRecordCollectionFailedTitle": "Could not record collection",
+  "repaymentRecordCollectionSelectLoanFirst": "Select a loan first",
+  "repaymentRecordCollectionAmountRequired": "Enter a valid amount",
+
+  "collectionsLoadFailedTitle": "Failed to load collections",
+  "collectionsTitle": "Collections",
+  "collectionsSubtitle": "Record and track daily collections across all loans",
+  "collectionsAddButton": "Add Collection",
+
+  "collectionsStatTodayTotal": "TODAY'S TOTAL",
+  "collectionsStatThisWeek": "THIS WEEK",
+  "collectionsStatThisMonth": "THIS MONTH",
+  "collectionsStatTotalRecords": "TOTAL RECORDS",
+
+  "collectionsSearchHint": "Search customer, loan or receipt number...",
+
+  "collectionsPeriodToday": "Today",
+  "collectionsPeriodThisWeek": "This Week",
+  "collectionsPeriodThisMonth": "This Month",
+
+  "collectionsColCustomer": "CUSTOMER",
+  "collectionsColLoanNumber": "LOAN NUMBER",
+  "collectionsColAmount": "AMOUNT",
+  "collectionsColMethod": "METHOD",
+  "collectionsColDate": "DATE",
+  "collectionsColAgent": "AGENT",
+  "collectionsColActions": "ACTIONS",
+
+  "collectionsActionEdit": "Edit",
+  "collectionsActionDelete": "Delete",
+
+  "collectionsNoneFound": "No collections found",
+  "collectionsShowLess": "Show Less",
+  "collectionsShowMore": "Show More ({count} more)",
+  "@collectionsShowMore": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+
+  "collectionsDeleteTitle": "Delete Collection",
+  "collectionsDeleteMessage": "Delete the collection record for {customer} ({receipt})? It will be moved to the Recycle Bin and can be restored later.",
+  "@collectionsDeleteMessage": {
+    "placeholders": {
+      "customer": { "type": "String" },
+      "receipt": { "type": "String" }
+    }
+  },
+  "collectionsDeleteFailedTitle": "Delete failed",
+  "collectionsUpdateFailedTitle": "Update failed",
+  "collectionsRecordIdNotFound": "Could not find record id",
+  "collectionsDeletedTitle": "Collection deleted",
+  "collectionsDeleteApiFailedTitle": "Failed to delete collection",
+
+  "collectionsRecordedTitle": "Collection recorded",
+  "collectionsSaveFailedTitle": "Failed to save collection",
+  "collectionsUpdatedTitle": "Collection updated",
+  "collectionsUpdateApiFailedTitle": "Failed to update collection",
+
+  "collectionsMethodCash": "Cash",
+  "collectionsMethodUpi": "UPI",
+  "collectionsMethodBank": "Bank Transfer",
+  "collectionsMethodCheque": "Cheque",
+  "collectionsMethodCard": "Card",
+
+  "collectionsSelectCustomerTitle": "Select a customer",
+  "collectionsSelectCustomerMessage": "Please choose a customer before saving.",
+  "collectionsEditTitle": "Edit Collection",
+
+  "collectionsCustomerRequiredLabel": "CUSTOMER *",
+  "collectionsSelectCustomerHint": "Select customer",
+  "collectionsLoanNumberLabel": "LOAN NUMBER",
+  "collectionsSelectCustomerFirstHint": "Select customer first",
+  "collectionsSelectLoanHint": "Select loan",
+  "collectionsOutstandingAbbrev": "Out",
+  "collectionsSelectLoanPrompt": "Select a loan to view its live details",
+  "collectionsLoansLinkedCount": "{count, plural, one{{count} loan linked to the selected customer} other{{count} loans linked to the selected customer}}",
+  "@collectionsLoansLinkedCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+
+  "collectionsAmountReceivedLabel": "AMOUNT RECEIVED *",
+  "collectionsPaymentMethodLabel": "PAYMENT METHOD *",
+  "collectionsCollectionDateLabel": "COLLECTION DATE *",
+  "collectionsSelectAgentHint": "Select agent",
+  "collectionsNotesLabel": "NOTES",
+  "collectionsNotesHint": "Any remarks about this collection...",
+  "collectionsPaymentScreenshotLabel": "PAYMENT SCREENSHOT",
+  "collectionsCustomerSignatureLabel": "CUSTOMER SIGNATURE",
+
+  "collectionsCancelButton": "Cancel",
+  "collectionsReceiptButton": "Receipt",
+  "collectionsUpdateButton": "Update",
+  "collectionsSaveButton": "Save",
+  "collectionsGeneratingReceiptTitle": "Generating receipt...",
+
+  "collectionsUploadSignatureTitle": "Add Customer Signature",
+  "collectionsUploadScreenshotTitle": "Upload Payment Screenshot",
+  "collectionsUploadPlaceholder": "Upload document...",
+
+  "collectionsSummaryAgent": "Agent: {name}",
+  "@collectionsSummaryAgent": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "collectionsSummaryPrincipal": "Principal: {amount}",
+  "@collectionsSummaryPrincipal": {
+    "placeholders": { "amount": { "type": "String" } }
+  },
+  "collectionsSummaryInstallment": "Installment: {amount}",
+  "@collectionsSummaryInstallment": {
+    "placeholders": { "amount": { "type": "String" } }
+  },
+  "collectionsSummaryOutstanding": "Outstanding: {amount}",
+  "@collectionsSummaryOutstanding": {
+    "placeholders": { "amount": { "type": "String" } }
+  },
+  "collectionsSummaryOverdueDue": "Overdue due: {amount}",
+  "@collectionsSummaryOverdueDue": {
+    "placeholders": { "amount": { "type": "String" } }
+  },
+  "collectionsSummaryPenalty": "Penalty: {amount}",
+  "@collectionsSummaryPenalty": {
+    "placeholders": { "amount": { "type": "String" } }
+  },
+  "collectionsSummaryTotalDue": "Total due: {amount}",
+  "@collectionsSummaryTotalDue": {
+    "placeholders": { "amount": { "type": "String" } }
+  },
+
+  "collectionsPresetOneEmi": "1 EMI",
+  "collectionsPresetFillInterest": "Fill Interest",
+  "collectionsPresetPayDue": "Pay Due Amount",
+  "collectionsPresetPrincipalPartPayment": "Principal Part-Payment",
+  "collectionsPresetFullBalance": "Full Balance",
+  "collectionsPurposeMonthlyInterest": "Monthly Interest Payment",
+
+  "collectionsPaymentSummaryLine": "Payment: {payment} • Remaining balance: {remaining}",
+  "@collectionsPaymentSummaryLine": {
+    "placeholders": {
+      "payment": { "type": "String" },
+      "remaining": { "type": "String" }
+    }
+  },
+  "handoverLoadFailedTitle": "Failed to load handover data",
+  "handoverUpdatedTitle": "Handover updated",
+  "handoverRecordedTitle": "Handover recorded",
+  "handoverFailedTitle": "Handover failed",
+  "handoverMarkedPendingTitle": "Marked pending",
+  "handoverMarkedVerifiedTitle": "Marked verified",
+  "handoverUpdateFailedTitle": "Could not update handover",
+  "handoverDeletedTitle": "Handover deleted",
+  "handoverDeleteFailedTitle": "Could not delete handover",
+
+  "handoverTitle": "Cash Handover",
+  "handoverSubtitle": "Agents settle collected cash & UPI to the office — pending carries forward",
+  "handoverRecordButton": "Record Handover",
+
+  "handoverStatTotalCollected": "Total Collected",
+  "handoverStatTodayZero": "Today: ₹0",
+  "handoverStatHandedOver": "Handed Over",
+  "handoverStatPending": "Pending",
+  "handoverStatAgentsWithPending": "Agents With Pending",
+
+  "handoverSettlementPositionTitle": "Agent Settlement Position",
+  "handoverSettlementPositionSubtitle": "Pending = collected − handed over (runs continuously)",
+
+  "handoverHistoryTitle": "Handover History",
+  "handoverHistoryEmpty": "No handovers recorded yet.",
+
+  "handoverColAgent": "AGENT",
+  "handoverColCollected": "COLLECTED",
+  "handoverColHandedOver": "HANDED OVER",
+  "handoverColPending": "PENDING",
+
+  "handoverDeleteConfirmTitle": "Delete Handover?",
+  "handoverDeleteConfirmMessage": "{agentName}'s handover record of {amount} will be moved to the Recycle Bin and can be restored later.",
+  "@handoverDeleteConfirmMessage": {
+    "placeholders": {
+      "agentName": { "type": "String" },
+      "amount": { "type": "String" }
+    }
+  },
+  "handoverDeleteButton": "Delete",
+
+  "handoverStatusVerified": "verified",
+  "handoverStatusPending": "pending",
+  "handoverReceivedLabel": "Received",
+
+  "handoverEditButton": "Edit",
+  "handoverUnverifyButton": "Unverify",
+  "handoverVerifyButton": "Verify",
+
+  "handoverSummaryLine": "{date} · {cash} cash · {upi} UPI",
+  "@handoverSummaryLine": {
+    "placeholders": {
+      "date": { "type": "String" },
+      "cash": { "type": "String" },
+      "upi": { "type": "String" }
+    }
+  },
+
+  "handoverSelectAgentValidator": "Select an agent",
+  "handoverCashAmountLabel": "CASH AMOUNT",
+  "handoverUpiAmountLabel": "UPI AMOUNT",
+  "handoverNotesLabel": "NOTES",
+  "handoverNotesHint": "Optional remarks",
+  "handoverDateLabel": "DATE *",
+
+  "handoverRecordActionButton": "Record",
+  "handoverSaveButton": "Save",
+  "handoverCancelButton": "Cancel",
+
+  "handoverRefreshButton": "Refresh",
+  "handoverStatToday": "Today: {amount}",
+  "@handoverStatToday": {
+    "placeholders": { "amount": { "type": "String" } }
+  },
+  "handoverStatPendingToHandOver": "Pending to Hand Over",
+  "handoverStatCashCollected": "Cash Collected",
+  "handoverStatOnlineUpi": "Online / UPI",
+  "handoverStillPendingBanner": "You have {amount} still to hand over. This balance carries forward — tomorrow's collections add on top of it until you settle.",
+  "@handoverStillPendingBanner": {
+    "placeholders": { "amount": { "type": "String" } }
+  },
+
+  
+  "accountBookSubtitle": "Track cash in hand and outstanding money lent",
+
+  "accountTabAllEntries": "All Entries",
+  "accountTabCashInHand": "Cash In Hand",
+  "accountTabOutstandingLent": "Outstanding Lent",
+
+  "accountAddEntryButton": "Add Entry",
+  "accountAddCashEntryButton": "Add Cash Entry",
+  "accountAddMoneyLentButton": "Add Money Lent",
+
+  "accountEntrySavedTitle": "Entry Saved",
+  "accountEntrySavedMessage": "The ledger entry has been added successfully.",
+  "accountEntryUpdatedTitle": "Entry Updated",
+  "accountEntryUpdatedMessage": "The ledger entry has been updated successfully.",
+  "accountEntryDeletedTitle": "Entry Deleted",
+  "accountEntryDeletedMessage": "The ledger entry has been removed.",
+  "accountDeleteFailedTitle": "Delete Failed",
+  "accountDeleteConfirmMessage": "Are you sure you want to delete \"{title}\"? This action cannot be undone.",
+  "@accountDeleteConfirmMessage": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+
+  "accountNetBalanceSummaryTitle": "Net Balance Summary",
+  "accountCashInHandLabel": "Cash In Hand",
+  "accountOutstandingLabel": "Outstanding Money Lent",
+  "accountNetBalanceLabel": "Net Balance",
+  "accountUpdatingBadge": "Updating...",
+  "accountLiveBadge": "Live",
+  "accountSummaryRefreshError": "Couldn't refresh summary: {error}",
+  "@accountSummaryRefreshError": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+
+  "accountCashInHandSubtitle": "Total liquid cash available",
+  "accountBreakdownLoanCollection": "Loan Collections",
+  "accountBreakdownFundDeposits": "Fund Deposits",
+  "accountBreakdownChitCollection": "Chit Collections",
+  "accountBreakdownCustomCashNet": "Custom Cash Entries",
+
+  "accountOutstandingMoneyTitle": "Outstanding Money",
+  "accountOutstandingMoneySubtitle": "Total money owed to you",
+  "accountBreakdownLoanOutstanding": "Loan Outstanding",
+  "accountBreakdownChitPending": "Chit Pending",
+  "accountBreakdownFundPending": "Fund Pending",
+  "accountBreakdownCustomMoneyLent": "Custom Money Lent",
+
+  "accountSearchHint": "Search by title or category...",
+
+  "accountLoadFailedTitle": "Failed to Load Entries",
+
+  "accountEmptyStateTitle": "No Entries Yet",
+  "accountEmptyStateBody": "Add your first cash or lending entry to start tracking your account book.",
+
+  "accountColDate": "Date",
+  "accountColTitle": "Title",
+  "accountColCategory": "Category",
+  "accountColSection": "Section",
+  "accountColType": "Type",
+  "accountColAmount": "Amount",
+  "accountColActions": "Actions",
+
+  "accountMissingTitleTitle": "Title Required",
+  "accountMissingTitleMessage": "Please enter a title for this entry.",
+  "accountInvalidDateTitle": "Invalid Date",
+  "accountInvalidDateMessage": "Please enter a valid date in dd/mm/yyyy format.",
+  "accountUpdateFailedTitle": "Update Failed",
+  "accountSaveFailedTitle": "Save Failed",
+
+  "accountEditEntryTitle": "Edit Entry",
+  "accountAddEntryTitle": "Add Entry",
+  "accountEntryTitleLabel": "Title",
+  "accountEntryTitleHint": "e.g. Office rent, Cash deposit",
+  "accountEntryTypeLabel": "Entry Type",
+  "accountAmountLabel": "Amount",
+  "accountAmountHint": "0.00",
+  "accountCategoryLabel": "Category",
+  "accountEntryDateLabel": "Date",
+  "accountEntryDateHint": "dd/mm/yyyy",
+  "accountNotesLabel": "Notes",
+  "accountNotesHint": "Optional notes about this entry",
+  "accountUpdateEntryButton": "Update Entry",
+  "accountSaveEntryButton": "Save Entry",
+
+  "overdueManagementTitle": "Overdue Management",
+  "overdueSubtitle": "Track and follow up on overdue loan accounts",
+  "overdueCountBadge": "{count} overdue",
+  "@overdueCountBadge": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+
+  "overdueStatTotalLabel": "TOTAL OVERDUE",
+  "overdueStatTotalSub": "accounts",
+  "overdueStatAmountLabel": "OVERDUE AMOUNT",
+  "overdueStatAmountSub": "outstanding",
+  "overdueStatAvgDaysLabel": "AVG DAYS OVERDUE",
+  "overdueStatAvgDaysValue": "{days} d",
+  "@overdueStatAvgDaysValue": {
+    "placeholders": {
+      "days": { "type": "int" }
+    }
+  },
+  "overdueStatAvgDaysSub": "across accounts",
+  "overdueStatCriticalLabel": "CRITICAL (>30D)",
+  "overdueStatCriticalSub": "needs attention",
+
+  "overdueSearchHint": "Search customer or loan number...",
+  "overdueFilterAll": "All overdue",
+  "overdueFilterCritical": "Critical (>30d)",
+  "overdueNoMatchMessage": "No overdue accounts match your search.",
+
+  "overdueNoPhoneTitle": "No phone number",
+  "overdueNoPhoneMessage": "This overdue account does not have a mobile number yet.",
+
+  "overdueSendMessageTitle": "Send Message Reminder",
+  "overdueSendMessageBody": "Open WhatsApp for {name}?\n{phone}",
+  "@overdueSendMessageBody": {
+    "placeholders": {
+      "name": { "type": "String" },
+      "phone": { "type": "String" }
+    }
+  },
+  "overdueSendLabel": "Send",
+  "overdueWhatsappTemplate": "Hello {name}, your loan {loanNumber} is overdue by {days} days. Please contact us to clear the pending amount of {amount}.",
+  "@overdueWhatsappTemplate": {
+    "placeholders": {
+      "name": { "type": "String" },
+      "loanNumber": { "type": "String" },
+      "days": { "type": "int" },
+      "amount": { "type": "String" }
+    }
+  },
+  "overdueWhatsappFailedTitle": "Unable to open WhatsApp",
+
+  "overdueCallTitle": "Call Customer",
+  "overdueCallBody": "{name}\n{phone}",
+  "@overdueCallBody": {
+    "placeholders": {
+      "name": { "type": "String" },
+      "phone": { "type": "String" }
+    }
+  },
+  "overdueCallLabel": "Call",
+  "overdueCallFailedTitle": "Unable to start call",
+
+  "overdueFollowUpAssignedTitle": "Follow-up assigned",
+  "overdueGenericError": "Something went wrong. Please try again.",
+
+  "overdueBadgeLabel": "Overdue",
+  "overdueLoanNumberLabel": "Loan No.",
+  "overdueDueAmountLabel": "Due Amount",
+  "overdueDaysOverdueLabel": "Days Overdue",
+  "overdueDaysValue": "{days} days",
+  "@overdueDaysValue": {
+    "placeholders": {
+      "days": { "type": "int" }
+    }
+  },
+  "overdueStartedLabel": "Started",
+  "overdueFollowUpSectionLabel": "FOLLOW-UP",
+  "overdueFollowUpDueLabel": "Due {date}",
+  "@overdueFollowUpDueLabel": {
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+
+  "overdueActionMessage": "Message",
+  "overdueActionCall": "Call",
+  "overdueActionAssignFollowUp": "Assign Follow-up",
+
+  "overdueAssignFollowUpTitle": "Assign Follow-up",
+  "overdueFollowUpNoteHint": "e.g. Called customer, promised to pay by Friday",
+  "overdueFieldRequired": "Required",
+  "overdueFollowUpNoteFieldLabel": "FOLLOW-UP NOTE",
+  "overdueFollowUpDateFieldLabel": "FOLLOW-UP DATE",
+  "overdueStartedValue": "Started: {date}",
+  "@overdueStartedValue": {
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "overdueOutstandingValue": "Outstanding: {amount}",
+  "@overdueOutstandingValue": {
+    "placeholders": {
+      "amount": { "type": "String" }
+    }
+  },
+  "save": "Save",
+
+  "agentManagementTitle": "Agent Management",
+  "agentManagementSubtitle": "Add, edit, and manage your collection agents",
+  "agentAddButton": "Add Agent",
+
+  "agentLoadFailedFallback": "Failed to load agents.",
+
+  "agentStatTotal": "Total Agents",
+  "agentStatActive": "Active Agents",
+  "agentStatInactive": "Inactive Agents",
+  "agentStatAddedThisMonth": "Added This Month",
+
+  "agentSearchHint": "Search by name or mobile...",
+  "agentRoleAgent": "Agent",
+  "agentRoleAdmin": "Admin",
+  "agentRoleManager": "Manager",
+  "agentRoleAll": "All",
+
+  "agentColUser": "USER",
+  "agentColMobile": "MOBILE",
+  "agentColRole": "ROLE",
+  "agentColStatus": "STATUS",
+  "agentColCreated": "CREATED",
+  "agentColActions": "ACTIONS",
+  "agentNoAgentsFound": "No agents found.",
+  "agentEditTooltip": "Edit",
+  "agentDeleteTooltip": "Delete",
+
+  "agentCreatedTitle": "Agent created",
+  "agentCreatedMessage": "{name} has been added",
+  "@agentCreatedMessage": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "agentCreateFailedTitle": "Could not create agent",
+
+  "agentUpdatedTitle": "Agent updated",
+  "agentUpdatedMessage": "{name} has been updated",
+  "@agentUpdatedMessage": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "agentUpdateFailedTitle": "Could not update agent",
+
+  "agentDeleteDialogTitle": "Delete Agent",
+  "agentDeleteConfirmMessage": "Are you sure you want to delete {name}? They will be moved to the Recycle Bin and can be restored later.",
+  "@agentDeleteConfirmMessage": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "agentDeleteConfirmLabel": "Delete Agent",
+  "agentDeletedTitle": "Agent deleted",
+  "agentDeletedMessage": "{name} has been removed",
+  "@agentDeletedMessage": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "agentDeleteFailedTitle": "Could not delete agent",
+
+  "agentPhotoUploadFailedTitle": "Photo upload failed",
+  "agentMissingInfoTitle": "Missing information",
+  "agentMissingInfoMessage": "Please fill all required fields",
+
+  "agentFormEditTitle": "Edit User",
+  "agentFormAddTitle": "Add User",
+  "agentFormCredentialsNotice": "Set an email and password so this user can sign in to the app.",
+
+  "agentFieldFullName": "FULL NAME *",
+  "agentFieldFullNameHint": "e.g. Priya Sharma",
+  "agentFieldMobile": "MOBILE",
+  "agentFieldMobileHint": "e.g. +91 98765 43210",
+  "agentFieldEmail": "EMAIL *",
+  "agentFieldEmailHint": "user@rrgroups.in",
+  "agentFieldPassword": "PASSWORD *",
+  "agentFieldPasswordHint": "Min. 6 characters",
+  "agentFieldRole": "ROLE",
+  "agentFieldStatus": "STATUS",
+  "agentFieldAddress": "ADDRESS",
+  "agentFieldAddressHint": "Residential address",
+  "agentFieldAadhaar": "AADHAAR",
+  "agentFieldAadhaarHint": "[Aadhaar Redacted]",
+  "agentFieldPan": "PAN",
+  "agentFieldPanHint": "ABCDE1234F",
+  "agentFieldOccupation": "OCCUPATION",
+  "agentFieldOccupationHint": "e.g. Field Executive",
+  "agentFieldProfilePhoto": "PROFILE PHOTO",
+  "agentUploadPhotoButton": "Upload Photo",
+
+  "agentSaveChangesButton": "Save Changes",
+  "agentCreateUserButton": "Create User",
+
+  "statusActive": "Active",
+  "statusInactive": "Inactive",
+
+  
+  "fundsScreenTitle": "Funds",
+  "fundsScreenSubtitle": "Weekly-deposit savings schemes with a maturity bonus",
+
+  "fundCreateButton": "Create Fund",
+  "fundSearchHint": "Search by customer name",
+  "fundSearchClearTooltip": "Clear search",
+  "fundRetryButton": "Retry",
+
+  "fundStatTotalFunds": "Total Funds",
+  "fundStatActive": "Active",
+  "fundStatMaturityPayout": "Maturity Payout",
+  "fundStatCollected": "Collected",
+
+  "fundEmptySearch": "No funds match your search.",
+  "fundEmptyCustomer": "You have no funds yet.",
+  "fundEmptyDefault": "No funds yet.",
+
+  "fundCardWeekly": "WEEKLY",
+  "fundCardWeeks": "WEEKS",
+  "fundCardBonus": "BONUS",
+  "fundCardMaturityPayout": "Maturity payout",
+  "fundCardDepositedProgress": "Deposited {deposited} / {total}",
+  "@fundCardDepositedProgress": {
+    "placeholders": {
+      "deposited": { "type": "String" },
+      "total": { "type": "String" }
+    }
+  },
+  "fundCardPassbookButton": "Passbook",
+  "fundCardCollectButton": "Collect",
+  "fundCardSettleBanner": "Settle in full · {amount} left",
+  "@fundCardSettleBanner": {
+    "placeholders": {
+      "amount": { "type": "String" }
+    }
+  },
+
+  "fundDeleteDialogTitle": "Delete Fund",
+  "fundDeleteDialogMessage": "Are you sure you want to delete \"{code}\" for {customerName}? It will be moved to the Recycle Bin and can be restored later.",
+  "@fundDeleteDialogMessage": {
+    "placeholders": {
+      "code": { "type": "String" },
+      "customerName": { "type": "String" }
+    }
+  },
+  "fundDeleteDialogConfirm": "Delete",
+
+  "fundAgentSettleDialogTitle": "Settle Fund in Full",
+  "fundAgentSettleDialogMessage": "Collect the remaining {amount} for \"{code}\" ({customerName}) now and mark it matured?",
+  "@fundAgentSettleDialogMessage": {
+    "placeholders": {
+      "amount": { "type": "String" },
+      "code": { "type": "String" },
+      "customerName": { "type": "String" }
+    }
+  },
+  "fundAgentSettleDialogConfirm": "Settle Now",
+
+  "fundToastLoadFailedTitle": "Failed to load funds",
+  "fundToastCreatedTitle": "Fund created",
+  "fundToastCreateFailedTitle": "Create failed",
+  "fundToastUpdatedTitle": "Fund updated",
+  "fundToastUpdateFailedTitle": "Update failed",
+  "fundToastSettledTitle": "Fund settled",
+  "fundToastSettlementFailedTitle": "Settlement failed",
+  "fundToastCollectionRecordedTitle": "Collection recorded",
+  "fundToastDeletedTitle": "Fund deleted",
+  "fundToastDeleteFailedTitle": "Delete failed",
+  "fundToastSelectCustomerTitle": "Select a customer",
+  "fundToastSelectCustomerMessage": "Please choose a customer",
+
+  "fundFormTitleEdit": "Edit Fund",
+  "fundFormTitleAdd": "Add Fund",
+  "fundFormFieldCustomer": "CUSTOMER",
+  "fundFormFieldCustomerHint": "Select a customer...",
+  "fundFormFieldCustomerFallback": "Unknown",
+  "fundFormFieldAgent": "ASSIGNED AGENT (OPTIONAL)",
+  "fundFormFieldAgentHint": "Select an agent...",
+  "fundFormFieldAgentFallback": "Unknown agent",
+  "fundFormFieldUnits": "FUND UNITS (QUANTITY)",
+  "fundFormFieldWeeklyAmount": "WEEKLY AMOUNT",
+  "fundFormFieldWeeks": "NUMBER OF WEEKS",
+  "fundFormFieldBonus": "MATURITY BONUS",
+  "fundFormFieldStartDate": "START DATE",
+  "fundFormValidatorRequired": "Required",
+  "fundFormSummaryDeposited": "Deposited (₹{weekly} x {weeks} weeks)",
+  "@fundFormSummaryDeposited": {
+    "placeholders": {
+      "weekly": { "type": "String" },
+      "weeks": { "type": "String" }
+    }
+  },
+  "fundFormSummaryBonus": "Maturity bonus",
+  "fundFormSummaryBonusValue": "+ {amount}",
+  "@fundFormSummaryBonusValue": {
+    "placeholders": {
+      "amount": { "type": "String" }
+    }
+  },
+  "fundFormSummaryTotalPayout": "Total maturity payout",
+  "fundFormMaturesOn": "Matures on {date}",
+  "@fundFormMaturesOn": {
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "fundFormCancelButton": "Cancel",
+  "fundFormSaveButton": "Save Changes",
+  "fundFormCreateButton": "Create Fund",
+
+  "fundCollectDialogInvalidAmountTitle": "Invalid amount",
+  "fundCollectDialogInvalidAmountMessage": "Enter a collection amount greater than 0",
+  "fundCollectDialogNotSavedTitle": "Collection not saved",
+  "fundCollectDialogNotSavedMessage": "Only {remaining} left to fully fund this deposit.",
+  "@fundCollectDialogNotSavedMessage": {
+    "placeholders": {
+      "remaining": { "type": "String" }
+    }
+  },
+  "fundCollectDialogFailedTitle": "Collection failed",
+  "fundCollectDialogTitle": "Record Collection",
+  "fundCollectDialogSubtitle": "{code} · {customerName}",
+  "@fundCollectDialogSubtitle": {
+    "placeholders": {
+      "code": { "type": "String" },
+      "customerName": { "type": "String" }
+    }
+  },
+  "fundCollectDialogCollectedLabel": "COLLECTED",
+  "fundCollectDialogRemainingLabel": "REMAINING",
+  "fundCollectDialogAmountLabel": "COLLECTION AMOUNT",
+  "fundCollectDialogPaymentMethodLabel": "PAYMENT METHOD",
+  "fundCollectDialogPaymentDateLabel": "PAYMENT DATE",
+  "fundCollectDialogHelperText": "Adds this amount to the fund's collected total. Auto-marks the fund matured once the full deposit target is collected.",
+  "fundCollectDialogRecordButton": "Record",
+
+  "fundSettleDialogTitle": "Fund Closure & Settlement",
+  "fundSettleDialogSubtitle": "{code} · {customerName} ({units} Active Units)",
+  "@fundSettleDialogSubtitle": {
+    "placeholders": {
+      "code": { "type": "String" },
+      "customerName": { "type": "String" },
+      "units": { "type": "String" }
+    }
+  },
+  "fundSettleTabPartial": "Partial Unit Closure",
+  "fundSettleTabFull": "Settle Full Account",
+  "fundSettleUnitsToCloseLabel": "NUMBER OF UNITS TO CLOSE",
+  "fundSettleHalfUnitButton": "0.5 Units",
+  "fundSettleOneUnitButton": "1 Unit",
+  "fundSettleClosedPayoutLabel": "Closed Units Payout",
+  "fundSettleClosedPayoutSubtitle": "Accrued Deposit + Bonus",
+  "fundSettleRemainingBalanceLabel": "Remaining Active Balance",
+  "fundSettleRemainingUnitsValue": "{units} Units left",
+  "@fundSettleRemainingUnitsValue": {
+    "placeholders": {
+      "units": { "type": "String" }
+    }
+  },
+  "fundSettleNewWeeklyValue": "New Weekly: {amount} / week",
+  "@fundSettleNewWeeklyValue": {
+    "placeholders": {
+      "amount": { "type": "String" }
+    }
+  },
+  "fundSettleTotalDepositedLabel": "TOTAL DEPOSITED",
+  "fundSettleRemainingTargetLabel": "REMAINING TARGET",
+  "fundSettlePaymentMethodLabel": "PAYMENT METHOD",
+  "fundSettleSettlementDateLabel": "SETTLEMENT DATE",
+  "fundSettleSummaryClosingTarget": "Closing units deposit target",
+  "fundSettleSummaryClosingTargetValue": "{amount} ({units} of {maxUnits} Units)",
+  "@fundSettleSummaryClosingTargetValue": {
+    "placeholders": {
+      "amount": { "type": "String" },
+      "units": { "type": "String" },
+      "maxUnits": { "type": "String" }
+    }
+  },
+  "fundSettleSummaryTotalDeposit": "Total deposit",
+  "fundSettleSummaryProportionalBonus": "🎁 Proportional Bonus",
+  "fundSettleSummaryNetClosurePayout": "Net Closure Payout Amount",
+  "fundSettleSummaryPayoutToCustomer": "Payout to customer",
+  "fundSettleFailedTitle": "Closure failed",
+  "fundSettleCancelButton": "Cancel",
+  "fundSettleConfirmPartialButton": "Confirm Partial Closure",
+  "fundSettleConfirmFullButton": "Settle Full Account",
+
+  "fundPassbookTitle": "Passbook",
+  "fundPassbookSubtitle": "{code} · {customerName}",
+  "@fundPassbookSubtitle": {
+    "placeholders": {
+      "code": { "type": "String" },
+      "customerName": { "type": "String" }
+    }
+  },
+  "fundPassbookDepositedLabel": "DEPOSITED",
+  "fundPassbookToDepositLabel": "TO DEPOSIT",
+  "fundPassbookEntriesLabel": "ENTRIES",
+  "fundPassbookEntriesValue": "{paid} / {total}",
+  "@fundPassbookEntriesValue": {
+    "placeholders": {
+      "paid": { "type": "String" },
+      "total": { "type": "String" }
+    }
+  },
+  "fundPassbookSummaryTotalDeposit": "Total deposit (₹{weekly} x {weeks} weeks)",
+  "@fundPassbookSummaryTotalDeposit": {
+    "placeholders": {
+      "weekly": { "type": "String" },
+      "weeks": { "type": "String" }
+    }
+  },
+  "fundPassbookSummaryBonus": "🎁 Maturity bonus (at settlement)",
+  "fundPassbookSummaryPayout": "Maturity payout",
+  "fundPassbookNextDuePrefix": "Next deposit due · ",
+  "fundPassbookNextDueValue": "{date} · Week {week} · {amount}",
+  "@fundPassbookNextDueValue": {
+    "placeholders": {
+      "date": { "type": "String" },
+      "week": { "type": "String" },
+      "amount": { "type": "String" }
+    }
+  },
+  "fundPassbookColWeek": "WK",
+  "fundPassbookColDateMethod": "DATE · METHOD",
+  "fundPassbookColAmountBalance": "AMOUNT · BALANCE",
+  "fundPassbookNextDueRowLabel": "Next due",
+  "fundPassbookPaidFallback": "Paid",
+  "fundPassbookPendingLabel": "Pending",
+  "fundPassbookBalanceValue": "Bal {balance}",
+  "@fundPassbookBalanceValue": {
+    "placeholders": {
+      "balance": { "type": "String" }
+    }
+  },
+  "fundPassbookCloseButton": "Close",
+
+  "routeMapTitle": "Customer Map",
+  "routeMapAllLocationsSubtitle": "All customer locations",
+  "routeMapSearchHint": "Search customer, loan or agent...",
+  "routeMapCustomerLabel": "Customer",
+  "routeMapAllCustomers": "All customers",
+  "routeMapTotalMapped": "Total Mapped",
+  "routeMapActiveCustomers": "Active Customers",
+  "routeMapNoLocationsTitle": "No locations found",
+  "routeMapNoLocationsMessage": "Customers with valid coordinates will appear here.",
+  "routeMapActive": "Active",
+  "routeMapInactive": "Inactive",
+  "routeMapRetryButton": "Retry",
+  "routeMapLoadFailedTitle": "Failed to load map data",
+  "routeMapJoinedLabel": "Joined: {date}",
+  "@routeMapJoinedLabel": {
+    "description": "Shown in the customer info sheet with a formatted join date",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+
+  "reportsScreenTitle": "Reports & Analytics",
+  "reportsSubtitle": "Daily, monthly and agent performance insights",
+  "reportsExportPdfButton": "Export PDF",
+  "reportsExportExcelButton": "Export Excel",
+  "reportsExportingExcelTitle": "Exporting Excel",
+  "reportsExportingExcelMessage": "Compiling spreadsheet cells...",
+  "reportsExportCompleteTitle": "Export Complete",
+  "reportsExportCompleteMessage": "Excel sheet generated successfully.",
+  "reportsExportFailedTitle": "Export Failed",
+  "reportsExportFailedMessage": "Could not generate spreadsheet. Technical reason: {error}",
+  "@reportsExportFailedMessage": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "reportsDailyHint": "Daily report shows data for the end date above.",
+  "reportsRetryButton": "Retry",
+  "reportsGenericErrorMessage": "Something went wrong while loading the report.",
+  "reportsTabDaily": "Daily\nReport",
+  "reportsTabMonthly": "Monthly\nReport",
+  "reportsTabAgent": "Agent\nPerformance",
+  "reportsTodaysCollectionsTitle": "Today's Collections",
+  "reportsNoCollectionsTodayTitle": "No collections today",
+  "reportsNoCollectionsTodayMessage": "Collections made today will appear here.",
+  "reportsNewLoansTodayTitle": "New Loans Created Today",
+  "reportsNoNewLoansTodayTitle": "No new loans today",
+  "reportsNoNewLoansTodayMessage": "Loans created today will appear here.",
+  "reportsMetricDisbursement": "LOAN DISBURSEMENT",
+  "reportsMetricInterest": "INTEREST EARNED",
+  "reportsMetricCollectionTotal": "COLLECTION TOTAL",
+  "reportsMetricNewCustomers": "NEW CUSTOMERS",
+  "reportsCollectionsTrendTitle": "Collections Trend",
+  "reportsLastNMonths": "Last {count} months",
+  "@reportsLastNMonths": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "reportsLoanDisbursementTitle": "Loan Disbursement",
+  "reportsByMonth": "By month",
+  "reportsAgentPerformanceTitle": "Agent Performance",
+  "reportsNoAgentDataTitle": "No agent data",
+  "reportsNoAgentDataMessage": "Agent performance will appear here once agents are active.",
+  "reportsColumnAgent": "AGENT",
+  "reportsColumnAssigned": "ASSIGNED",
+  "reportsColumnCollected": "COLLECTED",
+  "reportsColumnEfficiency": "EFFICIENCY",
+  "reportsCollectionsByAgentTitle": "Collections by Agent",
+  "reportsTotalAmountCollected": "Total amount collected",
+  "reportsNoData": "No data",
+  
+
+  "notificationsScreenTitle": "Notifications",
+  "@notificationsScreenTitle": {
+    "description": "Title of the notifications screen, shown in the app shell app bar"
+  },
+
+  "notificationsSubtitle": "Stay on top of dues, approvals, and reminders",
+  "@notificationsSubtitle": {
+    "description": "Subtitle shown under the notifications screen title"
+  },
+
+  "markAllRead": "Mark all read",
+  "@markAllRead": {
+    "description": "Button label to mark every notification as read"
+  },
+
+  "send": "Send",
+  "@send": {
+    "description": "Button label to open/submit the send-notification dialog"
+  },
+
+  "statTotal": "TOTAL",
+  "@statTotal": {
+    "description": "Stat card label for total notification count"
+  },
+
+  "statUnread": "UNREAD",
+  "@statUnread": {
+    "description": "Stat card label for unread notification count"
+  },
+
+  "statOverdue": "OVERDUE",
+  "@statOverdue": {
+    "description": "Stat card label for overdue notification count"
+  },
+
+  "filterAll": "All",
+  "@filterAll": {
+    "description": "Notification filter pill: show all notifications"
+  },
+
+  "filterUnread": "Unread",
+  "@filterUnread": {
+    "description": "Notification filter pill: show only unread notifications"
+  },
+
+  "filterEmiDue": "EMI Due",
+  "@filterEmiDue": {
+    "description": "Notification filter pill: show only EMI due notifications"
+  },
+
+  "filterOverdue": "Overdue",
+  "@filterOverdue": {
+    "description": "Notification filter pill: show only overdue notifications"
+  },
+
+  "filterApprovals": "Approvals",
+  "@filterApprovals": {
+    "description": "Notification filter pill: show only approval notifications"
+  },
+
+  "filterReminders": "Reminders",
+  "@filterReminders": {
+    "description": "Notification filter pill: show only reminder notifications"
+  },
+
+  "noNotificationsHere": "No notifications here.",
+  "@noNotificationsHere": {
+    "description": "Empty state shown when the filtered notification list has no items"
+  },
+
+  "retry": "Retry",
+  "@retry": {
+    "description": "Button label to retry loading notifications after an error"
+  },
+
+  "failedToLoadNotifications": "Failed to load notifications",
+  "@failedToLoadNotifications": {
+    "description": "Inline error message shown when notifications fail to load"
+  },
+
+  "couldNotLoadNotificationsToastTitle": "Could not load notifications",
+  "@couldNotLoadNotificationsToastTitle": {
+    "description": "Toast title shown when notifications fail to load"
+  },
+
+  "allNotificationsClearedToastTitle": "All notifications cleared",
+  "@allNotificationsClearedToastTitle": {
+    "description": "Toast title shown after successfully marking all notifications as read"
+  },
+
+  "allNotificationsClearedToastMessage": "Everything has been marked as read.",
+  "@allNotificationsClearedToastMessage": {
+    "description": "Toast message shown after successfully marking all notifications as read"
+  },
+
+  "failedToUpdateToastTitle": "Failed to update",
+  "@failedToUpdateToastTitle": {
+    "description": "Toast title shown when marking all notifications as read fails"
+  },
+
+  "deleteNotificationTitle": "Delete Notification",
+  "@deleteNotificationTitle": {
+    "description": "Title of the confirmation dialog shown before deleting a notification"
+  },
+
+  "deleteNotificationMessage": "Are you sure you want to delete \"{title}\"? It will be moved to the Recycle Bin and can be restored later.",
+  "@deleteNotificationMessage": {
+    "description": "Confirmation message shown before deleting a notification",
+    "placeholders": {
+      "title": {
+        "type": "String",
+        "example": "EMI due tomorrow"
+      }
+    }
+  },
+
+  "delete": "Delete",
+  "@delete": {
+    "description": "Confirm button label for deleting a notification"
+  },
+
+  "notificationRemovedToastTitle": "Notification removed",
+  "@notificationRemovedToastTitle": {
+    "description": "Toast title shown after successfully deleting a notification"
+  },
+
+  "failedToDeleteToastTitle": "Failed to delete",
+  "@failedToDeleteToastTitle": {
+    "description": "Toast title shown when deleting a notification fails"
+  },
+
+  "markedAsReadToastTitle": "Marked as read",
+  "@markedAsReadToastTitle": {
+    "description": "Toast title shown after successfully marking a single notification as read"
+  },
+
+  "failedToMarkAsReadToastTitle": "Failed to mark as read",
+  "@failedToMarkAsReadToastTitle": {
+    "description": "Toast title shown when marking a single notification as read fails"
+  },
+
+  "userIdLabel": "user_id: {id}",
+  "@userIdLabel": {
+    "description": "Debug/reference label showing the user id on a notification card",
+    "placeholders": {
+      "id": {
+        "type": "String",
+        "example": "usr_12345"
+      }
+    }
+  },
+
+  "sendNotificationTitle": "Send Notification",
+  "@sendNotificationTitle": {
+    "description": "Title of the send-notification bottom sheet"
+  },
+
+  "sendNotificationSubtitle": "Notify your customers instantly",
+  "@sendNotificationSubtitle": {
+    "description": "Subtitle of the send-notification bottom sheet"
+  },
+
+  "recipientsLabel": "RECIPIENTS",
+  "@recipientsLabel": {
+    "description": "Section label for choosing notification recipients"
+  },
+
+  "allCustomers": "All Customers",
+  "@allCustomers": {
+    "description": "Toggle chip: send to all customers"
+  },
+
+  "selectLabel": "Select",
+  "@selectLabel": {
+    "description": "Toggle chip: manually select customers"
+  },
+
+  "searchCustomersHint": "Search customers...",
+  "@searchCustomersHint": {
+    "description": "Search field hint for filtering the customer list"
+  },
+
+  "noCustomersFoundInList": "No customers found.",
+  "@noCustomersFoundInList": {
+    "description": "Empty state inside the customer selection list"
+  },
+
+  "noPortalLogin": "No portal login",
+  "@noPortalLogin": {
+    "description": "Shown next to a customer who has no linked portal login and cannot receive notifications"
+  },
+
+  "typeLabel": "TYPE",
+  "@typeLabel": {
+    "description": "Section label for choosing the notification type"
+  },
+
+  "typeInfo": "Info",
+  "@typeInfo": {
+    "description": "Notification type option: informational"
+  },
+
+  "typeReminder": "Reminder",
+  "@typeReminder": {
+    "description": "Notification type option: reminder"
+  },
+
+  "typeEmiDue": "EMI Due",
+  "@typeEmiDue": {
+    "description": "Notification type option: EMI due"
+  },
+
+  "typeOverdue": "Overdue",
+  "@typeOverdue": {
+    "description": "Notification type option: overdue"
+  },
+
+  "typeApproval": "Approval",
+  "@typeApproval": {
+    "description": "Notification type option: approval"
+  },
+
+  "titleFieldLabel": "TITLE",
+  "@titleFieldLabel": {
+    "description": "Label for the notification title input field"
+  },
+
+  "titleFieldHint": "e.g. EMI due tomorrow",
+  "@titleFieldHint": {
+    "description": "Placeholder text for the notification title input field"
+  },
+
+  "messageFieldLabel": "MESSAGE",
+  "@messageFieldLabel": {
+    "description": "Label for the notification message input field"
+  },
+
+  "messageFieldHint": "Write your message...",
+  "@messageFieldHint": {
+    "description": "Placeholder text for the notification message input field"
+  },
+
+  "noRecipientsSelected": "No recipients selected",
+  "@noRecipientsSelected": {
+    "description": "Shown when zero recipients are selected for the notification being composed"
+  },
+
+  "recipientsSelectedCount": "{count, plural, =1{1 recipient selected} other{{count} recipients selected}}",
+  "@recipientsSelectedCount": {
+    "description": "Shown with the number of recipients currently selected",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "5"
+      }
+    }
+  },
+
+  "cancel": "Cancel",
+  "@cancel": {
+    "description": "Button label to dismiss the send-notification dialog without sending"
+  },
+
+  "titleRequiredError": "Title required",
+  "@titleRequiredError": {
+    "description": "Validation error toast when the notification title is empty"
+  },
+
+  "noCustomersFoundError": "No customers found",
+  "@noCustomersFoundError": {
+    "description": "Error toast when there are no customers to send to at all"
+  },
+
+  "noLinkedCustomerLoginsFoundError": "No linked customer logins found",
+  "@noLinkedCustomerLoginsFoundError": {
+    "description": "Error toast when no customers have a linked portal login"
+  },
+
+  "selectAtLeastOneRecipientError": "Select at least one recipient",
+  "@selectAtLeastOneRecipientError": {
+    "description": "Error toast when sending with manual selection but nothing is selected"
+  },
+
+  "noEligibleRecipientsToastTitle": "No eligible recipients",
+  "@noEligibleRecipientsToastTitle": {
+    "description": "Error toast title when selected customers have no portal login"
+  },
+
+  "noEligibleRecipientsToastMessage": "Selected customers need a portal login to receive notifications.",
+  "@noEligibleRecipientsToastMessage": {
+    "description": "Error toast message when selected customers have no portal login"
+  },
+
+  "notificationSentToastTitle": "Notification sent",
+  "@notificationSentToastTitle": {
+    "description": "Success toast title after a notification is sent"
+  },
+
+  "recipientsCount": "{count, plural, =1{1 recipient} other{{count} recipients}}",
+  "@recipientsCount": {
+    "description": "Success toast message showing how many recipients received the notification",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "5"
+      }
+    }
+  },
+
+  "sendFailedToastTitle": "Send failed",
+  "@sendFailedToastTitle": {
+    "description": "Error toast title when sending a notification fails"
+  },
+
+  "couldNotLoadCustomersToastTitle": "Could not load customers",
+  "@couldNotLoadCustomersToastTitle": {
+    "description": "Error toast title when the customer list fails to load"
+  },
+
+  "notificationsScreenTitle": "Notifications",
+  "@notificationsScreenTitle": {
+    "description": "Title of the notifications screen, shown in the app shell app bar"
+  },
+
+  "notificationsSubtitle": "Stay on top of dues, approvals, and reminders",
+  "@notificationsSubtitle": {
+    "description": "Subtitle shown under the notifications screen title"
+  },
+
+  "markAllRead": "Mark all read",
+  "@markAllRead": {
+    "description": "Button label to mark every notification as read"
+  },
+
+  "send": "Send",
+  "@send": {
+    "description": "Button label to open/submit the send-notification dialog"
+  },
+
+  "statTotal": "TOTAL",
+  "@statTotal": {
+    "description": "Stat card label for total notification count"
+  },
+
+  "statUnread": "UNREAD",
+  "@statUnread": {
+    "description": "Stat card label for unread notification count"
+  },
+
+  "statOverdue": "OVERDUE",
+  "@statOverdue": {
+    "description": "Stat card label for overdue notification count"
+  },
+
+  "filterAll": "All",
+  "@filterAll": {
+    "description": "Notification filter pill: show all notifications"
+  },
+
+  "filterUnread": "Unread",
+  "@filterUnread": {
+    "description": "Notification filter pill: show only unread notifications"
+  },
+
+  "filterEmiDue": "EMI Due",
+  "@filterEmiDue": {
+    "description": "Notification filter pill: show only EMI due notifications"
+  },
+
+  "filterOverdue": "Overdue",
+  "@filterOverdue": {
+    "description": "Notification filter pill: show only overdue notifications"
+  },
+
+  "filterApprovals": "Approvals",
+  "@filterApprovals": {
+    "description": "Notification filter pill: show only approval notifications"
+  },
+
+  "filterReminders": "Reminders",
+  "@filterReminders": {
+    "description": "Notification filter pill: show only reminder notifications"
+  },
+
+  "noNotificationsHere": "No notifications here.",
+  "@noNotificationsHere": {
+    "description": "Empty state shown when the filtered notification list has no items"
+  },
+
+  "retry": "Retry",
+  "@retry": {
+    "description": "Button label to retry loading notifications after an error"
+  },
+
+  "failedToLoadNotifications": "Failed to load notifications",
+  "@failedToLoadNotifications": {
+    "description": "Inline error message shown when notifications fail to load"
+  },
+
+  "couldNotLoadNotificationsToastTitle": "Could not load notifications",
+  "@couldNotLoadNotificationsToastTitle": {
+    "description": "Toast title shown when notifications fail to load"
+  },
+
+  "allNotificationsClearedToastTitle": "All notifications cleared",
+  "@allNotificationsClearedToastTitle": {
+    "description": "Toast title shown after successfully marking all notifications as read"
+  },
+
+  "allNotificationsClearedToastMessage": "Everything has been marked as read.",
+  "@allNotificationsClearedToastMessage": {
+    "description": "Toast message shown after successfully marking all notifications as read"
+  },
+
+  "failedToUpdateToastTitle": "Failed to update",
+  "@failedToUpdateToastTitle": {
+    "description": "Toast title shown when marking all notifications as read fails"
+  },
+
+  "deleteNotificationTitle": "Delete Notification",
+  "@deleteNotificationTitle": {
+    "description": "Title of the confirmation dialog shown before deleting a notification"
+  },
+
+  "deleteNotificationMessage": "Are you sure you want to delete \"{title}\"? It will be moved to the Recycle Bin and can be restored later.",
+  "@deleteNotificationMessage": {
+    "description": "Confirmation message shown before deleting a notification",
+    "placeholders": {
+      "title": {
+        "type": "String",
+        "example": "EMI due tomorrow"
+      }
+    }
+  },
+
+  "delete": "Delete",
+  "@delete": {
+    "description": "Confirm button label for deleting a notification"
+  },
+
+  "notificationRemovedToastTitle": "Notification removed",
+  "@notificationRemovedToastTitle": {
+    "description": "Toast title shown after successfully deleting a notification"
+  },
+
+  "failedToDeleteToastTitle": "Failed to delete",
+  "@failedToDeleteToastTitle": {
+    "description": "Toast title shown when deleting a notification fails"
+  },
+
+  "markedAsReadToastTitle": "Marked as read",
+  "@markedAsReadToastTitle": {
+    "description": "Toast title shown after successfully marking a single notification as read"
+  },
+
+  "failedToMarkAsReadToastTitle": "Failed to mark as read",
+  "@failedToMarkAsReadToastTitle": {
+    "description": "Toast title shown when marking a single notification as read fails"
+  },
+
+  "userIdLabel": "user_id: {id}",
+  "@userIdLabel": {
+    "description": "Debug/reference label showing the user id on a notification card",
+    "placeholders": {
+      "id": {
+        "type": "String",
+        "example": "usr_12345"
+      }
+    }
+  },
+
+  "sendNotificationTitle": "Send Notification",
+  "@sendNotificationTitle": {
+    "description": "Title of the send-notification bottom sheet"
+  },
+
+  "sendNotificationSubtitle": "Notify your customers instantly",
+  "@sendNotificationSubtitle": {
+    "description": "Subtitle of the send-notification bottom sheet"
+  },
+
+  "recipientsLabel": "RECIPIENTS",
+  "@recipientsLabel": {
+    "description": "Section label for choosing notification recipients"
+  },
+
+  "allCustomers": "All Customers",
+  "@allCustomers": {
+    "description": "Toggle chip: send to all customers"
+  },
+
+  "selectLabel": "Select",
+  "@selectLabel": {
+    "description": "Toggle chip: manually select customers"
+  },
+
+  "searchCustomersHint": "Search customers...",
+  "@searchCustomersHint": {
+    "description": "Search field hint for filtering the customer list"
+  },
+
+  "noCustomersFoundInList": "No customers found.",
+  "@noCustomersFoundInList": {
+    "description": "Empty state inside the customer selection list"
+  },
+
+  "noPortalLogin": "No portal login",
+  "@noPortalLogin": {
+    "description": "Shown next to a customer who has no linked portal login and cannot receive notifications"
+  },
+
+  "typeLabel": "TYPE",
+  "@typeLabel": {
+    "description": "Section label for choosing the notification type"
+  },
+
+  "typeInfo": "Info",
+  "@typeInfo": {
+    "description": "Notification type option: informational"
+  },
+
+  "typeReminder": "Reminder",
+  "@typeReminder": {
+    "description": "Notification type option: reminder"
+  },
+
+  "typeEmiDue": "EMI Due",
+  "@typeEmiDue": {
+    "description": "Notification type option: EMI due"
+  },
+
+  "typeOverdue": "Overdue",
+  "@typeOverdue": {
+    "description": "Notification type option: overdue"
+  },
+
+  "typeApproval": "Approval",
+  "@typeApproval": {
+    "description": "Notification type option: approval"
+  },
+
+  "titleFieldLabel": "TITLE",
+  "@titleFieldLabel": {
+    "description": "Label for the notification title input field"
+  },
+
+  "titleFieldHint": "e.g. EMI due tomorrow",
+  "@titleFieldHint": {
+    "description": "Placeholder text for the notification title input field"
+  },
+
+  "messageFieldLabel": "MESSAGE",
+  "@messageFieldLabel": {
+    "description": "Label for the notification message input field"
+  },
+
+  "messageFieldHint": "Write your message...",
+  "@messageFieldHint": {
+    "description": "Placeholder text for the notification message input field"
+  },
+
+  "noRecipientsSelected": "No recipients selected",
+  "@noRecipientsSelected": {
+    "description": "Shown when zero recipients are selected for the notification being composed"
+  },
+
+  "recipientsSelectedCount": "{count, plural, =1{1 recipient selected} other{{count} recipients selected}}",
+  "@recipientsSelectedCount": {
+    "description": "Shown with the number of recipients currently selected",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "5"
+      }
+    }
+  },
+
+  "cancel": "Cancel",
+  "@cancel": {
+    "description": "Button label to dismiss the send-notification dialog without sending"
+  },
+
+  "titleRequiredError": "Title required",
+  "@titleRequiredError": {
+    "description": "Validation error toast when the notification title is empty"
+  },
+
+  "noCustomersFoundError": "No customers found",
+  "@noCustomersFoundError": {
+    "description": "Error toast when there are no customers to send to at all"
+  },
+
+  "noLinkedCustomerLoginsFoundError": "No linked customer logins found",
+  "@noLinkedCustomerLoginsFoundError": {
+    "description": "Error toast when no customers have a linked portal login"
+  },
+
+  "selectAtLeastOneRecipientError": "Select at least one recipient",
+  "@selectAtLeastOneRecipientError": {
+    "description": "Error toast when sending with manual selection but nothing is selected"
+  },
+
+  "noEligibleRecipientsToastTitle": "No eligible recipients",
+  "@noEligibleRecipientsToastTitle": {
+    "description": "Error toast title when selected customers have no portal login"
+  },
+
+  "noEligibleRecipientsToastMessage": "Selected customers need a portal login to receive notifications.",
+  "@noEligibleRecipientsToastMessage": {
+    "description": "Error toast message when selected customers have no portal login"
+  },
+
+  "notificationSentToastTitle": "Notification sent",
+  "@notificationSentToastTitle": {
+    "description": "Success toast title after a notification is sent"
+  },
+
+  "recipientsCount": "{count, plural, =1{1 recipient} other{{count} recipients}}",
+  "@recipientsCount": {
+    "description": "Success toast message showing how many recipients received the notification",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "5"
+      }
+    }
+  },
+
+  "sendFailedToastTitle": "Send failed",
+  "@sendFailedToastTitle": {
+    "description": "Error toast title when sending a notification fails"
+  },
+
+  "couldNotLoadCustomersToastTitle": "Could not load customers",
+  "@couldNotLoadCustomersToastTitle": {
+    "description": "Error toast title when the customer list fails to load"
+  },
+
+  "userManagementScreenTitle": "User Management",
+  "@userManagementScreenTitle": {
+    "description": "Title of the user management screen"
+  },
+
+  "userManagementSubtitle": "Manage roles, access, and permissions across your organization",
+  "@userManagementSubtitle": {
+    "description": "Subtitle shown under the user management screen title"
+  },
+
+  "addUser": "Add User",
+  "@addUser": {
+    "description": "Button label and dialog title for adding a new user"
+  },
+
+  "refreshTooltip": "Refresh",
+  "@refreshTooltip": {
+    "description": "Tooltip for the button that reloads the user list"
+  },
+
+  "edit": "Edit",
+  "@edit": {
+    "description": "Tooltip/label for the edit-user action"
+  },
+
+  "statTotalUsers": "Total Users",
+  "@statTotalUsers": {
+    "description": "Stat card label for total number of users"
+  },
+
+  "statActive": "Active",
+  "@statActive": {
+    "description": "Stat card label for number of active users"
+  },
+
+  "statAgents": "Agents",
+  "@statAgents": {
+    "description": "Stat card label for number of collection agents"
+  },
+
+  "statAdmins": "Admins",
+  "@statAdmins": {
+    "description": "Stat card label for number of admins"
+  },
+
+  "searchByNameOrMobileHint": "Search by name or mobile...",
+  "@searchByNameOrMobileHint": {
+    "description": "Hint text for the user search field"
+  },
+
+  "roleAll": "All Roles",
+  "@roleAll": {
+    "description": "Role filter dropdown option: show users of every role"
+  },
+
+  "roleAdmin": "Admin",
+  "@roleAdmin": {
+    "description": "Role label/dropdown option: admin"
+  },
+
+  "roleCollectionAgent": "Collection Agent",
+  "@roleCollectionAgent": {
+    "description": "Role label/dropdown option: collection agent"
+  },
+
+  "roleCustomer": "Customer",
+  "@roleCustomer": {
+    "description": "Role label/dropdown option: customer"
+  },
+
+  "noUsersFound": "No users found",
+  "@noUsersFound": {
+    "description": "Empty state shown when the filtered user list has no results"
+  },
+
+  "tableColumnUser": "USER",
+  "@tableColumnUser": {
+    "description": "User table column header: name/avatar/email"
+  },
+
+  "tableColumnMobile": "MOBILE",
+  "@tableColumnMobile": {
+    "description": "User table column header: mobile number"
+  },
+
+  "tableColumnRole": "ROLE",
+  "@tableColumnRole": {
+    "description": "User table column header: role"
+  },
+
+  "tableColumnStatus": "STATUS",
+  "@tableColumnStatus": {
+    "description": "User table column header: status"
+  },
+
+  "adminCannotBeEditedTooltip": "Admin accounts cannot be edited",
+  "@adminCannotBeEditedTooltip": {
+    "description": "Tooltip shown on the disabled edit button for admin accounts"
+  },
+
+  "adminCannotBeDeletedTooltip": "Admin accounts cannot be deleted",
+  "@adminCannotBeDeletedTooltip": {
+    "description": "Tooltip shown on the disabled delete button for admin accounts"
+  },
+
+  "removeUserDialogTitle": "Remove user?",
+  "@removeUserDialogTitle": {
+    "description": "Title of the confirmation dialog shown before removing a user"
+  },
+
+  "removeUserDialogMessage": "{name} will be moved to the Recycle Bin and can be restored later.",
+  "@removeUserDialogMessage": {
+    "description": "Confirmation message shown before removing a user",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Priya Sharma"
+      }
+    }
+  },
+
+  "remove": "Remove",
+  "@remove": {
+    "description": "Confirm button label for removing a user"
+  },
+
+  "userCreatedToastTitle": "User created",
+  "@userCreatedToastTitle": {
+    "description": "Toast title shown after a user is successfully created"
+  },
+
+  "userCreatedToastMessage": "{name} was added successfully",
+  "@userCreatedToastMessage": {
+    "description": "Toast message shown after a user is successfully created",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Priya Sharma"
+      }
+    }
+  },
+
+  "couldNotCreateUserToastTitle": "Could not create user",
+  "@couldNotCreateUserToastTitle": {
+    "description": "Toast title shown when creating a user fails"
+  },
+
+  "somethingWentWrong": "Something went wrong",
+  "@somethingWentWrong": {
+    "description": "Generic fallback error message"
+  },
+
+  "userUpdatedToastTitle": "User updated",
+  "@userUpdatedToastTitle": {
+    "description": "Toast title shown after a user is successfully updated"
+  },
+
+  "userUpdatedToastMessage": "{name} was saved",
+  "@userUpdatedToastMessage": {
+    "description": "Toast message shown after a user is successfully updated",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Priya Sharma"
+      }
+    }
+  },
+
+  "couldNotUpdateUserToastTitle": "Could not update user",
+  "@couldNotUpdateUserToastTitle": {
+    "description": "Toast title shown when updating a user fails"
+  },
+
+  "userRemovedToastTitle": "User removed",
+  "@userRemovedToastTitle": {
+    "description": "Toast title shown after a user is successfully deleted"
+  },
+
+  "userRemovedToastMessage": "{name} was deleted",
+  "@userRemovedToastMessage": {
+    "description": "Toast message shown after a user is successfully deleted",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Priya Sharma"
+      }
+    }
+  },
+
+  "couldNotDeleteUserToastTitle": "Could not delete user",
+  "@couldNotDeleteUserToastTitle": {
+    "description": "Toast title shown when deleting a user fails"
+  },
+
+  "failedToLoadUsers": "Failed to load users",
+  "@failedToLoadUsers": {
+    "description": "Inline error message shown when the user list fails to load"
+  },
+
+  "dismissAddUserDialogLabel": "Dismiss Add User Dialog",
+  "@dismissAddUserDialogLabel": {
+    "description": "Accessibility barrier label for the add-user bottom sheet"
+  },
+
+  "dismissEditUserDialogLabel": "Dismiss Edit User Dialog",
+  "@dismissEditUserDialogLabel": {
+    "description": "Accessibility barrier label for the edit-user bottom sheet"
+  },
+
+  "editUserDialogTitle": "Edit User",
+  "@editUserDialogTitle": {
+    "description": "Title of the edit-user bottom sheet"
+  },
+
+  "editPasswordHintNote": "Leave password blank to keep the current password unchanged.",
+  "@editPasswordHintNote": {
+    "description": "Helper note shown in the edit-user dialog about the password field"
+  },
+
+  "addUserBackendNote": "This creates a login account directly on the backend. The user can sign in immediately with the email and password below.",
+  "@addUserBackendNote": {
+    "description": "Helper note shown in the add-user dialog explaining account creation"
+  },
+
+  "fullNameRequiredError": "Full name is required",
+  "@fullNameRequiredError": {
+    "description": "Validation error shown when the full name field is empty"
+  },
+
+  "validEmailRequiredError": "A valid email is required",
+  "@validEmailRequiredError": {
+    "description": "Validation error shown when the email field is empty or invalid"
+  },
+
+  "passwordMinLengthError": "Password must be at least 6 characters",
+  "@passwordMinLengthError": {
+    "description": "Validation error shown when the password is shorter than 6 characters"
+  },
+
+  "fullNameFieldLabel": "FULL NAME *",
+  "@fullNameFieldLabel": {
+    "description": "Label for the full name input field"
+  },
+
+  "fullNameFieldHint": "e.g. Priya Sharma",
+  "@fullNameFieldHint": {
+    "description": "Placeholder text for the full name input field"
+  },
+
+  "emailFieldLabel": "EMAIL *",
+  "@emailFieldLabel": {
+    "description": "Label for the email input field"
+  },
+
+  "emailFieldHint": "e.g. priya@example.com",
+  "@emailFieldHint": {
+    "description": "Placeholder text for the email input field"
+  },
+
+  "newPasswordOptionalLabel": "NEW PASSWORD (OPTIONAL)",
+  "@newPasswordOptionalLabel": {
+    "description": "Label for the password field when editing an existing user"
+  },
+
+  "passwordFieldLabel": "PASSWORD *",
+  "@passwordFieldLabel": {
+    "description": "Label for the password field when creating a new user"
+  },
+
+  "passwordLeaveBlankHint": "Leave blank to keep unchanged",
+  "@passwordLeaveBlankHint": {
+    "description": "Placeholder text for the password field when editing an existing user"
+  },
+
+  "passwordMinCharsHint": "Min 6 characters",
+  "@passwordMinCharsHint": {
+    "description": "Placeholder text for the password field when creating a new user"
+  },
+
+  "mobileFieldLabel": "MOBILE",
+  "@mobileFieldLabel": {
+    "description": "Label for the mobile number input field"
+  },
+
+  "mobileFieldHint": "e.g. +91 98765 43210",
+  "@mobileFieldHint": {
+    "description": "Placeholder text for the mobile number input field"
+  },
+
+  "roleFieldLabel": "ROLE",
+  "@roleFieldLabel": {
+    "description": "Label for the role dropdown field"
+  },
+
+  "statusFieldLabel": "STATUS",
+  "@statusFieldLabel": {
+    "description": "Label for the status dropdown field"
+  },
+
+  "avatarUrlFieldLabel": "AVATAR URL",
+  "@avatarUrlFieldLabel": {
+    "description": "Label for the avatar URL input field"
+  },
+
+  "avatarUrlFieldHint": "https://...",
+  "@avatarUrlFieldHint": {
+    "description": "Placeholder text for the avatar URL input field"
+  },
+
+  "avatarUrlHelperText": "Optional profile image link",
+  "@avatarUrlHelperText": {
+    "description": "Helper text shown under the avatar URL input field"
+  },
+
+  "saveChanges": "Save Changes",
+  "@saveChanges": {
+    "description": "Button label for saving changes to an existing user"
+  },
+
+
+
+  "chitGroupsTitle": "Chit Groups",
+  "@chitGroupsTitle": {
+    "description": "Page title / app bar title for the Chit Groups screen"
+  },
+  "chitGroupsSubtitle": "View and manage chit group collections",
+  "@chitGroupsSubtitle": {
+    "description": "Subtitle shown under the Chit Groups page header"
+  },
+  "createGroupButton": "Create Group",
+  "@createGroupButton": {
+    "description": "Button label to open the create-group form"
+  },
+  "searchHint": "Search by chit fund name or number...",
+  "@searchHint": {
+    "description": "Placeholder text in the chit group search field"
+  },
+  "clearSearchTooltip": "Clear search",
+  "@clearSearchTooltip": {
+    "description": "Tooltip for the button that clears the search field"
+  },
+  "retryButton": "Retry",
+  "@retryButton": {
+    "description": "Generic retry button label shown after a failed load"
+  },
+  "noSearchResultsMessage": "No chit funds match your search.",
+  "@noSearchResultsMessage": {
+    "description": "Empty state when a search query returns no chit groups"
+  },
+  "customerNoGroupMessage": "You have not been added to a chit group yet.",
+  "@customerNoGroupMessage": {
+    "description": "Empty state shown to a customer with no chit group membership"
+  },
+  "noGroupsFoundMessage": "No chit groups found.",
+  "@noGroupsFoundMessage": {
+    "description": "Empty state when there are no chit groups at all"
+  },
+  "membersLabel": "Members",
+  "@membersLabel": {
+    "description": "Label for the members count on a group card"
+  },
+  "durationLabel": "Duration",
+  "@durationLabel": {
+    "description": "Label for the group duration on a group card"
+  },
+  "valueLabel": "Value",
+  "@valueLabel": {
+    "description": "Label for the group value on a group card"
+  },
+  "collectionProgressLabel": "Collection Progress",
+  "@collectionProgressLabel": {
+    "description": "Label above the collection progress bar"
+  },
+  "collectButton": "Collect",
+  "@collectButton": {
+    "description": "Button label to record a collection for a group or member"
+  },
+  "viewPassbookButton": "View Passbook",
+  "@viewPassbookButton": {
+    "description": "Button label for a customer to open their chit passbook"
+  },
+  "groupNumberLabel": "Group No.: {code}",
+  "@groupNumberLabel": {
+    "description": "Group code shown on a chit group card",
+    "placeholders": {
+      "code": {
+        "type": "String",
+        "example": "CG-000123"
+      }
+    }
+  },
+  "durationMonthsShort": "{months} mo",
+  "@durationMonthsShort": {
+    "description": "Short duration value in months, e.g. '30 mo'",
+    "placeholders": {
+      "months": {
+        "type": "int",
+        "example": "30"
+      }
+    }
+  },
+
+  "notAMemberTitle": "Not a member",
+  "@notAMemberTitle": {
+    "description": "Toast title when a customer opens a group they don't belong to"
+  },
+  "notAMemberMessage": "You are not part of this chit group yet.",
+  "@notAMemberMessage": {
+    "description": "Toast message when a customer opens a group they don't belong to"
+  },
+  "failedOpenPassbookTitle": "Failed to open passbook",
+  "@failedOpenPassbookTitle": {
+    "description": "Toast title when opening a customer's passbook fails"
+  },
+  "failedLoadGroupsTitle": "Failed to load chit groups",
+  "@failedLoadGroupsTitle": {
+    "description": "Toast title when the group list fails to load"
+  },
+  "deleteGroupTitle": "Delete Chit Group",
+  "@deleteGroupTitle": {
+    "description": "Title of the confirm dialog for deleting a chit group"
+  },
+  "deleteGroupMessage": "Delete \"{groupName}\"? It will be moved to the Recycle Bin and can be restored later.",
+  "@deleteGroupMessage": {
+    "description": "Body of the confirm dialog for deleting a chit group",
+    "placeholders": {
+      "groupName": {
+        "type": "String",
+        "example": "₹5,000 21-Month Fixed/Variable Scheme"
+      }
+    }
+  },
+  "deleteButton": "Delete",
+  "@deleteButton": {
+    "description": "Confirm button label for a delete action"
+  },
+  "groupDeletedTitle": "Group deleted",
+  "@groupDeletedTitle": {
+    "description": "Toast title after a group is deleted"
+  },
+  "groupRemovedMessage": "{groupName} was removed",
+  "@groupRemovedMessage": {
+    "description": "Toast message after a group is deleted",
+    "placeholders": {
+      "groupName": {
+        "type": "String",
+        "example": "₹5,000 21-Month Fixed/Variable Scheme"
+      }
+    }
+  },
+  "deleteFailedTitle": "Delete failed",
+  "@deleteFailedTitle": {
+    "description": "Toast title when deleting a group fails"
+  },
+
+  "invalidScheduleValuesTitle": "Invalid schedule values",
+  "@invalidScheduleValuesTitle": {
+    "description": "Toast title when override schedule inputs are invalid"
+  },
+  "invalidScheduleValuesMessage": "Enter valid payable and pool amounts.",
+  "@invalidScheduleValuesMessage": {
+    "description": "Toast message when override schedule inputs are invalid"
+  },
+  "scheduleUpdateFailedTitle": "Schedule update failed",
+  "@scheduleUpdateFailedTitle": {
+    "description": "Toast title when saving a schedule override fails"
+  },
+  "overrideDrawTitle": "Override Draw #{installmentNo}",
+  "@overrideDrawTitle": {
+    "description": "Title of the override schedule bottom sheet",
+    "placeholders": {
+      "installmentNo": {
+        "type": "int",
+        "example": "3"
+      }
+    }
+  },
+  "payableAmountLabel": "PAYABLE AMOUNT",
+  "@payableAmountLabel": {
+    "description": "Field label for the payable amount in the override sheet"
+  },
+  "poolDividendValueLabel": "POOL / DIVIDEND VALUE",
+  "@poolDividendValueLabel": {
+    "description": "Field label for the pool / dividend value in the override sheet"
+  },
+  "dueDateLabel": "DUE DATE",
+  "@dueDateLabel": {
+    "description": "Field label for the due date picker"
+  },
+  "notesLabel": "NOTES",
+  "@notesLabel": {
+    "description": "Field label for the notes text field in the override sheet"
+  },
+  "cancelButton": "Cancel",
+  "@cancelButton": {
+    "description": "Generic cancel button label"
+  },
+  "savingButton": "Saving...",
+  "@savingButton": {
+    "description": "Button label while a save operation is in progress"
+  },
+  "saveOverrideButton": "Save Override",
+  "@saveOverrideButton": {
+    "description": "Button label to save a schedule override"
+  },
+
+  "editGroupTitle": "Edit Group",
+  "@editGroupTitle": {
+    "description": "Title of the group form sheet when editing an existing group"
+  },
+  "createGroupSheetTitle": "Create Group",
+  "@createGroupSheetTitle": {
+    "description": "Title of the group form sheet when creating a new group"
+  },
+  "quickSchemePresetsLabel": "Quick Scheme Presets:",
+  "@quickSchemePresetsLabel": {
+    "description": "Label above the row of quick preset chips in the group form"
+  },
+  "groupNameLabel": "GROUP NAME *",
+  "@groupNameLabel": {
+    "description": "Field label for the group name input"
+  },
+  "requiredValidation": "Required",
+  "@requiredValidation": {
+    "description": "Validation error for an empty required field"
+  },
+  "membersFieldLabel": "MEMBERS *",
+  "@membersFieldLabel": {
+    "description": "Field label for the total members input"
+  },
+  "enterNumberValidation": "Enter a number",
+  "@enterNumberValidation": {
+    "description": "Validation error when a numeric field is not a valid number"
+  },
+  "durationFieldLabel": "DURATION (mo) *",
+  "@durationFieldLabel": {
+    "description": "Field label for the group duration in months"
+  },
+  "groupValueLabel": "GROUP VALUE *",
+  "@groupValueLabel": {
+    "description": "Field label for the total group value"
+  },
+  "monthlyContributionLabel": "MONTHLY CONTRIBUTION *",
+  "@monthlyContributionLabel": {
+    "description": "Field label for the monthly contribution amount"
+  },
+  "startDateLabel": "START DATE *",
+  "@startDateLabel": {
+    "description": "Field label for the group start date"
+  },
+  "drawFrequencyLabel": "DRAW FREQUENCY *",
+  "@drawFrequencyLabel": {
+    "description": "Field label for the draw frequency dropdown"
+  },
+  "drawIntervalLabel": "DRAW DAYS / INTERVAL",
+  "@drawIntervalLabel": {
+    "description": "Field label for the draw day interval input"
+  },
+  "drawIntervalHint": "e.g. 7",
+  "@drawIntervalHint": {
+    "description": "Hint text for the draw interval input"
+  },
+  "enterDaysValidation": "Enter days > 0",
+  "@enterDaysValidation": {
+    "description": "Validation error for an invalid custom day interval"
+  },
+  "monthlyIntervalHelp": "Each draw falls on the same day next calendar month.",
+  "@monthlyIntervalHelp": {
+    "description": "Helper text shown for the Monthly draw frequency"
+  },
+  "customIntervalHelp": "Gap in days between one draw and the next.",
+  "@customIntervalHelp": {
+    "description": "Helper text shown for the Custom Day Interval draw frequency"
+  },
+  "fixedIntervalHelp": "Gap in days between draws — fixed by the selected frequency.",
+  "@fixedIntervalHelp": {
+    "description": "Helper text shown for fixed-gap draw frequencies"
+  },
+  "manualDatesHelp": "Set each draw date individually in the schedule list below.",
+  "@manualDatesHelp": {
+    "description": "Helper text shown for the Custom Calendar Days draw frequency"
+  },
+  "statusLabel": "STATUS *",
+  "@statusLabel": {
+    "description": "Field label for the group status dropdown"
+  },
+  "saveChangesButton": "Save Changes",
+  "@saveChangesButton": {
+    "description": "Button label to save changes to an existing group"
+  },
+  "installmentScheduleHeader": "INSTALLMENT SCHEDULE ({count} DRAWS)",
+  "@installmentScheduleHeader": {
+    "description": "Header above the auto-generated installment schedule preview",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "30"
+      }
+    }
+  },
+  "autoGeneratedBadge": "Auto-Generated 1–{count}",
+  "@autoGeneratedBadge": {
+    "description": "Badge indicating how many installments were auto-generated",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "30"
+      }
+    }
+  },
+  "groupCreatedTitle": "Group created",
+  "@groupCreatedTitle": {
+    "description": "Toast title after successfully creating a group"
+  },
+  "groupUpdatedTitle": "Group updated",
+  "@groupUpdatedTitle": {
+    "description": "Toast title after successfully updating a group"
+  },
+  "saveFailedTitle": "Save failed",
+  "@saveFailedTitle": {
+    "description": "Toast title when saving a group fails"
+  },
+  "installmentNumberLabel": "Installment #{number}",
+  "@installmentNumberLabel": {
+    "description": "Chip label showing an installment's number in the schedule editor",
+    "placeholders": {
+      "number": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "payableLabel": "Payable",
+  "@payableLabel": {
+    "description": "Short label for the payable amount in a schedule config card"
+  },
+  "poolDividendValueShortLabel": "Pool / Dividend Value",
+  "@poolDividendValueShortLabel": {
+    "description": "Short label for the pool / dividend value in a schedule config card"
+  },
+
+  "installmentUpdatedTitle": "Installment updated",
+  "@installmentUpdatedTitle": {
+    "description": "Toast title after an installment override is saved"
+  },
+  "drawOverriddenMessage": "Draw #{number} overridden",
+  "@drawOverriddenMessage": {
+    "description": "Toast message after an installment override is saved",
+    "placeholders": {
+      "number": {
+        "type": "int",
+        "example": "3"
+      }
+    }
+  },
+  "removeMemberTitle": "Remove Member",
+  "@removeMemberTitle": {
+    "description": "Title of the confirm dialog for removing a member"
+  },
+  "removeMemberMessage": "Remove \"{memberName}\" from this group?",
+  "@removeMemberMessage": {
+    "description": "Body of the confirm dialog for removing a member",
+    "placeholders": {
+      "memberName": {
+        "type": "String",
+        "example": "Priya Raman"
+      }
+    }
+  },
+  "removeButton": "Remove",
+  "@removeButton": {
+    "description": "Confirm button label for a remove action"
+  },
+  "memberRemovedTitle": "Member removed",
+  "@memberRemovedTitle": {
+    "description": "Toast title after a member is removed"
+  },
+  "removeFailedTitle": "Remove failed",
+  "@removeFailedTitle": {
+    "description": "Toast title when removing a member fails"
+  },
+  "collectionUnavailableTitle": "Collection unavailable",
+  "@collectionUnavailableTitle": {
+    "description": "Toast title when there is no schedule to collect against"
+  },
+  "noScheduleMessage": "No installment schedule exists for this group.",
+  "@noScheduleMessage": {
+    "description": "Toast message when there is no schedule to collect against"
+  },
+  "memberAddedTitle": "Member added",
+  "@memberAddedTitle": {
+    "description": "Toast title after a member is added to a group"
+  },
+  "collectionRecordedTitle": "Collection recorded",
+  "@collectionRecordedTitle": {
+    "description": "Toast title after a collection is saved"
+  },
+  "collectionRecordedMessage": "{memberName} · {amount}",
+  "@collectionRecordedMessage": {
+    "description": "Toast message after a collection is saved",
+    "placeholders": {
+      "memberName": {
+        "type": "String",
+        "example": "Priya Raman"
+      },
+      "amount": {
+        "type": "String",
+        "example": "₹750"
+      }
+    }
+  },
+  "collectionFailedTitle": "Collection failed",
+  "@collectionFailedTitle": {
+    "description": "Toast title when saving a collection fails"
+  },
+
+  "groupNumberShortLabel": "Group No.",
+  "@groupNumberShortLabel": {
+    "description": "Short label for the group code stat in the group details sheet"
+  },
+  "memberCollectionsTab": "Member Collections ({count})",
+  "@memberCollectionsTab": {
+    "description": "Tab label for the member collections list, with member count",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "12"
+      }
+    }
+  },
+  "installmentScheduleTab": "Installment Schedule ({count})",
+  "@installmentScheduleTab": {
+    "description": "Tab label for the installment schedule list, with installment count",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "30"
+      }
+    }
+  },
+  "memberCollectionTrackingTitle": "Member Collection Tracking",
+  "@memberCollectionTrackingTitle": {
+    "description": "Section title above the member collections table"
+  },
+  "addMemberButton": "Add Member",
+  "@addMemberButton": {
+    "description": "Button label to open the add-member form"
+  },
+  "noMembersMessage": "No members yet.",
+  "@noMembersMessage": {
+    "description": "Empty state when a group has no members"
+  },
+  "memberColumnHeader": "MEMBER",
+  "@memberColumnHeader": {
+    "description": "Table column header for member name"
+  },
+  "contributionColumnHeader": "CONTRIBUTION",
+  "@contributionColumnHeader": {
+    "description": "Table column header for contribution amount"
+  },
+  "dueDateColumnHeader": "DUE DATE",
+  "@dueDateColumnHeader": {
+    "description": "Table column header for due date"
+  },
+  "statusColumnHeader": "STATUS",
+  "@statusColumnHeader": {
+    "description": "Table column header for payment status"
+  },
+  "actionColumnHeader": "ACTION",
+  "@actionColumnHeader": {
+    "description": "Table column header for row actions"
+  },
+  "paidStatus": "Paid",
+  "@paidStatus": {
+    "description": "Payment status label: paid"
+  },
+  "partialStatus": "Partial",
+  "@partialStatus": {
+    "description": "Payment status label: partially paid"
+  },
+  "overdueStatus": "Overdue",
+  "@overdueStatus": {
+    "description": "Payment status label: overdue"
+  },
+  "pendingStatus": "Pending",
+  "@pendingStatus": {
+    "description": "Payment status label: pending"
+  },
+  "installmentScheduleSubtitle": "View and manually edit installment dates for draws",
+  "@installmentScheduleSubtitle": {
+    "description": "Subtitle under the installment schedule section title"
+  },
+  "noScheduleFoundMessage": "No installment schedule found.",
+  "@noScheduleFoundMessage": {
+    "description": "Empty state when a group has no installment schedule"
+  },
+  "instNumberColumnHeader": "INST #",
+  "@instNumberColumnHeader": {
+    "description": "Table column header for installment number"
+  },
+  "payableAmountColumnHeader": "PAYABLE AMOUNT",
+  "@payableAmountColumnHeader": {
+    "description": "Table column header for payable amount"
+  },
+  "poolDividendValueColumnHeader": "POOL / DIVIDEND VALUE",
+  "@poolDividendValueColumnHeader": {
+    "description": "Table column header for pool / dividend value"
+  },
+  "dateTypeColumnHeader": "DATE TYPE",
+  "@dateTypeColumnHeader": {
+    "description": "Table column header for whether a date is auto or overridden"
+  },
+  "customOverriddenBadge": "Custom Overridden",
+  "@customOverriddenBadge": {
+    "description": "Badge label for a manually overridden installment date"
+  },
+  "autoScheduledBadge": "Auto-Scheduled",
+  "@autoScheduledBadge": {
+    "description": "Badge label for an automatically generated installment date"
+  },
+  "overrideDateAmountButton": "Override Date & Amount",
+  "@overrideDateAmountButton": {
+    "description": "Button label to open the schedule override sheet"
+  },
+  "viewOnlyLabel": "View only",
+  "@viewOnlyLabel": {
+    "description": "Shown instead of the override action for read-only roles"
+  },
+  "dueDateCardLabel": "Due Date",
+  "@dueDateCardLabel": {
+    "description": "Label in the mobile schedule card for due date"
+  },
+  "payableAmountCardLabel": "Payable Amount",
+  "@payableAmountCardLabel": {
+    "description": "Label in the mobile schedule card for payable amount"
+  },
+  "poolValueCardLabel": "Pool Value",
+  "@poolValueCardLabel": {
+    "description": "Label in the mobile schedule card for pool value"
+  },
+  "overrideButton": "Override",
+  "@overrideButton": {
+    "description": "Short button label to override a schedule row on mobile"
+  },
+
+  "recordChitCollectionTitle": "Record Chit Collection",
+  "@recordChitCollectionTitle": {
+    "description": "Title of the collection entry bottom sheet"
+  },
+  "collectionAmountLabel": "COLLECTION AMOUNT (₹)",
+  "@collectionAmountLabel": {
+    "description": "Field label for the collection amount input"
+  },
+  "paymentMethodLabel": "PAYMENT METHOD",
+  "@paymentMethodLabel": {
+    "description": "Field label for the payment method dropdown"
+  },
+  "collectionDateLabel": "COLLECTION DATE",
+  "@collectionDateLabel": {
+    "description": "Field label for the collection date picker"
+  },
+  "selectMethodHint": "Select method",
+  "@selectMethodHint": {
+    "description": "Hint text for the payment method dropdown"
+  },
+  "dateHint": "Date",
+  "@dateHint": {
+    "description": "Hint text for the collection date field"
+  },
+  "notesOptionalLabel": "NOTES (OPTIONAL)",
+  "@notesOptionalLabel": {
+    "description": "Field label for the optional notes field on a collection"
+  },
+  "receiptNotesHint": "Receipt or transaction ref...",
+  "@receiptNotesHint": {
+    "description": "Hint text for the collection notes field"
+  },
+  "confirmCollectionButton": "Confirm Collection",
+  "@confirmCollectionButton": {
+    "description": "Button label to submit a recorded collection"
+  },
+
+  "addMemberTitle": "Add Member",
+  "@addMemberTitle": {
+    "description": "Title of the add-member bottom sheet"
+  },
+  "customerLabel": "CUSTOMER *",
+  "@customerLabel": {
+    "description": "Field label for the customer selector"
+  },
+  "selectCustomerHint": "Select a customer...",
+  "@selectCustomerHint": {
+    "description": "Hint text for the customer dropdown"
+  },
+  "customerNumberNotAvailable": "{role} · Customer number not available",
+  "@customerNumberNotAvailable": {
+    "description": "Shown under the customer selector when the selected customer has no phone number",
+    "placeholders": {
+      "role": {
+        "type": "String",
+        "example": "CUSTOMER"
+      }
+    }
+  },
+  "customerRolePhone": "{role} · {phone}",
+  "@customerRolePhone": {
+    "description": "Shown under the customer selector with the selected customer's role and phone",
+    "placeholders": {
+      "role": {
+        "type": "String",
+        "example": "CUSTOMER"
+      },
+      "phone": {
+        "type": "String",
+        "example": "+91 98765 43210"
+      }
+    }
+  },
+  "contributionAmountLabel": "CONTRIBUTION AMOUNT",
+  "@contributionAmountLabel": {
+    "description": "Field label for the new member's contribution amount"
+  },
+  "enterValidNumberValidation": "Enter a valid number",
+  "@enterValidNumberValidation": {
+    "description": "Validation error for an invalid numeric field"
+  },
+  "defaultsToAmount": "Defaults to {amount}",
+  "@defaultsToAmount": {
+    "description": "Helper text showing the default contribution amount",
+    "placeholders": {
+      "amount": {
+        "type": "String",
+        "example": "₹750"
+      }
+    }
+  },
+  "selectCustomerTitle": "Select a customer",
+  "@selectCustomerTitle": {
+    "description": "Toast title when no customer is selected before saving"
+  },
+  "selectCustomerMessage": "Choose a customer to add to this group.",
+  "@selectCustomerMessage": {
+    "description": "Toast message when no customer is selected before saving"
+  },
+  "addMemberFailedTitle": "Add member failed",
+  "@addMemberFailedTitle": {
+    "description": "Toast title when adding a member fails"
+  }
 }

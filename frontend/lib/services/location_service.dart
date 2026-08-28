@@ -49,7 +49,9 @@ class LocationService {
   Future<LocationResult> getCurrentPosition() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      throw LocationServiceException('Location services are disabled');
+      await Geolocator.openLocationSettings();
+      throw LocationServiceException(
+          'Location services are disabled. Enable location services, then try again.');
     }
 
     LocationPermission permission = await Geolocator.checkPermission();

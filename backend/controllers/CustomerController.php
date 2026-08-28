@@ -78,10 +78,10 @@ class CustomerController extends Controller
         $wantsLogin = $email !== '' || $password !== '';
 
         // Validate credentials up front so we never create a half-linked record.
+        // The password is what creates the login; the email is optional, because
+        // sign-in accepts a mobile number just as well as an email address.
         if ($wantsLogin) {
-            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) json_error('A valid email is required for login', 400);
-            if (strlen($password) < 6) json_error('Password must be at least 6 characters', 400);
-            if (Profile::emailTaken($email)) json_error('That email is already registered', 409);
+            $this->assertLoginCredentials($email, $password, $data['mobile'] ?? null, null);
         }
 
         $inputCode = self::clean($b['customer_id'] ?? null);
@@ -141,10 +141,7 @@ class CustomerController extends Controller
             if (array_key_exists('mobile', $b))    $set['mobile'] = $data['mobile'];
             if ($set) Profile::updateWhere($set, ' WHERE id = ?', [$login['id']]);
         } elseif ($email !== '' || $password !== '') {
-            // No login yet — create one (needs both).
-            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) json_error('A valid email is required to create a login', 400);
-            if (strlen($password) < 6) json_error('Password must be at least 6 characters', 400);
-            if (Profile::emailTaken($email)) json_error('That email is already registered', 409);
+            $this->assertLoginCredentials($email, $password, $data['mobile'] ?? ($existingCustomer['mobile'] ?? null), null);
             $this->createLogin($id, $email, $password, $data, $existingCustomer['customer_id'] ?? null);
         }
 
@@ -152,10 +149,46 @@ class CustomerController extends Controller
         json_out($customer);
     }
 
-    private function createLogin(string $customerId, string $email, string $password, array $data, ?string $userCode = null): void
+    /**
+     * Credentials for a customer portal login.
+     *
+     * Sign-in resolves either an email or a mobile number, so an email is
+     * optional — but then the mobile becomes the only way in, and it has to be
+     * present and unambiguous. Two logins sharing a mobile would make sign-in
+     * pick one of them arbitrarily.
+     */
+    private function assertLoginCredentials(string $email, string $password, ?string $mobile, ?string $exceptProfileId): void
+    {
+        if (strlen($password) < 6) {
+            json_error('Password must be at least 6 characters', 400);
+        }
+
+        if ($email !== '') {
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                json_error('Enter a valid email address, or leave it blank to sign in with the mobile number', 400);
+            }
+            if (Profile::emailTaken($email, $exceptProfileId)) {
+                json_error('That email is already registered', 409);
+            }
+            return;
+        }
+
+        $digits = preg_replace('/\D+/', '', (string)$mobile);
+        if (strlen($digits) < 10) {
+            json_error('Without an email, a 10-digit mobile number is required to sign in', 400);
+        }
+        if (Profile::mobileTaken($digits, $exceptProfileId)) {
+            json_error('That mobile number already has a login. Use a different number or set an email.', 409);
+        }
+    }
+
+    private function createLogin(string $customerId, ?string $email, string $password, array $data, ?string $userCode = null): void
     {
         Profile::insertRows([[
-            'email'         => $email,
+            // NULL, not '': the column is UNIQUE, and MySQL allows many NULLs
+            // but only one ''. Empty strings would collide on the second
+            // mobile-only login.
+            'email'         => ($email !== null && $email !== '') ? $email : null,
             'password_hash' => password_hash($password, PASSWORD_BCRYPT),
             'full_name'     => $data['full_name'],
             'mobile'        => $data['mobile'] ?? null,

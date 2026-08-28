@@ -30,8 +30,7 @@ class ChitMember {
     return ChitMember(
       id: '${json['id']}',
       groupId: '${json['group_id']}',
-      customerId:
-          json['customer_id'] == null ? null : '${json['customer_id']}',
+      customerId: json['customer_id'] == null ? null : '${json['customer_id']}',
       memberName:
           (json['member_name'] ?? json['customer_name'] ?? '').toString(),
       // `phone` is not a chit_members column — kept in case the backend
@@ -57,6 +56,19 @@ class ChitMember {
         'due_date': dueDate!.toIso8601String().split('T').first,
       'payment_status': statusToString(status),
     };
+  }
+
+  ChitMember copyWith({String? phone}) {
+    return ChitMember(
+      id: id,
+      groupId: groupId,
+      customerId: customerId,
+      memberName: memberName,
+      phone: phone ?? this.phone,
+      contributionAmount: contributionAmount,
+      dueDate: dueDate,
+      status: status,
+    );
   }
 
   static ChitPaymentStatus _statusFromString(dynamic v) {
@@ -86,24 +98,33 @@ class ChitMember {
   }
 }
 
-/// Lightweight customer entry for the Add Member dropdown.
-/// ASSUMPTION: a `customers` REST resource exists on the same rest.php
-/// router (`?table=customers`). Adjust `fromJson` keys / the table name
-/// in ChitGroupApiService.fetchCustomers() if yours differs.
+/// Customer profile shown in the Add Member dropdown.
 class ChitCustomerOption {
-  ChitCustomerOption({required this.id, required this.name, this.phone});
+  ChitCustomerOption({
+    required this.id,
+    required this.name,
+    required this.role,
+    this.phone,
+  });
 
   final String id;
   final String name;
+  final String role;
   final String? phone;
+
+  String get displayLabel =>
+      phone == null || phone!.trim().isEmpty ? name : '$name — $phone';
 
   factory ChitCustomerOption.fromJson(Map<String, dynamic> json) {
     return ChitCustomerOption(
-      id: '${json['id']}',
+      // Chit members use the linked customer row id. Fall back to the profile
+      // id when an older profile does not have a customer_id yet.
+      id: '${json['customer_id'] ?? json['id']}',
       name: (json['full_name'] ?? json['name'] ?? json['customer_name'] ?? '')
           .toString(),
-      phone: (json['phone'] ?? json['mobile'] ?? json['phone_number'])
-          ?.toString(),
+      role: (json['role'] ?? 'customer').toString(),
+      phone:
+          (json['phone'] ?? json['mobile'] ?? json['phone_number'])?.toString(),
     );
   }
 }
