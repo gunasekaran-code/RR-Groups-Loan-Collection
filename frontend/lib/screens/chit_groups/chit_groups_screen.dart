@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../routes/app_routes.dart';
@@ -10,12 +12,53 @@ import '../../models/chit_group.dart';
 import '../../models/chit_member.dart';
 import '../../models/user_role.dart';
 import '../../services/chit_group_api_service.dart';
-import '../../services/collection_api_service.dart';
 import '../../services/session_service.dart';
 import 'chit_passbook_screen.dart';
 import 'package:intl/intl.dart';
 import '../../models/chit_schedule.dart';
 import '../../l10n/generated/app_localizations.dart';
+
+// Shared paid/partial/overdue/pending pill styling — used by the Member
+// Collections table row and the Installment Schedule's payment status
+// column alike, so both pills agree on label and color.
+String _paymentStatusLabel(ChitPaymentStatus status, AppLocalizations l10n) {
+  switch (status) {
+    case ChitPaymentStatus.paid:
+      return l10n.paidStatus;
+    case ChitPaymentStatus.partial:
+      return l10n.partialStatus;
+    case ChitPaymentStatus.overdue:
+      return l10n.overdueStatus;
+    case ChitPaymentStatus.pending:
+      return l10n.pendingStatus;
+  }
+}
+
+Color _paymentStatusBackground(ChitPaymentStatus status) {
+  switch (status) {
+    case ChitPaymentStatus.paid:
+      return const Color(0xFFD1FAE5);
+    case ChitPaymentStatus.partial:
+      return const Color(0xFFDBEAFE);
+    case ChitPaymentStatus.overdue:
+      return const Color(0xFFFEE2E2);
+    case ChitPaymentStatus.pending:
+      return const Color(0xFFFEF3C7);
+  }
+}
+
+Color _paymentStatusForeground(ChitPaymentStatus status) {
+  switch (status) {
+    case ChitPaymentStatus.paid:
+      return const Color(0xFF059669);
+    case ChitPaymentStatus.partial:
+      return const Color(0xFF2563EB);
+    case ChitPaymentStatus.overdue:
+      return AppColors.kDanger;
+    case ChitPaymentStatus.pending:
+      return const Color(0xFFD97706);
+  }
+}
 
 class _OverrideScheduleSheet extends StatefulWidget {
   const _OverrideScheduleSheet({required this.schedule});
@@ -655,16 +698,18 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
     );
   }
 
-  Widget _buildGroupCard(ChitGroup group) {
+Widget _buildGroupCard(ChitGroup group) {
     final l10n = AppLocalizations.of(context);
+    
     return GestureDetector(
       onTap: () => _openGroupDetails(group),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(20),
+        margin: const EdgeInsets.only(bottom: 16), // Outer spacing between cards
+        // 1. Asymmetric outer padding gives better bottom weight for the action buttons
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24), 
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(24), // Smoother, modern corners
+          borderRadius: BorderRadius.circular(24), 
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.04),
@@ -677,6 +722,7 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // --- HEADER SECTION ---
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -684,22 +730,29 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(group.name,
-                          style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.5,
-                              color: AppColors.kTextDark)),
-                      const SizedBox(height: 4),
-                      Text(l10n.groupNumberLabel(group.code),
-                          style: const TextStyle(
-                              color: AppColors.kTextMuted, fontSize: 13)),
+                      Text(
+                        group.name,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                          color: AppColors.kTextDark,
+                        ),
+                      ),
+                      const SizedBox(height: 4), // Tight spacing for related text
+                      Text(
+                        l10n.groupNumberLabel(group.code),
+                        style: const TextStyle(
+                          color: AppColors.kTextMuted, 
+                          fontSize: 13,
+                        ),
+                      ),
                     ],
                   ),
                 ),
+                // 2. Refined status pill padding to prevent it from looking overly bulky
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: group.status == ChitGroupStatus.active
                         ? AppColors.kSuccess.withOpacity(0.1)
@@ -714,17 +767,22 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
                           : AppColors.kTextMuted,
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5, // Added slight letter spacing for all-caps
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            
+            const SizedBox(height: 24), // 3. Increased section break spacing
+
+            // --- INFO STATS SECTION ---
             Container(
-              padding: const EdgeInsets.all(12),
+              // 4. Wider horizontal padding inside the info box to balance the row
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
                 color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16), // Softened slightly to match outer radius
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -741,23 +799,31 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
+            
+            const SizedBox(height: 24), // Increased section break spacing
+
+            // --- PROGRESS SECTION ---
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(l10n.collectionProgressLabel,
-                    style: const TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.w600)),
+                Text(
+                  l10n.collectionProgressLabel,
+                  style: const TextStyle(
+                    fontSize: 12, 
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 Text(
                   '${group.collectedPercent.toStringAsFixed(1)}%',
                   style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.kGold),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.kGold,
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10), // 5. Slightly larger gap to let the bar breathe
             ClipRRect(
               borderRadius: BorderRadius.circular(999),
               child: LinearProgressIndicator(
@@ -767,10 +833,14 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
                 valueColor: const AlwaysStoppedAnimation(AppColors.kGold),
               ),
             ),
-            const SizedBox(height: 20),
+            
+            const SizedBox(height: 24), // Section break to buttons
+
+            // --- ACTION BUTTONS SECTION ---
             Wrap(
-              spacing: 12,
-              runSpacing: 12,
+              spacing: 12, // Horizontal space between buttons
+              runSpacing: 12, // Vertical space if they wrap
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 if (_isAdmin || _isAgent)
                   ElevatedButton.icon(
@@ -779,14 +849,21 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
                       backgroundColor: AppColors.kGold,
                       foregroundColor: Colors.white,
                       elevation: 0,
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 14, horizontal: 20),
+                      // 6. Reduced vertical padding slightly for a sleeker button profile
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
-                    icon: const Icon(Icons.currency_rupee, size: 18),
-                    label: Text(l10n.collectButton,
-                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                    icon: Icon(
+                        _isAdmin
+                            ? Icons.visibility_outlined
+                            : Icons.currency_rupee,
+                        size: 18),
+                    label: Text(
+                      _isAdmin ? l10n.viewDetailsButton : l10n.collectButton,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
                   ),
                 if (_isCustomer)
                   ElevatedButton.icon(
@@ -795,27 +872,32 @@ class _ChitGroupsScreenState extends State<ChitGroupsScreen> {
                       backgroundColor: AppColors.kGold,
                       foregroundColor: Colors.white,
                       elevation: 0,
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 14, horizontal: 20),
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
                     icon: const Icon(Icons.menu_book_rounded, size: 18),
-                    label: Text(l10n.viewPassbookButton),
+                    label: Text(
+                      l10n.viewPassbookButton,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
                   ),
                 if (_isAdmin) ...[
                   IconButton(
                     style: IconButton.styleFrom(
-                        backgroundColor: const Color(0xFFF1F5F9)),
-                    icon: const Icon(Icons.edit,
-                        color: AppColors.kTextDark, size: 20),
+                      backgroundColor: const Color(0xFFF1F5F9),
+                      padding: const EdgeInsets.all(12), // Explicit icon padding
+                    ),
+                    icon: const Icon(Icons.edit, color: AppColors.kTextDark, size: 20),
                     onPressed: () => _showEditGroupModal(group),
                   ),
                   IconButton(
                     style: IconButton.styleFrom(
-                        backgroundColor: const Color(0xFFFEF2F2)),
-                    icon: const Icon(Icons.delete_outline,
-                        color: AppColors.kDanger, size: 20),
+                      backgroundColor: const Color(0xFFFEF2F2),
+                      padding: const EdgeInsets.all(12),
+                    ),
+                    icon: const Icon(Icons.delete_outline, color: AppColors.kDanger, size: 20),
                     onPressed: () => _confirmDeleteGroup(group),
                   ),
                 ],
@@ -1121,24 +1203,41 @@ class _GroupFormSheetState extends State<_GroupFormSheet> {
           ? await ChitGroupApiService.create(group)
           : await ChitGroupApiService.update(group);
 
-      if (widget.group != null) {
-        try {
-          await ChitGroupApiService.deleteSchedulesForGroup(result.id);
-        } catch (_) {}
-      }
+      // The draw sheet — and every member's chit_passbook derived from it —
+      // is rebuilt on the server from the group's own stored fields (scheme,
+      // duration, contribution, start date), the same rules that auto-build
+      // the sheet when a group is first created. The app used to compute the
+      // schedule itself and insert it directly into chit_schedules, which
+      // collided with the sheet the server had already auto-generated for a
+      // brand-new group and left member passbooks out of step with it.
+      try {
+        await ChitGroupApiService.regenerateSchedule(result.id);
+      } catch (_) {}
 
-      if (_scheduleConfigs.isNotEmpty) {
-        final scheduleRows = _scheduleConfigs.map((cfg) {
-          return {
-            'group_id': result.id,
-            'installment_no': cfg.installmentNo,
-            'due_date': cfg.dueDate.toIso8601String().split('T').first,
-            'payable_amount': cfg.payableAmount,
-            'pool_amount': cfg.poolAmount,
-            'is_custom': cfg.isCustomDate ? 1 : 0,
-          };
-        }).toList();
-        await ChitGroupApiService.saveSchedules(scheduleRows);
+      // A due date the admin hand-picked in the preview above still wins —
+      // reapply it as an override on top of the regenerated sheet.
+      final customConfigs =
+          _scheduleConfigs.where((cfg) => cfg.isCustomDate).toList();
+      if (customConfigs.isNotEmpty) {
+        try {
+          final rebuilt = await ChitGroupApiService.fetchSchedules(result.id);
+          for (final cfg in customConfigs) {
+            ChitSchedule? match;
+            for (final s in rebuilt) {
+              if (s.installmentNo == cfg.installmentNo) {
+                match = s;
+                break;
+              }
+            }
+            if (match == null) continue;
+            await ChitGroupApiService.overrideSchedule(
+              scheduleId: match.id,
+              dueDate: cfg.dueDate,
+              payableAmount: cfg.payableAmount,
+              poolAmount: cfg.poolAmount,
+            );
+          }
+        } catch (_) {}
       }
 
       if (!mounted) return;
@@ -1765,6 +1864,7 @@ class _GroupDetailsFrameState extends State<_GroupDetailsFrame> {
 
   int _activeTab = 0; // 0 = Member Collections, 1 = Installment Schedule
   List<ChitSchedule> _schedules = [];
+  Map<int, ChitScheduleStatusSummary> _scheduleStatus = {};
   bool _loadingSchedules = false;
   String? _scheduleLoadError;
 
@@ -1793,10 +1893,20 @@ class _GroupDetailsFrameState extends State<_GroupDetailsFrame> {
       _scheduleLoadError = null;
     });
     try {
-      final schedules = await ChitGroupApiService.fetchSchedules(_group.id);
+      // Kicked off together: the draw sheet itself, and the per-draw
+      // payment status folded from every member's chit_passbook row. The
+      // status summary is supplementary — if it fails, the schedule still
+      // renders, just without the payment status column filled in.
+      final schedulesFuture = ChitGroupApiService.fetchSchedules(_group.id);
+      final statusFuture = ChitGroupApiService
+          .fetchScheduleStatusSummary(_group.id)
+          .catchError((_) => <int, ChitScheduleStatusSummary>{});
+      final schedules = await schedulesFuture;
+      final status = await statusFuture;
       if (!mounted) return;
       setState(() {
         _schedules = schedules;
+        _scheduleStatus = status;
         _loadingSchedules = false;
       });
     } catch (e) {
@@ -1943,53 +2053,55 @@ class _GroupDetailsFrameState extends State<_GroupDetailsFrame> {
   Future<void> _saveCollection(ChitMember member, ChitSchedule draw,
       double amount, String method, DateTime date, String? notes) async {
     try {
-      await CollectionApiService.createCollection({
-        'receipt_number': 'CHIT-${DateTime.now().millisecondsSinceEpoch}',
-        'customer_id': member.customerId,
-        'customer_name': member.memberName,
-        'loan_number': _group.code,
-        'collection_amount': amount,
-        'payment_method': method,
-        'collection_date': DateFormat('yyyy-MM-dd').format(date),
-        'notes': 'Chit group: ${_group.id}; Draw #${draw.installmentNo}'
-            '${notes == null || notes.trim().isEmpty ? '' : '; ${notes.trim()}'}',
-        'agent_id': SessionService.instance.currentUser?.userId,
-        'agent_name': SessionService.instance.currentUser?.name,
-      });
-
-      final updatedMember = await ChitGroupApiService.collectFromMember(
-        memberId: member.id,
-        status: amount >= draw.payableAmount
-            ? ChitPaymentStatus.paid
-            : ChitPaymentStatus.partial,
-      );
-
-      final updatedGroup = await ChitGroupApiService.recordCollection(
+      // One call to the server: it writes the cash-book receipt and the
+      // chit_payments row in a transaction, then derives the member's
+      // passbook status (paid/partial/overdue/pending) and the group's
+      // running totals from what was actually stored, instead of this
+      // screen guessing a flat paid/partial status and patching the group
+      // totals by hand.
+      final result = await ChitGroupApiService.collectContribution(
         groupId: _group.id,
-        collectedAmount: _group.collectedAmount + amount,
-        pendingAmount: (_group.groupValue - _group.collectedAmount - amount)
-            .clamp(0, _group.groupValue)
-            .toDouble(),
-        status: _group.groupValue <= _group.collectedAmount + amount
-            ? 'closed'
-            : 'active',
+        memberId: member.id,
+        amount: amount,
+        paymentMethod: method,
+        paymentDate: date,
+        notes: notes,
       );
 
+      final wasFullyCollected = _group.isFullyCollected;
       if (!mounted) return;
       setState(() {
-        _group = updatedGroup;
+        _group = result.group;
         final memberIndex = _members.indexWhere((item) => item.id == member.id);
-        if (memberIndex != -1) _members[memberIndex] = updatedMember;
+        if (memberIndex != -1) _members[memberIndex] = result.member;
         _changed = true;
       });
       if (!mounted) return;
       final l10n = AppLocalizations.of(context);
-      ToastService.show(
-        title: l10n.collectionRecordedTitle,
-        message: l10n.collectionRecordedMessage(
-            member.memberName, formatIndianCurrency(amount)),
-        type: ToastType.success,
-      );
+      // Once this collection has brought the group's total up to (or past)
+      // its required group value, the running-total toast is replaced with
+      // a one-time "fully collected" toast — the Collect button for every
+      // member is disabled from this point on (see _buildTableRow).
+      if (!wasFullyCollected && _group.isFullyCollected) {
+        ToastService.show(
+          title: l10n.collectionCompleteTitle,
+          message: l10n.collectionCompleteMessage,
+          type: ToastType.success,
+        );
+      } else {
+        ToastService.show(
+          title: l10n.collectionRecordedTitle,
+          message: l10n.collectionRecordedMessage(
+              member.memberName, formatIndianCurrency(amount)),
+          type: ToastType.success,
+        );
+      }
+
+      // The draw just paid against changes that draw's payment status (and
+      // possibly others, for a lump-sum payment) on the Installment Schedule
+      // tab. Reload it now so it's showing current data the moment the user
+      // switches tabs, rather than whatever was last fetched.
+      unawaited(_loadSchedules());
     } catch (e) {
       if (!mounted) return;
       ToastService.show(
@@ -2313,45 +2425,6 @@ class _GroupDetailsFrameState extends State<_GroupDetailsFrame> {
     );
   }
 
-  String _paymentStatusLabel(ChitPaymentStatus status, AppLocalizations l10n) {
-    switch (status) {
-      case ChitPaymentStatus.paid:
-        return l10n.paidStatus;
-      case ChitPaymentStatus.partial:
-        return l10n.partialStatus;
-      case ChitPaymentStatus.overdue:
-        return l10n.overdueStatus;
-      case ChitPaymentStatus.pending:
-        return l10n.pendingStatus;
-    }
-  }
-
-  Color _paymentStatusBackground(ChitPaymentStatus status) {
-    switch (status) {
-      case ChitPaymentStatus.paid:
-        return const Color(0xFFD1FAE5);
-      case ChitPaymentStatus.partial:
-        return const Color(0xFFDBEAFE);
-      case ChitPaymentStatus.overdue:
-        return const Color(0xFFFEE2E2);
-      case ChitPaymentStatus.pending:
-        return const Color(0xFFFEF3C7);
-    }
-  }
-
-  Color _paymentStatusForeground(ChitPaymentStatus status) {
-    switch (status) {
-      case ChitPaymentStatus.paid:
-        return const Color(0xFF059669);
-      case ChitPaymentStatus.partial:
-        return const Color(0xFF2563EB);
-      case ChitPaymentStatus.overdue:
-        return AppColors.kDanger;
-      case ChitPaymentStatus.pending:
-        return const Color(0xFFD97706);
-    }
-  }
-
   // Helper replacing the old _MemberRow to match the table format.
   Widget _buildTableRow(ChitMember member, AppLocalizations l10n) {
     return Container(
@@ -2443,9 +2516,12 @@ class _GroupDetailsFrameState extends State<_GroupDetailsFrame> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton.icon(
-                  onPressed: member.status == ChitPaymentStatus.paid
-                      ? null
-                      : () => _collect(member),
+                  // Only the group's overall progress gates this button — a
+                  // member being individually marked "paid" for their latest
+                  // draw doesn't stop future collections against them, only
+                  // the group hitting its full required amount does.
+                  onPressed:
+                      _group.isFullyCollected ? null : () => _collect(member),
                   style: TextButton.styleFrom(
                     foregroundColor:
                         const Color(0xFF059669), // Green matching the image
@@ -2529,6 +2605,7 @@ class _GroupDetailsFrameState extends State<_GroupDetailsFrame> {
         else
           _ScheduleTable(
             schedules: _schedules,
+            statusByDraw: _scheduleStatus,
             canOverride: _canManageSchedule,
             onOverride: _openOverrideDialog,
           ),
@@ -3003,38 +3080,34 @@ const _scheduleHeaderStyle = TextStyle(
 class _ScheduleTable extends StatelessWidget {
   const _ScheduleTable({
     required this.schedules,
+    required this.statusByDraw,
     required this.canOverride,
     required this.onOverride,
   });
 
   final List<ChitSchedule> schedules;
+  final Map<int, ChitScheduleStatusSummary> statusByDraw;
   final bool canOverride;
   final ValueChanged<ChitSchedule> onOverride;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // Always a table — narrow screens scroll it horizontally instead of
+    // falling back to stacked cards, matching the office's paper draw sheet.
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isMobile = constraints.maxWidth < 600;
-        if (isMobile) {
-          return Column(
-            children: schedules
-                .map((s) => _MobileScheduleCard(
-                      schedule: s,
-                      canOverride: canOverride,
-                      onOverride: () => onOverride(s),
-                    ))
-                .toList(),
-          );
-        }
-
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: ConstrainedBox(
-            constraints: BoxConstraints(
-                minWidth:
-                    constraints.maxWidth > 680 ? constraints.maxWidth : 680),
+            // tightFor, not minWidth alone: a minWidth-only BoxConstraints
+            // leaves maxWidth at infinity, which the header/data Rows below
+            // (Expanded cells) can't lay out against — "RenderFlex children
+            // have non-zero flex but incoming width constraints are
+            // unbounded", and the whole table silently fails to paint.
+            constraints: BoxConstraints.tightFor(
+                width:
+                    constraints.maxWidth > 820 ? constraints.maxWidth : 820),
             child: Container(
               decoration: BoxDecoration(
                 border: Border.all(color: AppColors.kBorder),
@@ -3070,6 +3143,10 @@ class _ScheduleTable extends StatelessWidget {
                                 style: _scheduleHeaderStyle)),
                         Expanded(
                             flex: 2,
+                            child: Text(l10n.paymentStatusColumnHeader,
+                                style: _scheduleHeaderStyle)),
+                        Expanded(
+                            flex: 2,
                             child: Text(l10n.dateTypeColumnHeader,
                                 style: _scheduleHeaderStyle)),
                         Expanded(
@@ -3081,6 +3158,7 @@ class _ScheduleTable extends StatelessWidget {
                   ),
                   ...schedules.map((s) => _ScheduleRow(
                         schedule: s,
+                        summary: statusByDraw[s.installmentNo],
                         canOverride: canOverride,
                         onOverride: () => onOverride(s),
                       )),
@@ -3094,148 +3172,16 @@ class _ScheduleTable extends StatelessWidget {
   }
 }
 
-class _MobileScheduleCard extends StatelessWidget {
-  const _MobileScheduleCard({
-    required this.schedule,
-    required this.canOverride,
-    required this.onOverride,
-  });
-
-  final ChitSchedule schedule;
-  final bool canOverride;
-  final VoidCallback onOverride;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final isCustom = schedule.dateType == ChitScheduleDateType.customOverridden;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: AppColors.kBorder),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                l10n.installmentNumberLabel(schedule.installmentNo),
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                  color: AppColors.kTextDark,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isCustom
-                      ? const Color(0xFFEDE9FE)
-                      : const Color(0xFFDCFCE7),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  isCustom
-                      ? l10n.customOverriddenBadge
-                      : l10n.autoScheduledBadge,
-                  style: TextStyle(
-                    color:
-                        isCustom ? const Color(0xFF7C3AED) : AppColors.kSuccess,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(l10n.dueDateCardLabel,
-                        style: const TextStyle(
-                            fontSize: 11, color: AppColors.kTextMuted)),
-                    const SizedBox(height: 2),
-                    Text(
-                      formatDate(schedule.dueDate),
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w600, fontSize: 13),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(l10n.payableAmountCardLabel,
-                        style: const TextStyle(
-                            fontSize: 11, color: AppColors.kTextMuted)),
-                    const SizedBox(height: 2),
-                    Text(
-                      formatIndianCurrency(schedule.payableAmount),
-                      style: const TextStyle(
-                          color: AppColors.kSuccess,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(l10n.poolValueCardLabel,
-                        style: const TextStyle(
-                            fontSize: 11, color: AppColors.kTextMuted)),
-                    const SizedBox(height: 2),
-                    Text(
-                      formatIndianCurrency(schedule.poolAmount),
-                      style: const TextStyle(
-                          color: Color(0xFF4C1D95),
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13),
-                    ),
-                  ],
-                ),
-              ),
-              if (canOverride)
-                TextButton.icon(
-                  onPressed: onOverride,
-                  icon: const Icon(Icons.edit_calendar_outlined, size: 14),
-                  label: Text(l10n.overrideButton,
-                      style: const TextStyle(fontSize: 12)),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ScheduleRow extends StatelessWidget {
   const _ScheduleRow({
     required this.schedule,
+    required this.summary,
     required this.canOverride,
     required this.onOverride,
   });
 
   final ChitSchedule schedule;
+  final ChitScheduleStatusSummary? summary;
   final bool canOverride;
   final VoidCallback onOverride;
 
@@ -3272,6 +3218,48 @@ class _ScheduleRow extends StatelessWidget {
             child: Text(formatIndianCurrency(schedule.poolAmount),
                 style: const TextStyle(
                     color: Color(0xFF4C1D95), fontWeight: FontWeight.w600)),
+          ),
+          Expanded(
+            flex: 2,
+            child: summary == null
+                ? Text(l10n.viewOnlyLabel,
+                    style: const TextStyle(
+                        color: AppColors.kTextMuted, fontSize: 12))
+                : Align(
+                    alignment: Alignment.centerLeft,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: _paymentStatusBackground(summary!.status),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            _paymentStatusLabel(summary!.status, l10n),
+                            style: TextStyle(
+                              color: _paymentStatusForeground(summary!.status),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          l10n.scheduleMembersPaidLabel(
+                            summary!.paidMembers,
+                            summary!.totalMembers,
+                            formatIndianCurrency(summary!.paidAmount),
+                          ),
+                          style: const TextStyle(
+                              fontSize: 11, color: AppColors.kTextMuted),
+                        ),
+                      ],
+                    ),
+                  ),
           ),
           Expanded(
             flex: 2,

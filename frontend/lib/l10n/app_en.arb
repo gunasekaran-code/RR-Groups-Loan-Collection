@@ -2417,6 +2417,10 @@
   "@viewPassbookButton": {
     "description": "Button label for a customer to open their chit passbook"
   },
+  "viewDetailsButton": "View Details",
+  "@viewDetailsButton": {
+    "description": "Button label for an admin to open a group's details"
+  },
   "groupNumberLabel": "Group No.: {code}",
   "@groupNumberLabel": {
     "description": "Group code shown on a chit group card",
@@ -2751,6 +2755,14 @@
   "@collectionFailedTitle": {
     "description": "Toast title when saving a collection fails"
   },
+  "collectionCompleteTitle": "Collection complete",
+  "@collectionCompleteTitle": {
+    "description": "Toast title shown once a chit group's required amount has been fully collected"
+  },
+  "collectionCompleteMessage": "You have collected the required amount.",
+  "@collectionCompleteMessage": {
+    "description": "Toast message shown once a chit group's required amount has been fully collected"
+  },
 
   "groupNumberShortLabel": "Group No.",
   "@groupNumberShortLabel": {
@@ -2843,6 +2855,28 @@
   "poolDividendValueColumnHeader": "POOL / DIVIDEND VALUE",
   "@poolDividendValueColumnHeader": {
     "description": "Table column header for pool / dividend value"
+  },
+  "paymentStatusColumnHeader": "PAYMENT STATUS",
+  "@paymentStatusColumnHeader": {
+    "description": "Table column header for a schedule row's aggregate payment status across the group's members"
+  },
+  "scheduleMembersPaidLabel": "{paid}/{total} members · {amount}",
+  "@scheduleMembersPaidLabel": {
+    "description": "Subtext under a schedule row's payment status pill: how many of the group's members have paid this draw, and how much has been collected",
+    "placeholders": {
+      "paid": {
+        "type": "int",
+        "example": "1"
+      },
+      "total": {
+        "type": "int",
+        "example": "1"
+      },
+      "amount": {
+        "type": "String",
+        "example": "₹1,420"
+      }
+    }
   },
   "dateTypeColumnHeader": "DATE TYPE",
   "@dateTypeColumnHeader": {

@@ -1,4 +1,27 @@
+import 'chit_member.dart' show ChitPaymentStatus;
+
 enum ChitScheduleDateType { autoScheduled, customOverridden }
+
+/// One draw's payment position across the whole group — folded from every
+/// member's `chit_passbook` row for that installment number, rather than a
+/// single member's. Backs the "PAYMENT STATUS" column on the admin's
+/// Installment Schedule tab (as opposed to a member's own passbook, which
+/// only ever shows their own single status).
+class ChitScheduleStatusSummary {
+  ChitScheduleStatusSummary({
+    required this.installmentNo,
+    required this.paidMembers,
+    required this.totalMembers,
+    required this.paidAmount,
+    required this.status,
+  });
+
+  final int installmentNo;
+  final int paidMembers;
+  final int totalMembers;
+  final double paidAmount;
+  final ChitPaymentStatus status;
+}
 
 class ChitSchedule {
   ChitSchedule({

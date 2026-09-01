@@ -80,7 +80,7 @@ const List<_DrawerSection> _ownerAdminSections = [
         icon: Icons.support_agent_outlined,
         route: AppRoutes.agent),
     _DrawerItem(
-        label: 'Route Map',
+        label: 'Agent Map',
         icon: Icons.map_outlined,
         route: AppRoutes.routeMap),
   ]),
@@ -158,7 +158,7 @@ const List<_DrawerSection> _agentSections = [
   ]),
   _DrawerSection(title: 'AGENT', items: [
     _DrawerItem(
-        label: 'Route Map',
+        label: 'My Route',
         icon: Icons.map_outlined,
         route: AppRoutes.routeMap),
   ]),

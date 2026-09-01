@@ -95,10 +95,7 @@ class FundApiService {
     final row = _normalizeRow(data);
     return Fund.fromJson(row);
   }
-
-  /// Updates an existing fund's core parameters (weekly amount, weeks,
-  /// bonus, customer, dates). Used by the admin "Edit" action. Admins pass
-  /// the FundController's role check unconditionally, so any field set is fine.
+  
   static Future<Fund> update(String id, Fund fund) async {
     final res = await postWithMethodOverride(
       _uri('funds', {'id': id}),
@@ -121,13 +118,6 @@ class FundApiService {
     if (res.statusCode != 200 && res.statusCode != 204) _throwFromResponse(res);
   }
 
-  /// Records a collection against the fund. The backend's FundController
-  /// allow-lists agent PATCH bodies to EXACTLY `collected_amount` and
-  /// `status` — any other key present (action, amount, payment_method,
-  /// payment_date, ...) is rejected with 403 "Agents can only record fund
-  /// collections", even if a valid key is also present. So the caller must
-  /// pre-compute the new running total and resulting status client-side;
-  /// this method sends only those two allow-listed fields.
   static Future<Fund> recordCollection(
     String id, {
     required double collectedAmount,
@@ -176,8 +166,6 @@ class FundApiService {
     return Fund.fromJson(row);
   }
 
-  /// Settles the fund in full: sets collected_amount to totalDeposit,
-  /// marks status matured, and records a passbook entry.
   static Future<Fund> settleInFull(
     String id, {
     required String paymentMethod,

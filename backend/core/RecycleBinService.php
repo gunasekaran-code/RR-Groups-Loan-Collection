@@ -294,6 +294,13 @@ class RecycleBinService
                 if (!empty($row['customer_name'])) $parts[] = (string)$row['customer_name'];
                 return self::join($parts);
 
+            case 'chit_passbook':
+                $parts = ['Passbook draw #' . (int)($row['installment_no'] ?? 0)];
+                if (!empty($row['member_name']))    $parts[] = (string)$row['member_name'];
+                if (!empty($row['group_name']))     $parts[] = (string)$row['group_name'];
+                if (!empty($row['payable_amount'])) $parts[] = $money($row['payable_amount']);
+                return self::join($parts);
+
             case 'chit_payments':
                 $parts = [];
                 $parts[] = !empty($row['installment_no'])

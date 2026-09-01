@@ -28,6 +28,7 @@ class ChitGroup {
   double get pendingAmount => groupValue - collectedAmount;
   int get collectedPercent =>
       groupValue <= 0 ? 0 : ((collectedAmount / groupValue) * 100).round();
+  bool get isFullyCollected => groupValue > 0 && collectedAmount >= groupValue;
 
   factory ChitGroup.fromJson(Map<String, dynamic> json) {
     return ChitGroup(

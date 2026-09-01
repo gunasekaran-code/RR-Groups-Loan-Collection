@@ -19,6 +19,7 @@ abstract class Model
         'chit_members'       => ChitMember::class,
         'chit_schedules'     => ChitSchedule::class,
         'chit_payments'      => ChitPayment::class,
+        'chit_passbook'      => ChitPassbook::class,
         'funds'              => Fund::class,
         'fund_payments'      => FundPayment::class,
         'handovers'          => Handover::class,

@@ -127,6 +127,30 @@ class Overdue extends Model
         $today = date('Y-m-d');
         $pdo = Database::pdo();
 
+        // Instalment rows first. Their status is derived from the due date,
+        // but nothing re-derives it as time passes: LoanRecalc only runs when
+        // a loan or a collection is written, so a row whose date slipped by
+        // last week still reads "Pending". That is why a daily loan could show
+        // seven past-due instalments and an Overdue count of zero.
+        //
+        // Only 'pending' moves — a partly paid row stays 'partial' and a
+        // settled one stays 'paid', matching LoanRecalc's precedence exactly.
+        $pdo->prepare("
+            UPDATE repayment_schedule
+               SET status = 'overdue'
+             WHERE delflag = 0 AND status = 'pending'
+               AND due_date IS NOT NULL AND due_date < ? AND balance > 0
+        ")->execute([$today]);
+
+        // The reverse, so a regenerated schedule with later dates settles back
+        // instead of staying stuck on 'overdue'.
+        $pdo->prepare("
+            UPDATE repayment_schedule
+               SET status = 'pending'
+             WHERE delflag = 0 AND status = 'overdue'
+               AND (due_date IS NULL OR due_date >= ?) AND balance > 0
+        ")->execute([$today]);
+
         $toOverdue = $pdo->prepare("
             UPDATE loans l SET l.status = 'overdue'
             WHERE l.delflag = 0 AND l.status = 'active'

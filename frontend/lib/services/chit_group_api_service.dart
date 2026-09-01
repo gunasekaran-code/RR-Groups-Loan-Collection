@@ -7,41 +7,16 @@ import 'session_service.dart';
 import '../models/chit_group.dart';
 import '../models/chit_member.dart';
 import '../models/chit_passbook.dart';
-import 'collection_api_service.dart';
 
 class ChitGroupApiService {
   static String get _restEndpoint => '${ApiConfig.normalizedBaseUrl}/rest.php';
+  static String get _chitEndpoint => '${ApiConfig.normalizedBaseUrl}/chit.php';
 
   static Map<String, String> get _headers => {
         'Content-Type': 'application/json',
         if (SessionService.instance.token != null)
           'Authorization': 'Bearer ${SessionService.instance.token}',
       };
-
-  // ---- SCHEDULE: BATCH SAVE / CREATE ----
-  static Future<void> saveSchedules(
-      List<Map<String, dynamic>> schedules) async {
-    if (schedules.isEmpty) return;
-    final uri = Uri.parse('$_restEndpoint?table=chit_schedules');
-    final res = await http.post(
-      uri,
-      headers: _headers,
-      body: jsonEncode(schedules),
-    );
-    _throwIfError(res);
-  }
-
-  // ---- SCHEDULE: DELETE FOR GROUP ----
-  static Future<void> deleteSchedulesForGroup(String groupId) async {
-    final uri =
-        Uri.parse('$_restEndpoint?table=chit_schedules&group_id=$groupId');
-    final res = await postWithMethodOverride(
-      uri,
-      method: 'DELETE',
-      headers: _headers,
-    );
-    _throwIfError(res);
-  }
 
   // ---- SCHEDULE: READ ----
   static Future<List<ChitSchedule>> fetchSchedules(String groupId) async {
@@ -51,6 +26,25 @@ class ChitGroupApiService {
       'order': 'installment_no.asc',
     });
     final res = await http.get(uri, headers: _headers);
+    _throwIfError(res);
+    return _listFrom(res).map((e) => ChitSchedule.fromJson(e)).toList();
+  }
+
+  // ---- SCHEDULE: REBUILD (admin/agent) ----
+  // Rebuilds the group's draw sheet on the server from its stored fields
+  // (scheme, duration, contribution, start date) and resyncs every member's
+  // chit_passbook against it — the same rules the initial auto-generation on
+  // group creation uses. Used after editing a group's numbers so the sheet
+  // and every member's passbook are regenerated together, in one place,
+  // instead of the app deleting and reinserting rows by hand.
+  static Future<List<ChitSchedule>> regenerateSchedule(String groupId) async {
+    final uri =
+        Uri.parse('$_chitEndpoint?action=generate_schedule');
+    final res = await http.post(
+      uri,
+      headers: _headers,
+      body: jsonEncode({'group_id': groupId}),
+    );
     _throwIfError(res);
     return _listFrom(res).map((e) => ChitSchedule.fromJson(e)).toList();
   }
@@ -140,30 +134,6 @@ class ChitGroupApiService {
       method: 'PATCH',
       headers: _headers,
       body: jsonEncode(group.toJson()),
-    );
-    _throwIfError(res);
-    return ChitGroup.fromJson(_rowFrom(res));
-  }
-
-  // ---- GROUPS: UPDATE (admin or agent — collection fields only,
-  // per the PHP allow-list). Called after a member's payment is
-  // recorded so the group's running totals + status stay in sync.
-  static Future<ChitGroup> recordCollection({
-    required String groupId,
-    required double collectedAmount,
-    required double pendingAmount,
-    String? status,
-  }) async {
-    final uri = Uri.parse('$_restEndpoint?table=chit_groups&id=$groupId');
-    final res = await postWithMethodOverride(
-      uri,
-      method: 'PATCH',
-      headers: _headers,
-      body: jsonEncode({
-        'collected_amount': collectedAmount,
-        'pending_amount': pendingAmount,
-        if (status != null) 'status': status,
-      }),
     );
     _throwIfError(res);
     return ChitGroup.fromJson(_rowFrom(res));
@@ -273,19 +243,41 @@ class ChitGroupApiService {
   }
 
   // ---- MEMBERS: record a contribution (admin or agent) ----
-  static Future<ChitMember> collectFromMember({
+  //
+  // One request to chit.php?action=collect: the server writes the cash-book
+  // receipt and the chit_payments row in one transaction, then derives the
+  // member's chit_passbook, payment_status and the group's running totals
+  // from what was actually stored — rather than the app writing a ledger
+  // receipt, guessing a flat paid/partial status itself, and patching the
+  // group totals by hand in three separate calls that could each half-fail.
+  static Future<ChitCollectionResult> collectContribution({
+    required String groupId,
     required String memberId,
-    required ChitPaymentStatus status,
+    required double amount,
+    required String paymentMethod,
+    required DateTime paymentDate,
+    String? notes,
   }) async {
-    final uri = Uri.parse('$_restEndpoint?table=chit_members&id=$memberId');
-    final res = await postWithMethodOverride(
+    final uri = Uri.parse('$_chitEndpoint?action=collect');
+    final res = await http.post(
       uri,
-      method: 'PATCH',
       headers: _headers,
-      body: jsonEncode({'payment_status': ChitMember.statusToString(status)}),
+      body: jsonEncode({
+        'group_id': groupId,
+        'member_id': memberId,
+        'amount': amount,
+        'payment_method': paymentMethod,
+        'payment_date': paymentDate.toIso8601String().split('T').first,
+        if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+      }),
     );
     _throwIfError(res);
-    return ChitMember.fromJson(_rowFrom(res));
+    final decoded = jsonDecode(res.body);
+    if (decoded is! Map<String, dynamic>) {
+      throw ChitGroupApiException(
+          'Unexpected response shape from server', res.statusCode);
+    }
+    return ChitCollectionResult.fromJson(decoded);
   }
 
   // ---- CUSTOMERS (for the Add Member dropdown) ----
@@ -302,88 +294,109 @@ class ChitGroupApiService {
     return _listFrom(res).map((e) => ChitCustomerOption.fromJson(e)).toList();
   }
 
-  // ---- PASSBOOK: the member's group schedule and collection receipts ----
+  // ---- PASSBOOK: the member's stored draw statement and receipts ----
+  //
+  // Reads straight from `chit_passbook` — the table the server derives from
+  // the draw schedule and every recorded chit_payments row, with the settled
+  // Paid / Partial / Overdue / Pending status already computed. This used to
+  // be assembled here: read the schedule, read the whole account-book, guess
+  // which receipts were this member's chit payments by matching customer name
+  // and a "Draw #n" substring in the notes, and call anything not fully paid
+  // "pending" — so a late instalment could never show as Overdue. There is
+  // nothing left to derive; the same rows this fetches are what every other
+  // screen (and a customer's own login) reads.
   static Future<ChitPassbookData> fetchPassbook(String memberId) async {
-    final memberUri = Uri.parse(_restEndpoint).replace(
-      queryParameters: {
+    final passbookUri = Uri.parse(_restEndpoint).replace(queryParameters: {
+      'table': 'chit_passbook',
+      'member_id': memberId,
+      'order': 'installment_no.asc',
+    });
+    final passbookRes = await http.get(passbookUri, headers: _headers);
+    _throwIfError(passbookRes);
+    final rows = _listFrom(passbookRes);
+    if (rows.isEmpty) {
+      // No stored statement yet (a brand-new member whose passbook hasn't
+      // synced) — fall back to the member's own record so the screen can
+      // still say "not found" vs. "nothing to show" correctly.
+      final memberUri = Uri.parse(_restEndpoint).replace(queryParameters: {
         'table': 'chit_members',
         'id': memberId,
         'limit': '1',
-      },
-    );
-    final memberRes = await http.get(memberUri, headers: _headers);
-    _throwIfError(memberRes);
-    final memberRows = _listFrom(memberRes);
-    if (memberRows.isEmpty) {
-      throw ChitGroupApiException('Chit member not found', 404);
+      });
+      final memberRes = await http.get(memberUri, headers: _headers);
+      _throwIfError(memberRes);
+      if (_listFrom(memberRes).isEmpty) {
+        throw ChitGroupApiException('Chit member not found', 404);
+      }
     }
 
-    final member = memberRows.first;
-    final groupId = member['group_id']?.toString();
-    if (groupId == null || groupId.isEmpty) {
-      throw ChitGroupApiException('Chit member has no group', 400);
-    }
+    final draws = rows.map(ChitDraw.fromJson).toList();
 
-    final scheduleUri = Uri.parse(_restEndpoint).replace(
-      queryParameters: {
-        'table': 'chit_schedules',
-        'group_id': groupId,
-        'order': 'installment_no.asc',
-      },
-    );
-    final scheduleRes = await http.get(scheduleUri, headers: _headers);
-    _throwIfError(scheduleRes);
-
-    final customerId = member['customer_id']?.toString();
-    final collectionRows = await CollectionApiService.fetchCollections();
-    final groupMarker = 'Chit group: $groupId';
-    final receipts = collectionRows
-        .where((row) =>
-            (customerId != null &&
-                row['customer_id']?.toString() == customerId) ||
-            (customerId == null &&
-                row['customer_name']?.toString() ==
-                    member['member_name']?.toString()))
-        .where((row) =>
-            row['notes']?.toString().contains(groupMarker) == true ||
-            row['loan_number']?.toString() ==
-                member['group_number']?.toString())
-        .toList();
-
-    final paidByDraw = <int, double>{};
-    final drawPattern = RegExp(r'Draw #(\d+)');
-    for (final receipt in receipts) {
-      final match = drawPattern.firstMatch(receipt['notes']?.toString() ?? '');
-      if (match == null) continue;
-      final drawNumber = int.tryParse(match.group(1)!) ?? 0;
-      final amount =
-          double.tryParse('${receipt['collection_amount'] ?? 0}') ?? 0;
-      paidByDraw[drawNumber] = (paidByDraw[drawNumber] ?? 0) + amount;
-    }
-
-    final draws = _listFrom(scheduleRes).map(
-      (schedule) {
-        final drawNumber = int.tryParse('${schedule['installment_no']}') ?? 0;
-        final amountPaid = paidByDraw[drawNumber] ?? 0;
-        return ChitDraw.fromJson({
-          'draw_number': schedule['installment_no'],
-          'scheduled_date': schedule['due_date'],
-          'payable_contribution': schedule['payable_amount'],
-          'dividend_pool_value': schedule['pool_amount'],
-          'payment_status': amountPaid >=
-                  (double.tryParse('${schedule['payable_amount']}') ?? 0) - 0.01
-              ? 'paid'
-              : 'pending',
-          'amount_paid': amountPaid,
-        });
-      },
-    ).toList();
+    final paymentsUri = Uri.parse(_restEndpoint).replace(queryParameters: {
+      'table': 'chit_payments',
+      'member_id': memberId,
+      'order': 'payment_date.desc',
+    });
+    final paymentsRes = await http.get(paymentsUri, headers: _headers);
+    _throwIfError(paymentsRes);
+    final receipts =
+        _listFrom(paymentsRes).map(ChitPaymentReceipt.fromJson).toList();
 
     return ChitPassbookData(
       draws: draws,
-      receipts: receipts.map(ChitPaymentReceipt.fromJson).toList(),
+      receipts: receipts,
       totalDraws: draws.length,
     );
+  }
+
+  // ---- SCHEDULE: PAYMENT STATUS SUMMARY (aggregated across the group) ----
+  //
+  // Reads every member's `chit_passbook` row for the group in one call and
+  // folds them by installment number, so the Installment Schedule tab can
+  // show, per draw, how many of the group's members have paid it and how
+  // much has been collected — without a passbook round trip per member.
+  static Future<Map<int, ChitScheduleStatusSummary>>
+      fetchScheduleStatusSummary(String groupId) async {
+    final uri = Uri.parse(_restEndpoint).replace(queryParameters: {
+      'table': 'chit_passbook',
+      'group_id': groupId,
+      'order': 'installment_no.asc',
+    });
+    final res = await http.get(uri, headers: _headers);
+    _throwIfError(res);
+
+    final byDraw = <int, List<Map<String, dynamic>>>{};
+    for (final row in _listFrom(res)) {
+      final installmentNo = int.tryParse('${row['installment_no']}') ?? 0;
+      byDraw.putIfAbsent(installmentNo, () => []).add(row);
+    }
+
+    return byDraw.map((installmentNo, rows) {
+      final total = rows.length;
+      final paid =
+          rows.where((r) => '${r['payment_status']}' == 'paid').length;
+      final paidAmount = rows.fold<double>(
+          0, (sum, r) => sum + (double.tryParse('${r['paid_amount']}') ?? 0));
+      final hasOverdue =
+          rows.any((r) => '${r['payment_status']}' == 'overdue');
+      final status = total > 0 && paid == total
+          ? ChitPaymentStatus.paid
+          : paid > 0
+              ? ChitPaymentStatus.partial
+              : hasOverdue
+                  ? ChitPaymentStatus.overdue
+                  : ChitPaymentStatus.pending;
+      return MapEntry(
+        installmentNo,
+        ChitScheduleStatusSummary(
+          installmentNo: installmentNo,
+          paidMembers: paid,
+          totalMembers: total,
+          paidAmount: paidAmount,
+          status: status,
+        ),
+      );
+    });
   }
 
   // ---- helpers ----

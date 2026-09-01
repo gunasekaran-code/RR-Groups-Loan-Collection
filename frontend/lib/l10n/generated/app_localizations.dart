@@ -6110,6 +6110,12 @@ abstract class AppLocalizations {
   /// **'View Passbook'**
   String get viewPassbookButton;
 
+  /// Button label for an admin to open a group's details
+  ///
+  /// In en, this message translates to:
+  /// **'View Details'**
+  String get viewDetailsButton;
+
   /// Group code shown on a chit group card
   ///
   /// In en, this message translates to:
@@ -6500,6 +6506,18 @@ abstract class AppLocalizations {
   /// **'Collection failed'**
   String get collectionFailedTitle;
 
+  /// Toast title shown once a chit group's required amount has been fully collected
+  ///
+  /// In en, this message translates to:
+  /// **'Collection complete'**
+  String get collectionCompleteTitle;
+
+  /// Toast message shown once a chit group's required amount has been fully collected
+  ///
+  /// In en, this message translates to:
+  /// **'You have collected the required amount.'**
+  String get collectionCompleteMessage;
+
   /// Short label for the group code stat in the group details sheet
   ///
   /// In en, this message translates to:
@@ -6619,6 +6637,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'POOL / DIVIDEND VALUE'**
   String get poolDividendValueColumnHeader;
+
+  /// Table column header for a schedule row's aggregate payment status across the group's members
+  ///
+  /// In en, this message translates to:
+  /// **'PAYMENT STATUS'**
+  String get paymentStatusColumnHeader;
+
+  /// Subtext under a schedule row's payment status pill: how many of the group's members have paid this draw, and how much has been collected
+  ///
+  /// In en, this message translates to:
+  /// **'{paid}/{total} members · {amount}'**
+  String scheduleMembersPaidLabel(int paid, int total, String amount);
 
   /// Table column header for whether a date is auto or overridden
   ///

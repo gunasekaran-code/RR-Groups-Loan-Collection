@@ -85,7 +85,7 @@ class Reminder extends Model
             if (empty($r['customer_id'])) { $skipped++; continue; }
 
             // Resolve the customer's login profile.
-            $ps = $pdo->prepare("SELECT id FROM profiles WHERE customer_id = ? AND role = 'customer' LIMIT 1");
+            $ps = $pdo->prepare("SELECT id FROM profiles WHERE customer_id = ? AND role = 'customer' AND delflag = 0 LIMIT 1");
             $ps->execute([$r['customer_id']]);
             $userId = $ps->fetchColumn();
             if (!$userId) { $skipped++; continue; }

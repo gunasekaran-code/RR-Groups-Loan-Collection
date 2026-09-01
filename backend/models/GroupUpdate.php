@@ -33,8 +33,8 @@ class GroupUpdate extends Model
                 g.status             AS group_status,
                 DATEDIFF(m.due_date, ?) AS days_until
             FROM chit_members m
-            JOIN chit_groups g ON g.id = m.group_id AND g.status <> 'closed'
-            WHERE m.payment_status <> 'paid'
+            JOIN chit_groups g ON g.id = m.group_id AND g.delflag = 0 AND g.status <> 'closed'
+            WHERE m.delflag = 0 AND m.payment_status <> 'paid'
               AND m.due_date IS NOT NULL
               AND m.due_date <= ?
             ORDER BY m.due_date ASC
@@ -72,7 +72,7 @@ class GroupUpdate extends Model
 
         foreach ($rows as $r) {
             if (empty($r['customer_id'])) { $skipped++; continue; }
-            $ps = $pdo->prepare("SELECT id FROM profiles WHERE customer_id = ? AND role = 'customer' LIMIT 1");
+            $ps = $pdo->prepare("SELECT id FROM profiles WHERE customer_id = ? AND role = 'customer' AND delflag = 0 LIMIT 1");
             $ps->execute([$r['customer_id']]);
             $userId = $ps->fetchColumn();
             if (!$userId) { $skipped++; continue; }

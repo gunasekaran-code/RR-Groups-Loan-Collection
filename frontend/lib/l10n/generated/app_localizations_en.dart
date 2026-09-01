@@ -3303,6 +3303,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get viewPassbookButton => 'View Passbook';
 
   @override
+  String get viewDetailsButton => 'View Details';
+
+  @override
   String groupNumberLabel(String code) {
     return 'Group No.: $code';
   }
@@ -3525,6 +3528,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get collectionFailedTitle => 'Collection failed';
 
   @override
+  String get collectionCompleteTitle => 'Collection complete';
+
+  @override
+  String get collectionCompleteMessage =>
+      'You have collected the required amount.';
+
+  @override
   String get groupNumberShortLabel => 'Group No.';
 
   @override
@@ -3588,6 +3598,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get poolDividendValueColumnHeader => 'POOL / DIVIDEND VALUE';
+
+  @override
+  String get paymentStatusColumnHeader => 'PAYMENT STATUS';
+
+  @override
+  String scheduleMembersPaidLabel(int paid, int total, String amount) {
+    return '$paid/$total members · $amount';
+  }
 
   @override
   String get dateTypeColumnHeader => 'DATE TYPE';

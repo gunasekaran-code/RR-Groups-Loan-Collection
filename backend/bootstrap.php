@@ -548,6 +548,182 @@ function backfill_chit_payments_from_ledger(): void
 ensure_chit_payments_table();
 
 /**
+ * Per-member chit passbook statement.
+ *
+ * The draw sheet lives in chit_schedules, one set per group. What a *member*
+ * owes and has settled against each draw existed nowhere: the customer's
+ * passbook worked it out in the browser every time the modal opened, so the
+ * Paid / Pending / Overdue badge was never stored, never reportable, and never
+ * the same fact the rest of the app was looking at.
+ *
+ * chit_passbook holds one row per (group, member, draw) — the draw number, its
+ * scheduled date, the payable contribution, the dividend pool value and the
+ * settled status — linked to chit_groups and chit_members by real foreign keys.
+ *
+ * The soft-delete columns are declared here rather than left to
+ * ensure_soft_delete_columns(), because a member's passbook has to disappear
+ * with the member on the very first request after the table is created.
+ */
+function ensure_chit_passbook_table(): void
+{
+    static $ran = false;
+    if ($ran) return;
+    $ran = true;
+
+    try {
+        $pdo = Database::pdo();
+        $hasTable = (int)$pdo->query(
+            "SELECT COUNT(*) FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'chit_passbook'"
+        )->fetchColumn();
+
+        if (!$hasTable) {
+            $pdo->exec("
+                CREATE TABLE chit_passbook (
+                  id             CHAR(36)      NOT NULL PRIMARY KEY,
+                  group_id       CHAR(36)      NOT NULL,
+                  member_id      CHAR(36)      NOT NULL,
+                  customer_id    CHAR(36)      NULL,
+                  schedule_id    CHAR(36)      NULL,   -- the chit_schedules draw it mirrors
+                  group_number   VARCHAR(64)   NULL,
+                  group_name     VARCHAR(191)  NULL,
+                  member_name    VARCHAR(191)  NULL,
+                  installment_no INT           NOT NULL,
+                  due_date       DATE          NULL,
+                  payable_amount DECIMAL(14,2) NOT NULL DEFAULT 0,
+                  pool_amount    DECIMAL(14,2) NOT NULL DEFAULT 0,
+                  paid_amount    DECIMAL(14,2) NOT NULL DEFAULT 0,
+                  balance        DECIMAL(14,2) NOT NULL DEFAULT 0,
+                  payment_status ENUM('paid','partial','overdue','pending') NOT NULL DEFAULT 'pending',
+                  is_overdue     TINYINT(1)    NOT NULL DEFAULT 0,
+                  paid_date      DATE          NULL,
+                  is_overridden  TINYINT(1)    NOT NULL DEFAULT 0,
+                  notes          VARCHAR(255)  NULL,
+                  synced_at      DATETIME      NULL,
+                  delflag        TINYINT(1)    NOT NULL DEFAULT 0,
+                  deleted_at     DATETIME      NULL,
+                  deleted_by     CHAR(36)      NULL,
+                  created_at     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                  -- One row per member per draw. Without this a repeated sync
+                  -- would stack copies of the same instalment, which is how the
+                  -- loan side ended up reporting a balance it never owed.
+                  UNIQUE KEY uniq_passbook_member_draw (member_id, installment_no),
+                  INDEX idx_passbook_group (group_id),
+                  INDEX idx_passbook_customer (customer_id),
+                  INDEX idx_passbook_status (payment_status),
+                  INDEX idx_passbook_delflag (delflag),
+                  CONSTRAINT fk_passbook_group FOREIGN KEY (group_id)
+                    REFERENCES chit_groups(id) ON DELETE CASCADE,
+                  CONSTRAINT fk_passbook_member FOREIGN KEY (member_id)
+                    REFERENCES chit_members(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            ");
+        }
+
+        backfill_chit_passbook();
+    } catch (\Throwable $e) {
+        // Schema check failures must never take the API down.
+    }
+}
+
+/**
+ * Build the passbook for every existing member once.
+ *
+ * After this the rows are maintained by ChitPassbookService on every write
+ * that can change them, so this only has to run on the deployment that
+ * introduces the table.
+ */
+function backfill_chit_passbook(): void
+{
+    static $ran = false;
+    if ($ran) return;
+    $ran = true;
+
+    $marker = sys_get_temp_dir() . '/rrgroups_passbook_' . md5(__DIR__) . '.ok';
+    if (is_file($marker)) return;
+
+    try {
+        $built = ChitPassbookService::syncAll();
+        error_log("backfill_chit_passbook: built passbooks for $built chit members");
+        @file_put_contents($marker, date('c'));
+    } catch (\Throwable $e) {
+        // Retry on the next request rather than taking the API down.
+    }
+}
+
+/**
+ * One draw sheet row per (group, draw) — the same guard the loan schedule got.
+ *
+ * Regenerating a group's schedule deletes and reinserts it, and a rebuild that
+ * half-failed used to leave the old rows behind. Two copies of a draw means the
+ * passbook asks a member to pay it twice, so duplicates are cleaned once and
+ * then made impossible.
+ */
+function dedupe_chit_schedules(): void
+{
+    static $ran = false;
+    if ($ran) return;
+    $ran = true;
+
+    $marker = sys_get_temp_dir() . '/rrgroups_chitsched_dedupe_' . md5(__DIR__) . '.ok';
+    if (is_file($marker)) return;
+
+    try {
+        $pdo = Database::pdo();
+
+        $dupes = $pdo->query(
+            "SELECT group_id, installment_no, COUNT(*) AS c
+             FROM chit_schedules
+             GROUP BY group_id, installment_no
+             HAVING c > 1"
+        )->fetchAll(PDO::FETCH_ASSOC);
+
+        $removed = 0;
+        if ($dupes) {
+            // Keep the row an admin edited by hand, then the oldest.
+            $pick = $pdo->prepare(
+                "SELECT id FROM chit_schedules
+                 WHERE group_id = ? AND installment_no = ?
+                 ORDER BY is_overridden DESC, delflag ASC, created_at ASC, id ASC"
+            );
+            $drop = $pdo->prepare("DELETE FROM chit_schedules WHERE id = ?");
+
+            foreach ($dupes as $d) {
+                $pick->execute([$d['group_id'], $d['installment_no']]);
+                $ids = $pick->fetchAll(PDO::FETCH_COLUMN, 0);
+                array_shift($ids);
+                foreach ($ids as $id) {
+                    $drop->execute([$id]);
+                    $removed++;
+                }
+            }
+            error_log("dedupe_chit_schedules: removed $removed duplicate draw rows");
+        }
+
+        // A draw is never deleted on its own from the UI, so anything flagged
+        // here is rebuild debris rather than a deliberate removal.
+        $pdo->exec("DELETE FROM chit_schedules WHERE delflag = 1");
+
+        try {
+            $pdo->exec(
+                "ALTER TABLE chit_schedules
+                 ADD UNIQUE INDEX uniq_chit_schedule_draw (group_id, installment_no)"
+            );
+        } catch (\Throwable $e) {
+            // Already present, or duplicates the pass above could not resolve.
+        }
+
+        @file_put_contents($marker, date('c'));
+    } catch (\Throwable $e) {
+        // Retry on the next request rather than taking the API down.
+    }
+}
+
+dedupe_chit_schedules();
+
+ensure_chit_passbook_table();
+
+/**
  * Soft-delete archive backing the admin Recycle Bin.
  *
  * Carries no foreign keys on purpose: it has to survive the deletion of the
@@ -635,7 +811,7 @@ ensure_customer_delflag();
  */
 const SOFT_DELETE_TABLES = [
     'account_ledger', 'biometric_credentials', 'chit_groups', 'chit_members',
-    'chit_payments', 'chit_schedules', 'collections', 'customers',
+    'chit_passbook', 'chit_payments', 'chit_schedules', 'collections', 'customers',
     'fund_payments', 'funds', 'handovers', 'loans', 'notifications',
     'profiles', 'promo_popups', 'push_subscriptions', 'repayment_schedule',
     'settings',
@@ -723,6 +899,86 @@ function backfill_customer_loan_status(): void
 }
 
 backfill_customer_loan_status();
+
+/**
+ * Remove duplicated repayment instalments, then make them impossible.
+ *
+ * Editing a loan wipes and regenerates its schedule. While deletes were soft,
+ * the old rows stayed behind flagged; before that, a failed regenerate could
+ * leave a partial set. Either way the loan ended up with two or three copies of
+ * every instalment, and since the outstanding balance is the sum of unpaid
+ * instalment balances, it climbed far past the total repayment — a ₹1,30,000
+ * loan reporting ₹2,32,860.
+ *
+ * The row with the most money against it is kept, so no payment is lost.
+ */
+function dedupe_repayment_schedule(): void
+{
+    static $ran = false;
+    if ($ran) return;
+    $ran = true;
+
+    $marker = sys_get_temp_dir() . '/rrgroups_sched_dedupe_' . md5(__DIR__) . '.ok';
+    if (is_file($marker)) return;
+
+    try {
+        $pdo = Database::pdo();
+
+        // Keep, per (loan_id, installment_no), the row with the highest
+        // paid_amount — then the oldest — and drop the rest.
+        $dupes = $pdo->query(
+            "SELECT loan_id, installment_no, COUNT(*) AS c
+             FROM repayment_schedule
+             GROUP BY loan_id, installment_no
+             HAVING c > 1"
+        )->fetchAll(PDO::FETCH_ASSOC);
+
+        $removed = 0;
+        if ($dupes) {
+            $pick = $pdo->prepare(
+                "SELECT id FROM repayment_schedule
+                 WHERE loan_id = ? AND installment_no = ?
+                 ORDER BY paid_amount DESC, delflag ASC, created_at ASC, id ASC"
+            );
+            $drop = $pdo->prepare("DELETE FROM repayment_schedule WHERE id = ?");
+
+            foreach ($dupes as $d) {
+                $pick->execute([$d['loan_id'], $d['installment_no']]);
+                $ids = $pick->fetchAll(PDO::FETCH_COLUMN, 0);
+                array_shift($ids);           // keep the best one
+                foreach ($ids as $id) {
+                    $drop->execute([$id]);
+                    $removed++;
+                }
+            }
+            error_log("dedupe_repayment_schedule: removed $removed duplicate instalment rows");
+        }
+
+        // Any soft-deleted leftovers are rebuild debris, not user deletions —
+        // a schedule row is never deleted on its own from the UI.
+        $pdo->exec("DELETE FROM repayment_schedule WHERE delflag = 1");
+
+        // Now that the table is clean, stop it ever happening again.
+        try {
+            $pdo->exec(
+                "ALTER TABLE repayment_schedule
+                 ADD UNIQUE INDEX uniq_schedule_installment (loan_id, installment_no)"
+            );
+        } catch (\Throwable $e) {
+            // Already present, or duplicates the pass above could not resolve.
+        }
+
+        // Balances and statuses are derived from these rows, so refresh them.
+        $loans = $pdo->query("SELECT id FROM loans WHERE delflag = 0")->fetchAll(PDO::FETCH_COLUMN, 0);
+        LoanRecalc::syncMany($loans ?: []);
+
+        @file_put_contents($marker, date('c'));
+    } catch (\Throwable $e) {
+        // Retry on the next request rather than taking the API down.
+    }
+}
+
+dedupe_repayment_schedule();
 
 /** True when $table carries the soft-delete flag (cached per request). */
 function table_has_delflag(string $table): bool

@@ -17,6 +17,8 @@ DROP TABLE IF EXISTS notifications;
 DROP TABLE IF EXISTS handovers;
 DROP TABLE IF EXISTS fund_payments;
 DROP TABLE IF EXISTS funds;
+DROP TABLE IF EXISTS chit_passbook;
+DROP TABLE IF EXISTS chit_payments;
 DROP TABLE IF EXISTS chit_schedules;
 DROP TABLE IF EXISTS chit_members;
 DROP TABLE IF EXISTS chit_groups;
@@ -201,6 +203,8 @@ CREATE TABLE chit_schedules (
   is_overridden  TINYINT(1)   NOT NULL DEFAULT 0,
   notes          VARCHAR(255) NULL,
   created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  -- Two copies of a draw would ask every member to pay it twice.
+  UNIQUE KEY uniq_chit_schedule_draw (group_id, installment_no),
   INDEX idx_chit_sched_group (group_id),
   CONSTRAINT fk_chit_sched_group FOREIGN KEY (group_id)
     REFERENCES chit_groups(id) ON DELETE CASCADE
@@ -236,6 +240,47 @@ CREATE TABLE chit_payments (
   -- money they already paid.
   CONSTRAINT fk_chit_payments_member FOREIGN KEY (member_id)
     REFERENCES chit_members(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Per-member chit passbook statement: one row per (group, member, draw).
+-- chit_schedules says what a draw costs; this says whether THIS member has
+-- settled it. The status used to be computed in the browser each time the
+-- passbook modal opened, so it was never stored and never reportable.
+CREATE TABLE chit_passbook (
+  id             CHAR(36)      NOT NULL PRIMARY KEY,
+  group_id       CHAR(36)      NOT NULL,
+  member_id      CHAR(36)      NOT NULL,
+  customer_id    CHAR(36)      NULL,
+  schedule_id    CHAR(36)      NULL,   -- the chit_schedules draw it mirrors
+  group_number   VARCHAR(64)   NULL,
+  group_name     VARCHAR(191)  NULL,
+  member_name    VARCHAR(191)  NULL,
+  installment_no INT           NOT NULL,
+  due_date       DATE          NULL,
+  payable_amount DECIMAL(14,2) NOT NULL DEFAULT 0,
+  pool_amount    DECIMAL(14,2) NOT NULL DEFAULT 0,
+  paid_amount    DECIMAL(14,2) NOT NULL DEFAULT 0,
+  balance        DECIMAL(14,2) NOT NULL DEFAULT 0,
+  payment_status ENUM('paid','partial','overdue','pending') NOT NULL DEFAULT 'pending',
+  is_overdue     TINYINT(1)    NOT NULL DEFAULT 0,
+  paid_date      DATE          NULL,
+  is_overridden  TINYINT(1)    NOT NULL DEFAULT 0,
+  notes          VARCHAR(255)  NULL,
+  synced_at      DATETIME      NULL,
+  delflag        TINYINT(1)    NOT NULL DEFAULT 0,
+  deleted_at     DATETIME      NULL,
+  deleted_by     CHAR(36)      NULL,
+  created_at     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  -- One row per member per draw, so a repeated rebuild can never stack copies.
+  UNIQUE KEY uniq_passbook_member_draw (member_id, installment_no),
+  INDEX idx_passbook_group (group_id),
+  INDEX idx_passbook_customer (customer_id),
+  INDEX idx_passbook_status (payment_status),
+  INDEX idx_passbook_delflag (delflag),
+  CONSTRAINT fk_passbook_group FOREIGN KEY (group_id)
+    REFERENCES chit_groups(id) ON DELETE CASCADE,
+  CONSTRAINT fk_passbook_member FOREIGN KEY (member_id)
+    REFERENCES chit_members(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------- funds (daily-deposit savings scheme) ----------

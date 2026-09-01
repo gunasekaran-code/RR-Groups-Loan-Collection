@@ -17,14 +17,9 @@ class AgentCollectionItem {
   final String? contactPhone;
   final String? agentId;
   final String? agentName;
-
-  // --- Added for grouped customer view / map integration ---
   final String? address;
   final double? latitude;
   final double? longitude;
-  // Full outstanding balance on the loan (may differ from the amount due
-  // for the current installment). Falls back to [dueAmount] when the
-  // backend doesn't provide it.
   final double? outstandingBalance;
 
   const AgentCollectionItem({
@@ -157,18 +152,8 @@ class AgentCollectionItem {
   static String formatDate(DateTime? d) {
     if (d == null) return '-';
     const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
+      'Jan',      'Feb',      'Mar',      'Apr',      'May',      'Jun',
+      'Jul',      'Aug',      'Sep',      'Oct',      'Nov',      'Dec',
     ];
     return '${d.day.toString().padLeft(2, '0')} ${months[d.month - 1]} ${d.year}';
   }
@@ -207,9 +192,6 @@ String _labelFor(AgentCollectionStatus status) {
   }
 }
 
-/// Groups every unpaid [AgentCollectionItem] belonging to the same customer
-/// so the collections list can show one card per customer (per your unique
-/// User/Loan ID) instead of one card per installment.
 class AgentCustomerGroup {
   final String customerId;
   final String customerName;
@@ -235,7 +217,6 @@ class AgentCustomerGroup {
     this.longitude,
   });
 
-  /// Distinct loan numbers this customer has due installments for.
   List<String> get loanNumbers =>
       items.map((e) => e.loanNumber).toSet().toList();
 
@@ -255,12 +236,8 @@ class AgentCustomerGroup {
   String get uniqueName =>
       '$customerName • $displayLoanType • $displayLoanName';
 
-  /// Distinct loan ids (used when a collection needs to be split across
-  /// more than one loan for the same customer).
   List<String> get loanIds => items.map((e) => e.loanId).toSet().toList();
 
-  /// Sum of every currently-payable installment for this customer — this is
-  /// what gets prefilled into the Collect form.
   double get totalDue => items.fold(0.0, (sum, i) => sum + i.dueAmount);
 
   double get totalPenalty =>
@@ -268,8 +245,6 @@ class AgentCustomerGroup {
 
   double get totalDueWithPenalty => totalDue + totalPenalty;
 
-  /// Sum of the full outstanding loan balance(s), de-duplicated per loan.
-  /// Falls back to [totalDue] if the backend doesn't send a balance figure.
   double get totalOutstanding {
     final seenLoans = <String>{};
     double sum = 0;
@@ -309,8 +284,6 @@ class AgentCustomerGroup {
       (latitude != null && longitude != null) ||
       (address != null && address!.trim().isNotEmpty);
 
-  /// Simple case-insensitive filter across the customer's name, unique
-  /// customer id, and every loan number/id they have due.
   bool matchesQuery(String query) {
     final q = query.trim().toLowerCase();
     if (q.isEmpty) return true;

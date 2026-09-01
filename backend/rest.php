@@ -24,6 +24,7 @@ $controllers = [
     'chit_members'       => ChitMemberController::class,
     'chit_schedules'     => ChitGroupController::class,
     'chit_payments'      => ChitPaymentController::class,
+    'chit_passbook'      => ChitPassbookController::class,
     'notifications'      => NotificationController::class,
     'settings'           => SettingController::class,
     'push_subscriptions' => PushSubscriptionController::class,

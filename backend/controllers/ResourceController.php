@@ -95,7 +95,7 @@ class ResourceController extends Controller
         // a customer's loans, a loan's collections and a chit member's
         // contributions all reference rows above them, and destroying the
         // parent would either orphan or erase real financial history.
-        if (table_has_delflag($model::table())) {
+        if (table_has_delflag($model::table()) && self::targetsSingleRecord()) {
             $claims = $this->requireAuth();
             $this->beforeSoftDelete($doomed);
             $model::updateWhere(
@@ -110,6 +110,10 @@ class ResourceController extends Controller
             // Mirror what ON DELETE CASCADE used to do for us.
             soft_delete_cascade($model::table(), $doomed, $claims['sub'] ?? null);
         } else {
+            // Either the table has no flag, or this is a bulk rebuild by a
+            // parent key — regenerating a repayment schedule replaces its rows,
+            // and leaving flagged copies behind would keep inflating the loan's
+            // outstanding balance on every recalculation.
             $model::deleteWhere($where, $binds);
         }
 

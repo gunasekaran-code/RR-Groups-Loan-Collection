@@ -1,7 +1,5 @@
 import 'package:intl/intl.dart';
 
-/// Canonical entry_type values accepted by AccountLedger on the PHP API.
-/// The UI picker labels map to these database values.
 class LedgerEntryType {
   static const cashIn = 'cash_in';
   static const capitalInjection = 'capital';
@@ -13,7 +11,6 @@ class LedgerEntryType {
   static const overdueDebtAdjustment = 'lent_overdue';
   static const debtRecovered = 'lent_collected';
 
-  /// Types that belong to the "Cash In Hand" bucket.
   static const cashInHandTypes = {
     cashIn,
     capitalInjection,
@@ -21,7 +18,6 @@ class LedgerEntryType {
     cashOut,
   };
 
-  /// Types that belong to the "Outstanding Lent" bucket.
   static const outstandingLentTypes = {
     moneyLent,
     activeDebtAdjustment,
@@ -29,7 +25,6 @@ class LedgerEntryType {
     debtRecovered,
   };
 
-  /// Types that reduce the balance (shown as negative / red in the UI).
   static const negativeTypes = {
     officeExpense,
     cashOut,
@@ -37,7 +32,6 @@ class LedgerEntryType {
     debtRecovered, // money recovered leaves "outstanding", handled per-section
   };
 
-  /// Human labels shown in the bottom-sheet picker, grouped for the UI.
   static const Map<String, String> labels = {
     cashIn: 'Cash In',
     capitalInjection: 'Capital Injection',
@@ -53,8 +47,6 @@ class LedgerEntryType {
 
   static bool isCashInHand(String type) => cashInHandTypes.contains(type);
 
-  /// Keeps entries saved by older Flutter builds visible in their intended
-  /// section. Saving one of those entries writes the canonical API value.
   static String normalize(String type) {
     switch (type) {
       case 'capital_injection':
@@ -96,18 +88,11 @@ class AccountLedgerEntry {
     this.createdAt,
   });
 
-  /// Section this entry belongs to, derived from entry_type.
   String get section => LedgerEntryType.isCashInHand(entryType)
       ? 'Cash In Hand'
       : 'Outstanding Lent';
-
-  /// Whether this entry adds to the balance (green / "+") or subtracts (red / "-").
   bool get isPositive => !LedgerEntryType.negativeTypes.contains(entryType);
-
-  /// Human readable label for the picker / table.
   String get typeLabel => LedgerEntryType.labelFor(entryType);
-
-  /// Formatted amount string like "+ ₹750" or "- ₹500".
   String get displayAmount {
     final formatted = NumberFormat.currency(
       locale: 'en_IN',
@@ -116,8 +101,6 @@ class AccountLedgerEntry {
     ).format(amount);
     return '${isPositive ? '+' : '-'} $formatted';
   }
-
-  /// Formatted date like "18 Aug 2026" (matches the static sample data format).
   String get displayDate =>
       entryDate == null ? '' : DateFormat('d MMM yyyy').format(entryDate!);
 
@@ -136,7 +119,6 @@ class AccountLedgerEntry {
     );
   }
 
-  /// Payload for POST (create). Server generates id/created_at.
   Map<String, dynamic> toCreateJson() {
     return {
       'entry_type': entryType,
@@ -150,7 +132,6 @@ class AccountLedgerEntry {
     };
   }
 
-  /// Payload for PUT (update). Includes id.
   Map<String, dynamic> toUpdateJson() {
     return {
       'id': id,
@@ -192,12 +173,7 @@ class AccountLedgerEntry {
   }
 }
 
-/// Live account-book totals returned by
-/// `account_book.php?action=summary`.
-///
-/// The API calculates these figures from the account ledger as well as the
-/// linked loan, chit, fund, and collection records, so this screen does not
-/// need to maintain duplicate totals on the client.
+
 class AccountLedgerSummary {
   const AccountLedgerSummary({
     required this.loanCollections,

@@ -482,7 +482,12 @@ class _DrawTable extends StatelessWidget {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minWidth: 640),
+        // tightFor, not minWidth alone: a minWidth-only BoxConstraints
+        // leaves maxWidth at infinity, which the header/data Rows below
+        // (Expanded cells) can't lay out against — "RenderFlex children
+        // have non-zero flex but incoming width constraints are
+        // unbounded", and the table silently fails to paint.
+        constraints: const BoxConstraints.tightFor(width: 640),
         child: Container(
           decoration: BoxDecoration(
             border: Border.all(color: AppColors.kBorder),
@@ -541,7 +546,6 @@ class _DrawRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final paid = draw.status == ChitDrawStatus.paid;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: const BoxDecoration(
@@ -570,7 +574,7 @@ class _DrawRow extends StatelessWidget {
             flex: 2,
             child: Align(
               alignment: Alignment.centerLeft,
-              child: _StatusPill(label: paid ? 'Paid' : 'Pending', paid: paid),
+              child: _StatusPill(status: draw.status),
             ),
           ),
         ],
@@ -590,7 +594,6 @@ class _DrawCardList extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: draws.map((d) {
-        final paid = d.status == ChitDrawStatus.paid;
         return Container(
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.all(14),
@@ -606,7 +609,7 @@ class _DrawCardList extends StatelessWidget {
                 children: [
                   Text('Draw #${d.drawNumber}',
                       style: const TextStyle(fontWeight: FontWeight.bold)),
-                  _StatusPill(label: paid ? 'Paid' : 'Pending', paid: paid),
+                  _StatusPill(status: d.status),
                 ],
               ),
               const SizedBox(height: 6),
@@ -632,6 +635,14 @@ class _DrawCardList extends StatelessWidget {
                   ),
                 ],
               ),
+              if (!d.isSettled && d.amountPaid > 0) ...[
+                const SizedBox(height: 10),
+                _MiniStat(
+                  label: 'Balance due',
+                  value: _fmtCurrency(d.balance),
+                  color: AppColors.kDanger,
+                ),
+              ],
             ],
           ),
         );
@@ -662,21 +673,47 @@ class _MiniStat extends StatelessWidget {
   }
 }
 
+/// Colors and labels for the four statuses the backend passbook stores —
+/// kept in step with the pill on the header card and the status column on
+/// the group's member table so the same draw reads the same way everywhere.
+String chitDrawStatusLabel(ChitDrawStatus status) {
+  switch (status) {
+    case ChitDrawStatus.paid:
+      return 'Paid';
+    case ChitDrawStatus.partial:
+      return 'Partial';
+    case ChitDrawStatus.overdue:
+      return 'Overdue';
+    case ChitDrawStatus.pending:
+      return 'Pending';
+  }
+}
+
+Color chitDrawStatusColor(ChitDrawStatus status) {
+  switch (status) {
+    case ChitDrawStatus.paid:
+      return AppColors.kSuccess;
+    case ChitDrawStatus.partial:
+      return const Color(0xFF2563EB);
+    case ChitDrawStatus.overdue:
+      return AppColors.kDanger;
+    case ChitDrawStatus.pending:
+      return const Color(0xFFD97706);
+  }
+}
+
 class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.label, required this.paid});
-  final String label;
-  final bool paid;
+  const _StatusPill({required this.status});
+  final ChitDrawStatus status;
 
   @override
   Widget build(BuildContext context) {
-    final fg = paid ? AppColors.kSuccess : AppColors.kTextMuted;
-    final bg = paid
-        ? AppColors.kSuccess.withOpacity(0.15)
-        : AppColors.kTextMuted.withOpacity(0.12);
+    final fg = chitDrawStatusColor(status);
+    final bg = fg.withOpacity(0.15);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
-      child: Text(label,
+      child: Text(chitDrawStatusLabel(status),
           style: TextStyle(color: fg, fontSize: 12, fontWeight: FontWeight.w600)),
     );
   }

@@ -10,6 +10,9 @@
 
 class ChitPaymentController extends ResourceController
 {
+    /** Members whose passbook a PATCH/DELETE is about to move money away from. */
+    private array $priorMemberIds = [];
+
     public function handle(): void
     {
         $claims = $this->requireAuth();
@@ -31,11 +34,54 @@ class ChitPaymentController extends ResourceController
             if ($role !== 'admin') {
                 json_error('Only administrators can amend chit passbook entries', 403);
             }
+            // An edit can reassign a contribution to another member, so
+            // remember the passbook it is leaving as well as the one it joins.
+            $this->priorMemberIds = $this->memberIdsMatchingFilter();
         } elseif ($method === 'GET' && $role === 'customer') {
             $this->scopeToOwnCustomer($claims);
         }
 
         parent::handle();
+    }
+
+    /**
+     * A contribution changes what every later draw in that member's passbook
+     * settles, so the stored statement is rebuilt inside the same request the
+     * money is recorded in — before the response goes back, so a client that
+     * refetches immediately reads the settled position.
+     */
+    protected function afterWrite(string $method, array $rows): void
+    {
+        $ids    = $this->priorMemberIds;
+        $groups = [];
+        foreach ($rows as $row) {
+            if (!empty($row['member_id'])) $ids[]    = $row['member_id'];
+            if (!empty($row['group_id']))  $groups[] = $row['group_id'];
+        }
+        // generate: a member can be added to a group whose draw sheet was
+        // never generated, and their passbook still has to exist.
+        ChitPassbookService::syncMembers($ids, true);
+
+        // A corrected or deleted contribution changes what the group has
+        // collected, and that total is summed rather than stepped, so it is
+        // right again whichever way the money moved.
+        foreach (array_unique($groups) as $groupId) {
+            ChitPassbookService::recalcGroupTotals((string)$groupId);
+        }
+    }
+
+    /** Member ids of the contributions the request's filter currently matches. */
+    private function memberIdsMatchingFilter(): array
+    {
+        $model = $this->model;
+        [$where, $binds] = QueryParser::where($model::columns());
+        if ($where === '') return [];
+
+        $ids = [];
+        foreach ($model::select($where, $binds) as $row) {
+            if (!empty($row['member_id'])) $ids[] = $row['member_id'];
+        }
+        return $ids;
     }
 
     /**

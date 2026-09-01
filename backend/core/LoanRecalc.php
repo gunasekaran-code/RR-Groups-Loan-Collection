@@ -46,14 +46,17 @@ class LoanRecalc
 
         $stmt = $pdo->prepare(
             'SELECT `collection_amount`, `notes`, `collection_date`
-               FROM `collections` WHERE `loan_id` = ?
+               FROM `collections` WHERE `loan_id` = ? AND `delflag` = 0
               ORDER BY `collection_date` ASC, `created_at` ASC'
         );
         $stmt->execute([$loanId]);
         $collections = $stmt->fetchAll();
 
         $stmt = $pdo->prepare(
-            'SELECT * FROM `repayment_schedule` WHERE `loan_id` = ? ORDER BY `installment_no` ASC'
+            // delflag = 0 matters here: the schedule screen reads through
+            // rest.php, which hides deleted rows, so summing them here made
+            // the Total Due tile disagree with the instalments listed below it.
+            'SELECT * FROM `repayment_schedule` WHERE `loan_id` = ? AND `delflag` = 0 ORDER BY `installment_no` ASC'
         );
         $stmt->execute([$loanId]);
         $rows = $stmt->fetchAll();
@@ -284,7 +287,28 @@ class LoanRecalc
             }
         }
 
-        $finalOutstanding = self::round2($totalBalance + $totalPenalty);
+        // outstanding_balance is what is still owed ON THE LOAN — it must never
+        // include the penalty. Folding penalty in made "Remaining Loan Balance"
+        // climb past the total repayment (a ₹1,30,000 loan reading ₹2,32,860), and
+        // it is a figure that should only ever fall as the borrower pays.
+        // The penalty is kept in penalty_amount and shown beside it as
+        // "Total Due + Penalty".
+        $finalOutstanding = self::round2($totalBalance);
+
+        // Safety net: the balance cannot exceed what the loan was ever worth.
+        // If it does, the schedule itself is wrong (historically, duplicated
+        // rows from repeated regeneration) — clamp so the books stay sane and
+        // leave a trace to find the cause.
+        $ceiling = (float)($loan['total_repayment'] ?? 0);
+        if ($ceiling <= 0) $ceiling = (float)($loan['loan_amount'] ?? 0);
+        if ($ceiling > 0 && $finalOutstanding > $ceiling + 0.01) {
+            error_log(sprintf(
+                'LoanRecalc: loan %s balance %.2f exceeds total repayment %.2f (%d schedule rows) - clamping',
+                $loan['loan_number'] ?? $loan['id'], $finalOutstanding, $ceiling, count($rows)
+            ));
+            $finalOutstanding = self::round2($ceiling);
+        }
+
         self::writeLoan($pdo, $loan, $finalOutstanding, null, $totalPenalty);
     }
 

@@ -58,7 +58,7 @@ class FinCollectApp extends StatelessWidget {
               navigatorKey: ToastService.navigatorKey,
               onGenerateTitle: (context) =>
                   AppLocalizations.of(context).appTitle,
-              debugShowCheckedModeBanner: false,
+              debugShowCheckedModeBanner: true,
               theme: AppTheme.light,
               darkTheme: AppTheme.dark,
               themeMode: themeMode,
@@ -158,9 +158,6 @@ class FinCollectApp extends StatelessWidget {
             const PromoPopupScreen(), UserRole.values);
         break;
       case AppRoutes.recycleBin:
-        // Backend's RecycleBinController is admin-only (requireAdmin()); the
-        // payload it returns includes raw snapshots of deleted rows,
-        // password hashes included, so this must stay admin-only here too.
         page = _guarded(
             const RecycleBinScreen(), const [UserRole.owner, UserRole.admin]);
         break;

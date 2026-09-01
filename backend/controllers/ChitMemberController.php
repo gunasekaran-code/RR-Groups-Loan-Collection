@@ -26,4 +26,22 @@ class ChitMemberController extends ResourceController
 
         parent::handle();
     }
+
+    /**
+     * A new member starts with a full passbook of unpaid draws, and an edited
+     * one may have moved group. Deletes need nothing: chit_passbook cascades
+     * from chit_members, so the statement goes with the member.
+     */
+    protected function afterWrite(string $method, array $rows): void
+    {
+        if ($method === 'DELETE') return;
+
+        $ids = [];
+        foreach ($rows as $row) {
+            if (!empty($row['id'])) $ids[] = $row['id'];
+        }
+        // generate: a group whose draw sheet was never built still owes this
+        // member a passbook, so the sheet is created from the scheme.
+        ChitPassbookService::syncMembers($ids, true);
+    }
 }

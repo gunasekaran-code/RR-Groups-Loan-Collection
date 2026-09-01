@@ -9,9 +9,6 @@ import '../../theme/glass_toast.dart';
 import '../../models/report_model.dart';
 import '../../services/report_service.dart';
 
-/// -----------------------------------------------------------------------
-/// HELPERS
-/// -----------------------------------------------------------------------
 String formatIndianCurrency(num value, {bool withSymbol = true}) {
   final isNegative = value < 0;
   final intVal = value.abs().round();
@@ -44,8 +41,6 @@ String formatCompact(num value) {
 
 String formatSlashDate(DateTime d) => DateFormat('dd/MM/yyyy').format(d);
 
-/// Formats an ISO-ish date/time string coming from the backend
-/// (e.g. "2026-07-30 14:05:00" or "2026-07-30") into "30/07/2026".
 String formatBackendDate(String raw) {
   if (raw.isEmpty) return '';
   final datePart = raw.split(' ').first.split('T').first;
@@ -54,21 +49,14 @@ String formatBackendDate(String raw) {
   return formatSlashDate(parsed);
 }
 
-/// Formats a backend timestamp into a short time string, e.g. "2:05 PM".
 String formatBackendTime(String raw) {
   final parsed = DateTime.tryParse(raw);
   if (parsed == null) return '';
   return DateFormat('h:mm a').format(parsed);
 }
 
-/// -----------------------------------------------------------------------
-/// MODELS (UI-local)
-/// -----------------------------------------------------------------------
 enum ReportTab { daily, monthly, agent }
 
-/// -----------------------------------------------------------------------
-/// SCREEN
-/// -----------------------------------------------------------------------
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
 
@@ -100,7 +88,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   @override
   void dispose() {
-    _scrollController.dispose(); // Properly dispose the scroll controller
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -113,8 +101,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
     try {
       switch (_tab) {
         case ReportTab.daily:
-          // Daily report is for a single date; use the end date of the
-          // selected range as "the day" being reported on.
           final report = await _reportService.fetchDailyReport(date: _endDate);
           if (!mounted) return;
           setState(() => _dailyReport = report);
@@ -189,9 +175,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
 
     try {
-      // TODO(backend): Hook up real Excel export here
-      // Example: await backendService.generateExcel();
-
       ToastService.show(
         title: l10n.reportsExportCompleteTitle,
         message: l10n.reportsExportCompleteMessage,
@@ -227,31 +210,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
             LayoutBuilder(
               builder: (context, constraints) {
                 final narrow = constraints.maxWidth < 380;
-                // final pdfBtn = OutlinedButton.icon(
-                //   onPressed: _exportPdf,
-                //   icon: const Icon(Icons.description_outlined, size: 18),
-                //   label: Text(l10n.reportsExportPdfButton),
-                // );
-                // final excelBtn = ElevatedButton.icon(
-                //   onPressed: _exportExcel,
-                //   icon: const Icon(Icons.file_download_outlined, size: 18),
-                //   label: Text(l10n.reportsExportExcelButton,
-                //       style: const TextStyle(fontWeight: FontWeight.w600)),
-                // );
                 if (narrow) {
                   return Column(
                     children: [
-                      // SizedBox(width: double.infinity, child: pdfBtn),
                       const SizedBox(height: 10),
-                      // SizedBox(width: double.infinity, child: excelBtn),
                     ],
                   );
                 }
                 return Row(
                   children: [
-                    // Expanded(child: pdfBtn),
                     const SizedBox(width: 12),
-                    // Expanded(child: excelBtn),
                   ],
                 );
               },
@@ -327,9 +295,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 }
 
-/// -----------------------------------------------------------------------
-/// ERROR STATE
-/// -----------------------------------------------------------------------
 class _ErrorState extends StatelessWidget {
   const _ErrorState({required this.message, required this.onRetry});
   final String message;
@@ -366,9 +331,6 @@ class _ErrorState extends StatelessWidget {
   }
 }
 
-/// -----------------------------------------------------------------------
-/// SEGMENTED TABS
-/// -----------------------------------------------------------------------
 class _SegmentedTabs extends StatelessWidget {
   const _SegmentedTabs({required this.selected, required this.onChanged});
   final ReportTab selected;
@@ -431,9 +393,6 @@ class _SegmentedTabs extends StatelessWidget {
   }
 }
 
-/// -----------------------------------------------------------------------
-/// DATE FIELD
-/// -----------------------------------------------------------------------
 class _DateField extends StatelessWidget {
   const _DateField({required this.date, required this.onTap});
   final DateTime date;
@@ -648,9 +607,6 @@ class _DailyReportSection extends StatelessWidget {
   }
 }
 
-/// -----------------------------------------------------------------------
-/// MONTHLY REPORT
-/// -----------------------------------------------------------------------
 class _MonthlyReportSection extends StatelessWidget {
   const _MonthlyReportSection({required this.report});
   final MonthlyReport report;
