@@ -214,18 +214,16 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
         customers: customers,
         agents: agents,
       );
-      final schedulesFuture = Future.wait(
-        loans.map((loan) async => MapEntry(
-              loan.id,
-              await LoanService.instance.fetchRepaymentSchedule(loan.id),
-            )),
+      final scheduleRows = await LoanService.instance.fetchRepaymentSchedulesForLoans(
+        loans.map((loan) => loan.id).toList(),
       );
-      final rowsFuture = CollectionApiService.fetchCollections();
-      final scheduleEntries = await schedulesFuture;
-      final rows = await rowsFuture;
-      final schedules = Map<String, List<RepaymentInstallment>>.fromEntries(
-        scheduleEntries,
+      final rows = await CollectionApiService.fetchCollections(
+        limit: 200,
+        order: 'collection_date.desc',
       );
+      final schedules = <String, List<RepaymentInstallment>>{
+        for (final entry in scheduleRows.entries) entry.key: entry.value,
+      };
       final mapped = rows.map(_mapRow).toList();
       if (!mounted) return;
       setState(() {

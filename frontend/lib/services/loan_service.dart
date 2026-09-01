@@ -13,22 +13,54 @@ class LoanService {
 
   final ApiClient _api = ApiClient.instance;
 
+  static final Map<String, List<Customer>> _customersCache = {};
+  static final Map<String, List<Agent>> _agentsCache = {};
+  static final Map<String, List<LoanRecord>> _loansCache = {};
+  static final Map<String, Map<String, List<RepaymentInstallment>>> _scheduleCache = {};
+
+  static Map<String, String> buildRepaymentScheduleQuery(
+    List<String> loanIds, {
+    int limit = 200,
+    String order = 'loan_id.asc,installment_no.asc',
+  }) {
+    final ids = loanIds.where((id) => id.trim().isNotEmpty).toSet().toList();
+    return {
+      if (ids.isNotEmpty) 'loan_id': 'in.(${ids.join(',')})',
+      if (ids.isNotEmpty) 'limit': limit.toString(),
+      if (ids.isNotEmpty) 'order': order,
+    };
+  }
+
   Future<List<Customer>> fetchCustomers() async {
+    if (_customersCache.containsKey('all')) {
+      return List.unmodifiable(_customersCache['all']!);
+    }
     final rows = await _api.list('customers');
-    return rows.map(Customer.fromJson).toList();
+    final customers = rows.map(Customer.fromJson).toList();
+    _customersCache['all'] = customers;
+    return List.unmodifiable(customers);
   }
 
   /// ASSUMPTION: agents are `profiles` rows with role == 'agent'. Adjust the
   /// table/query if agents are stored differently in your schema.
   Future<List<Agent>> fetchAgents() async {
+    if (_agentsCache.containsKey('all')) {
+      return List.unmodifiable(_agentsCache['all']!);
+    }
     final rows = await _api.list('profiles', query: {'role': 'agent'});
-    return rows.map(Agent.fromJson).toList();
+    final agents = rows.map(Agent.fromJson).toList();
+    _agentsCache['all'] = agents;
+    return List.unmodifiable(agents);
   }
 
   Future<List<LoanRecord>> fetchLoans({
     List<Customer> customers = const [],
     List<Agent> agents = const [],
   }) async {
+    final cacheKey = '${customers.length}_${agents.length}';
+    if (_loansCache.containsKey(cacheKey)) {
+      return List.unmodifiable(_loansCache[cacheKey]!);
+    }
     final rows = await _api.list('loans');
     final customerById = <String, Customer>{};
     for (final customer in customers) {
@@ -39,7 +71,7 @@ class LoanService {
     }
     final agentById = {for (final agent in agents) agent.id: agent};
 
-    return rows.map((row) {
+    final loans = rows.map((row) {
       final loan = LoanRecord.fromJson(row);
       final customer = loan.customerId == null
           ? null
@@ -61,13 +93,49 @@ class LoanService {
       }
       return loan;
     }).toList();
+    _loansCache[cacheKey] = loans;
+    return List.unmodifiable(loans);
+  }
+
+  Future<Map<String, List<RepaymentInstallment>>> fetchRepaymentSchedulesForLoans(
+    List<String> loanIds,
+  ) async {
+    final ids = loanIds.where((id) => id.trim().isNotEmpty).toSet().toList();
+    if (ids.isEmpty) return {};
+
+    final cacheKey = ids.join(',');
+    if (_scheduleCache.containsKey(cacheKey)) {
+      final cached = _scheduleCache[cacheKey]!;
+      return <String, List<RepaymentInstallment>>{
+        for (final entry in cached.entries)
+          entry.key: List.unmodifiable(entry.value),
+      };
+    }
+
+    final rows = await _api.list(
+      'repayment_schedule',
+      query: buildRepaymentScheduleQuery(ids),
+    );
+    final grouped = <String, List<RepaymentInstallment>>{};
+    for (final row in rows) {
+      final loanId = (row['loan_id'] ?? '').toString();
+      if (loanId.isEmpty) continue;
+      grouped.putIfAbsent(loanId, () => <RepaymentInstallment>[]);
+      grouped[loanId]!.add(RepaymentInstallment.fromJson(row));
+    }
+    for (final entry in grouped.entries) {
+      entry.value.sort((a, b) => a.installmentNo.compareTo(b.installmentNo));
+    }
+    _scheduleCache[cacheKey] = grouped;
+    return <String, List<RepaymentInstallment>>{
+      for (final entry in grouped.entries)
+        entry.key: List.unmodifiable(entry.value),
+    };
   }
 
   Future<List<RepaymentInstallment>> fetchRepaymentSchedule(String loanId) async {
-    final rows = await _api.list('repayment_schedule', query: {'loan_id': loanId});
-    final schedule = rows.map(RepaymentInstallment.fromJson).toList();
-    schedule.sort((a, b) => a.installmentNo.compareTo(b.installmentNo));
-    return schedule;
+    final grouped = await fetchRepaymentSchedulesForLoans([loanId]);
+    return grouped[loanId] ?? const <RepaymentInstallment>[];
   }
 
   Future<LoanRecord> createLoan(Map<String, dynamic> data) async {

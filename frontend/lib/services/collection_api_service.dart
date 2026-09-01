@@ -106,10 +106,20 @@ class CollectionApiService {
     });
   }
 
-  /// GET /collections -> raw list of rows from the `collections` table
-  static Future<List<Map<String, dynamic>>> fetchCollections() async {
+  /// GET /collections -> raw list of rows from the `collections` table.
+  /// Keep the payload small by applying reasonable pagination and ordering
+  /// on the server when the caller is browsing the admin list.
+  static Future<List<Map<String, dynamic>>> fetchCollections({
+    int limit = 200,
+    int offset = 0,
+    String order = 'collection_date.desc',
+  }) async {
     final res = await http.get(
-      _uri(),
+      _uri({
+        'limit': limit.toString(),
+        'offset': offset.toString(),
+        'order': order,
+      }),
       headers: await _headers(),
     );
 
